@@ -10,9 +10,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@apollo/client": "^4.1.6",
+    "@uiw/react-md-editor": "^4.0.11",
     "@xp/shared": "^1.0.0",
+    "graphql": "^16.13.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "rehype-sanitize": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

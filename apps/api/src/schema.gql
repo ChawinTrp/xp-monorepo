@@ -1,0 +1,30 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+input CreateNodeInput {
+  content: String
+  title: String!
+  type: String!
+}
+
+type Mutation {
+  createNode(createNodeInput: CreateNodeInput!): Node!
+}
+
+type Node {
+  _id: ID!
+  children: [ID]
+  content: String
+  mainParent: ID
+  parents: [ID]
+  progress: Float
+  status: String
+  title: String!
+  type: String!
+}
+
+type Query {
+  nodes: [Node!]!
+  ping: String!
+}
