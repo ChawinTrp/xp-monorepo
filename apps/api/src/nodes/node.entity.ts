@@ -8,18 +8,27 @@ export type NodeDocument = Node & Document;
 @ObjectType()
 export class Node {
   @Field(() => ID)
-  _id: string;
+  _id!: string;
 
   @Prop({ required: true })
   @Field(() => String)
-  title: string;
+  title!: string;
 
-  @Prop({ 
-    required: true, 
-    enum: ['DOMAIN', 'SKILL', 'PROJECT', 'TASK', 'NOTE', 'PERSON', 'IDEA', 'TAG'] 
+  @Prop({
+    required: true,
+    enum: [
+      'DOMAIN',
+      'SKILL',
+      'PROJECT',
+      'TASK',
+      'NOTE',
+      'PERSON',
+      'IDEA',
+      'TAG',
+    ],
   })
   @Field(() => String)
-  type: string;
+  type!: string;
 
   // The primary parent for clean UI tree navigation
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Node', required: false })
