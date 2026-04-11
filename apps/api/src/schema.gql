@@ -3,13 +3,19 @@
 # ------------------------------------------------------
 
 input CreateNodeInput {
+  children: [ID]
   content: String
+  mainParent: ID
+  parents: [ID]
+  progress: Float
+  status: String
   title: String!
   type: String!
 }
 
 type Mutation {
   createNode(createNodeInput: CreateNodeInput!): Node!
+  deleteNode(id: ID!): Node!
   updateNode(updateNodeInput: UpdateNodeInput!): Node!
 }
 
@@ -29,11 +35,17 @@ type Query {
   node(id: String!): Node!
   nodes: [Node!]!
   ping: String!
+  searchNodes(allowedTypes: [String], term: String): [Node!]!
 }
 
 input UpdateNodeInput {
   _id: ID!
+  children: [ID!]
   content: String
+  mainParent: ID
+  parents: [ID!]
+  progress: Float
+  status: String
   title: String
   type: String
 }

@@ -25,13 +25,12 @@ API Paradigm: GraphQL
 📂 Folder Structure
 
 xp-monorepo/
-├── package.json           # Root workspace configuration
+├── package.json # Root workspace configuration
 ├── apps/
-│   ├── api/               # NestJS Backend (Port 3000)
-│   └── web/               # React Vite Frontend (Port 5173)
+│ ├── api/ # NestJS Backend (Port 3000)
+│ └── web/ # React Vite Frontend (Port 5173)
 └── packages/
-    └── shared/            # Shared TypeScript interfaces (The glue!)
-
+└── shared/ # Shared TypeScript interfaces (The glue!)
 
 🚀 Getting Started
 
@@ -51,7 +50,6 @@ git clone <your-repo-url>
 cd xp-monorepo
 npm install
 
-
 2. Environment Setup
 
 (Note: Detailed .env setup will be added as the project progresses)
@@ -65,13 +63,11 @@ Start the Backend (NestJS / GraphQL API):
 
 npm run start:dev -w api
 
-
 API runs at: http://localhost:3000/graphql
 
 Start the Frontend (React):
 
 npm run dev -w web
-
 
 Web runs at: http://localhost:5173
 

@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { NodesService } from './nodes.service';
 import { Node } from './node.entity';
 import { CreateNodeInput } from './dto/create-node.input';
@@ -23,10 +23,25 @@ export class NodesResolver {
   findOne(@Args('id', { type: () => String }) id: string) {
     return this.nodesService.findOne(id);
   }
-
   // 🌟 NEW: Mutation to update a node
   @Mutation(() => Node)
   updateNode(@Args('updateNodeInput') updateNodeInput: UpdateNodeInput) {
     return this.nodesService.update(updateNodeInput._id, updateNodeInput);
+  }
+
+  // 🌟 NEW: Search Query with optional filtering
+  @Query(() => [Node], { name: 'searchNodes' })
+  searchNodes(
+    @Args('term', { type: () => String, nullable: true }) term?: string,
+    @Args('allowedTypes', { type: () => [String], nullable: 'itemsAndList' })
+    allowedTypes?: string[],
+  ) {
+    return this.nodesService.searchNodes(term || '', allowedTypes);
+  }
+
+  // 🌟 NEW: Mutation to delete a node
+  @Mutation(() => Node)
+  deleteNode(@Args('id', { type: () => ID }) id: string) {
+    return this.nodesService.remove(id);
   }
 }

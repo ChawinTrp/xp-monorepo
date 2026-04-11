@@ -27,9 +27,26 @@ export class NodesService {
     return node;
   }
 
+  // 🌟 NEW: Search Nodes for lazy-loaded Comboboxes
+  async searchNodes(term: string, allowedTypes?: string[]): Promise<Node[]> {
+    const query: any = {};
+
+    if (term) {
+      // Use MongoDB regex for partial, case-insensitive matching
+      query.title = { $regex: term, $options: 'i' };
+    }
+
+    if (allowedTypes && allowedTypes.length > 0) {
+      // Only return nodes that match the allowed types (Contextual Filtering)
+      query.type = { $in: allowedTypes };
+    }
+
+    // Limit results to 20 to keep the UI fast and prevent massive payloads
+    return this.nodeModel.find(query).limit(20).exec();
+  }
+
   // 🌟 NEW: Update a Node by ID with error handling
   async update(id: string, updateNodeInput: UpdateNodeInput): Promise<Node> {
-    // { new: true } tells Mongoose to return the updated object instead of the old one
     const updatedNode = await this.nodeModel
       .findByIdAndUpdate(id, updateNodeInput, { returnDocument: 'after' })
       .exec();
@@ -38,5 +55,14 @@ export class NodesService {
       throw new NotFoundException(`Node with ID ${id} not found`);
     }
     return updatedNode;
+  }
+  // 🌟 NEW: Delete a Node by ID
+  async remove(id: string): Promise<Node> {
+    const deletedNode = await this.nodeModel.findByIdAndDelete(id).exec();
+
+    if (!deletedNode) {
+      throw new NotFoundException(`Node with ID ${id} not found`);
+    }
+    return deletedNode;
   }
 }
