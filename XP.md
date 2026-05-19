@@ -1,77 +1,101 @@
 # Project XP: Master Architecture & System Design Document
 
-**Version:** 5.1 (Current Implementation)
+**Version:** 7.0 (Game + Orchestra; Vault → Obsidian)
 **Status:** Active Development
 **Lead Architect:** CT
-**Consultant:** Gemini (System Engineer & Solution Architect)
+
+---
 
 ## 1. Executive Summary
 
 **Project Name:** XP
-**Description:** A comprehensive web application combining Markdown-based knowledge management ("Vault"), advanced Graph-based Todo-list/Progress tracking ("Game"), and collaborative project/life management ("Orchestra"). Designed to serve as a personal life-organization system and a practical learning vehicle for system design.
+**Description:** A personal life operating system with two pillars — **The Game** (goal, skill, and task tracking with gamified XP progression) and **The Orchestra** (project management and relationship orchestration). XP does not manage free-form notes or ideas; that is the role of **Obsidian Second Brain**, which serves as the Vault. The two systems share a domain structure and tag system so they feel like one workspace.
 
-## 2. Functional Requirements (Features)
+### System Responsibilities
 
-_What the system must do._
+| System | Role |
+|--------|------|
+| **XP** | Structured, actionable data — Domains, Skills, Projects, Tasks, Persons, Tags, Routines. The Game + The Orchestra. |
+| **Obsidian Second Brain** | Knowledge base — hand-written notes, ideas, references. The Vault. |
+| **Sync (XP → Obsidian)** | XP pushes every node to Obsidian as a `.md` file on every mutation. Obsidian is read-only for XP data. |
 
-### 2.1 The Vault: Knowledge Management (Notion/Obsidian Hybrid)
+---
 
-- **Block-Based Editing:** Create, read, update, delete (CRUD) notes using a rich-text, Notion-style block editor (via `@blocknote/react`).
-- **Bi-directional Linking:** Note categorization and linking to connect knowledge to the Game graph.
-- **Interactive Graph Visualization:** An Obsidian-style visual graph representing connections between notes and tasks.
-- **Obsidian-Compatible Export (Future-Proofing):** A dedicated engine to export the entire MongoDB knowledge graph into a `.zip` file containing standard `.md` files, preserving folder hierarchy and converting internal links.
-- **Search:** Full-text search and tag filtering.
+## 2. Functional Requirements
 
-### 2.2 The Game: Task, Progress & Skill Tracking
+### 2.1 The Game: Goal, Skill & Task Tracking
 
-- **Graph-Based Hierarchy:** Nodes represent different entities (Life Areas, Skills, Projects, Tasks) with arbitrary depth.
-- **Multi-Parent Architecture:** A node can belong to multiple parents (e.g., Project "XP" belongs to "SWE", "DATA", and "PM").
-- **Primary Path Visualization:** While nodes can have multiple parents, a designated "Main Parent" provides a canonical path for simplified tree-view navigation and breadcrumbs when the full graph view is too dense.
-- **Tagging as Graph Relationships:** Tags are treated as first-class Nodes. Assigning a tag to an item simply means adding the Tag Node's ID to the item's `parents` array.
-- **Task & Commitment Tracking:** Actionable nodes (tasks) with statuses, priorities, and due dates.
-- **Upward Progress Propagation:** Completing a child node (Task) propagates XP/Progress upwards to its parent nodes (Project -> Skill -> Life Area).
+- **Graph-Based Hierarchy:** Nodes represent Domains, Skills, Projects, Tasks, Persons. Arbitrary depth, multi-parent connections.
+- **Multi-Parent Architecture:** A node can belong to multiple parents (e.g., "Project XP" under "SWE", "DATA", and "PM" domains).
+- **Primary Path (`mainParent`):** Canonical path for breadcrumbs and tree-view navigation. The full `parents` array powers the graph.
+- **Tagging as Graph Relationships:** TAG nodes are first-class. Assigning a tag = adding the Tag Node's ID to `parents`. Tags also sync as Obsidian `tags` frontmatter for cross-system filtering.
+- **Task Tracking:** TASK nodes with `status` (TODO / IN_PROGRESS / DONE), `priority`, `dueDate`.
+- **Upward Progress Propagation:** Completing a TASK propagates progress upward — TASK → PROJECT → SKILL → DOMAIN.
+- **Gamified Skill XP:** SKILLs accumulate XP from completed child tasks. XP thresholds unlock levels.
 
-### 2.3 The Orchestra: Collaborative & Life Management (v1.x+)
+### 2.2 The Orchestra: Project Management & Relationships
 
-- **Relationship & Social Management:** Tools to schedule periodic catch-ups (e.g., monthly board games), input overlapping availability times, and track social health.
-- **Group Utilities:** Integrated group management tools for voting/polling and splitting bills/money among linked `PERSON` nodes.
-- **Kanban Boards:** Visualizing `TASK` nodes as draggable cards grouped by their `status` (TODO, IN_PROGRESS, DONE) within a specific `PROJECT` scope.
-- **Agile Sprints:** Grouping `TASK` nodes into time-boxed iterations (Sprint planning).
-- **Gantt Chart Visualization:** Timeline-based visualization of `PROJECT` and `TASK` dependencies utilizing `startDate` and `dueDate` metadata.
-- **Collaborative Working:** Multi-user access control, allowing assignment of nodes to different users and real-time multiplayer updates.
+- **Kanban Boards:** TASK nodes as draggable cards grouped by `status` within a PROJECT scope.
+- **Agile Sprints:** TASK nodes grouped into time-boxed iterations with sprint planning and velocity.
+- **Gantt Chart:** Timeline view of PROJECT/TASK dependencies via `startDate` and `dueDate`.
+- **Relationship Management:** PERSON nodes with `email`, `phone`, `nextCatchupDate`, social health tracking.
+- **Group Utilities:** Voting/polling and bill-splitting among linked PERSON nodes.
+- **Collaborative Working (v1.x+):** Multi-user access, node assignment, real-time updates.
+
+### 2.3 Graph Visualization
+
+- **Interactive Graph View:** Canvas rendering the full node graph. Connections driven by `parents`/`children`.
+- **Filter by Type:** Toggle DOMAIN, SKILL, PROJECT, TASK, PERSON, TAG visibility independently.
+- **Obsidian Mirror:** XP pushes every node to Obsidian as `.md` on every mutation — Obsidian's graph view reflects the same graph with hand-written notes included (read-only for XP data).
+
+---
 
 ## 3. Non-Functional Requirements
 
-_How the system should behave._
-
 - **Performance:** Fast retrieval of deep nested graph data.
-- **Availability:** Accessible across multiple devices (Desktop, Mobile).
-- **Data Portability:** 100% data ownership guarantee via the Obsidian-Compatible Export feature.
+- **Availability:** Accessible across Desktop and Mobile.
+- **Data Portability:** Full graph mirrored to Obsidian Second Brain on every mutation (§11).
 - **Security:** Authentication to keep personal data private.
 
-## 4. Technology Stack & Architecture
+---
 
-_The tools and frameworks we are actively using to build XP._
+## 4. Technology Stack
 
 ### 4.1 Backend (API)
-- **Framework:** NestJS v11 (TypeScript).
-- **API Paradigm:** GraphQL (Code-First approach with `@nestjs/graphql` and Apollo Server v5.4.0).
-- **Database:** MongoDB via Mongoose.
-- **Database Connection (`app.module.ts`):**
+
+- **Framework:** NestJS v11 (TypeScript)
+- **API Paradigm:** GraphQL — Code-First (`@nestjs/graphql`, Apollo Server v5.4.0)
+- **Database:** MongoDB via Mongoose
+- **Connection (`app.module.ts`):**
   ```typescript
   MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb+srv://...');
   ```
 
 ### 4.2 Frontend (Web)
-- **Framework:** React 19 with TypeScript (Vite).
-- **Data Fetching:** Apollo Client v4.
-- **Rich Text Editor:** BlockNote v0.47 (`@blocknote/react`).
-- **Styling:** Tailwind CSS v3 (Custom Obsidian Dark Theme).
-- **Icons:** Lucide React.
 
-## 5. Data Model (The Universal `Nodes` Collection)
+- **Framework:** React 19 + TypeScript (Vite)
+- **Data Fetching:** Apollo Client v4
+- **Routing:** React Router v7
+- **Styling:** Tailwind CSS v3 (custom dark theme)
+- **Icons:** Lucide React
+- **Graph Visualization:** React Flow (`@xyflow/react`) — interactive node graph canvas
+- **Drag & Drop:** dnd-kit (`@dnd-kit/core`, `@dnd-kit/sortable`) — Kanban board
+- **Dates:** date-fns — lightweight date formatting/comparison for due dates, sprints, Gantt
+- **No rich text editor.** Node descriptions are plain text (`<textarea>`). `@blocknote/*` removed.
 
-We use a single collection in MongoDB to represent the entire Graph. All entities (Notes, Tasks, Projects) are "Nodes".
+### 4.3 Removed Dependencies
+
+| Package | Reason |
+|---------|--------|
+| `@blocknote/core` | No rich editor — NOTE/IDEA moved to Obsidian |
+| `@blocknote/react` | Same |
+| `@blocknote/mantine` | Same — also removes the Mantine dependency chain |
+
+---
+
+## 5. Data Model — The Universal `Nodes` Collection
+
+A single MongoDB collection represents the entire graph. All entities are Nodes.
 
 ### 5.1 Node Schema (`node.entity.ts`)
 
@@ -86,9 +110,10 @@ export class Node {
   @Field(() => String)
   title!: string;
 
+  // NOTE and IDEA are not XP types — they live in Obsidian Second Brain.
   @Prop({
     required: true,
-    enum: ['DOMAIN', 'SKILL', 'PROJECT', 'TASK', 'NOTE', 'PERSON', 'IDEA', 'TAG'],
+    enum: ['DOMAIN', 'SKILL', 'PROJECT', 'TASK', 'PERSON', 'TAG', 'ROUTINE'],
   })
   @Field(() => String)
   type!: string;
@@ -115,61 +140,550 @@ export class Node {
 
   @Prop({ required: false })
   @Field(() => String, { nullable: true })
-  content?: string; // Stringified JSON of BlockNote blocks
+  description?: string; // Plain text only. No rich editor.
+
+  @Prop({ type: Object, required: false })
+  @Field(() => GraphQLJSON, { nullable: true })
+  metadata?: Record<string, unknown>; // Type-specific fields (dueDate, xp, level, email, etc.)
+
+  @Prop({ required: false })
+  obsidianPath?: string; // Relative vault path — used for rename/delete tracking in sync.
 }
 ```
 
+> `metadata` is a flexible JSON object. Type-specific fields live here to keep the root schema stable.
+
+---
+
 ## 6. Backend Logic & Services
 
-### 6.1 `NodesService` (Core Logic)
-Handles CRUD operations and contextual search for graph connections.
+### 6.1 `NodesService`
 
-- `create(createNodeInput)`: Saves a new node.
-- `searchNodes(term, allowedTypes)`: Performs a regex-based search for UI comboboxes (e.g., finding allowed parents for a specific node type).
-- `update(id, updateNodeInput)`: Updates node properties and content.
-- `remove(id)`: Deletes a node.
+- `create(input)` → saves node, calls `ObsidianSyncService.upsertNode`
+- `searchNodes(term, allowedTypes)` → regex search for SmartSearch comboboxes
+- `update(id, input)` → updates node, calls `ObsidianSyncService.upsertNode`
+- `remove(id)` → deletes node, calls `ObsidianSyncService.deleteNode`
 
-### 6.2 `NodesResolver` (GraphQL API)
-Exposes queries and mutations to the frontend.
+### 6.2 `NodesResolver` (GraphQL)
 
-- **Queries:** `nodes`, `node(id)`, `searchNodes(term, allowedTypes)`.
-- **Mutations:** `createNode`, `updateNode`, `deleteNode`.
+- **Queries:** `nodes`, `node(id)`, `searchNodes(term, allowedTypes)`
+- **Mutations:** `createNode`, `updateNode`, `deleteNode`
 
-## 7. Frontend Implementation
+---
 
-### 7.1 Apollo Client Setup
-Initialized in `main.tsx` to connect to `http://localhost:3000/graphql`.
+## 7. Frontend Architecture
 
-### 7.2 BlockNote Integration
-The editor content is managed as a state of structured JSON blocks and saved to the `content` field in MongoDB.
+### 7.1 App Shell
 
-```typescript
-const editor = useCreateBlockNote();
-// ...
-const contentJSON = JSON.stringify(editor.document);
+```
+main.tsx          ← ApolloProvider + BrowserRouter
+Layout.tsx        ← Sidebar (domain tree nav) + TopBar + <Outlet/>
 ```
 
-### 7.3 Smart Search (Graph Connectivity)
-The `SmartSearchInput` component allows users to search for existing nodes and link them as `mainParent` or additional `parents` (bi-directional graph links).
+### 7.2 Route Structure
 
-## 8. Local Development & Testing Instructions
+| Route | View | Purpose |
+|-------|------|---------|
+| `/` | Dashboard | Quick stats: overdue tasks, in-progress projects, XP summary |
+| `/graph` | GraphView | React Flow canvas — full node graph, filterable by type |
+| `/kanban/:projectId?` | KanbanView | Task cards by status (TODO / IN_PROGRESS / DONE) with dnd-kit drag |
+| `/gantt/:projectId?` | GanttView | Timeline of projects/tasks by startDate–dueDate (Phase 8) |
+| `/node/:id` | NodeDetail | Single-node properties panel + description |
+| `/people` | PeopleView | PERSON grid — contact info, catch-up tracker |
+| `/skills` | SkillsView | SKILL tree — levels, XP bars, domain grouping |
 
-**Step 1: Start the Backend**
-1. Run: `npm run start:dev -w api`
-2. GraphQL Sandbox: `http://localhost:3000/graphql`
+### 7.3 Key Components
 
-**Step 2: Start the Frontend**
-1. Run: `npm run dev -w web`
-2. UI: `http://localhost:5173`
+| Component | Used in | Purpose |
+|-----------|---------|---------|
+| `SmartSearchInput` | NodeDetail, KanbanView | Search nodes, link as `mainParent` or `parents` |
+| `NodeCard` | KanbanView, Dashboard | Compact node representation (title, type badge, status, due date) |
+| `Sidebar` | Layout | Domain tree navigation + quick-create button |
+| `TypeBadge` | Everywhere | Colored chip for DOMAIN / SKILL / PROJECT / TASK / PERSON / TAG |
+| `ProgressBar` | NodeDetail, SkillsView | XP/progress visual bar |
 
-## 9. Implementation Roadmap & Status
+### 7.4 Node Detail Panel
 
-- ✅ **Phase 1-4: Foundation & Editor:** NestJS/React setup, MongoDB Atlas, GraphQL, and BlockNote integration.
-- ✅ **Phase 5: CRUD Operations:** Full ability to create, edit, and delete nodes.
-- ✅ **Phase 6: Graph Connectivity (CURRENT):** `parents`/`children` architecture implemented in schema and UI (SmartSearch).
-- 🔜 **Phase 7: The Game:** Progress propagation logic and multi-level hierarchy visualization.
+Structured properties panel (no rich editor). Fields rendered conditionally by type:
+
+| Type | Fields |
+|------|--------|
+| All | `title`, `description` (textarea), `parents` (SmartSearch), tags |
+| TASK | `status` dropdown, `progress` bar, `dueDate`, `priority` |
+| PROJECT | `status`, `progress` (computed), `startDate`, `dueDate` |
+| SKILL | `level`, `xp` (computed, read-only) |
+| PERSON | `email`, `phone`, `nextCatchupDate` |
+| TAG | color hex picker |
+
+### 7.5 GraphQL Layer
+
+```
+graphql/
+  queries.ts      ← GET_NODES, GET_NODE, SEARCH_NODES, GET_CHILDREN
+  mutations.ts    ← CREATE_NODE, UPDATE_NODE, DELETE_NODE
+hooks/
+  useNodes.ts     ← Apollo wrapper hooks with cache updates
+```
+
+---
+
+## 8. Local Development
+
+```bash
+# Terminal 1 — API  http://localhost:3000/graphql
+npm run start:dev -w api
+
+# Terminal 2 — Web  http://localhost:5173
+npm run dev -w web
+```
+
+---
+
+## 9. Implementation Roadmap
+
+- ✅ **Phase 1–5:** Foundation, CRUD — NestJS/React, MongoDB Atlas, GraphQL, full node CRUD.
+- ✅ **Phase 6:** Graph Connectivity — `parents`/`children` schema, SmartSearch UI, full frontend rewrite (multi-view Life OS UI with Catppuccin Mocha theme), ROUTINE node type added, seed data from Second Brain.
+- 🔜 **Phase 7: The Game** — Progress propagation, XP/level system on SKILLs, hierarchy visualization.
+- 🔜 **Phase 8: Orchestra Views** — Kanban, Gantt, Sprint planning UI.
+- 🔜 **Phase 9: Obsidian Sync** — `ObsidianSyncService` one-way push (§11).
+- 🔜 **Phase 10: Auth & Multi-user** — Authentication, collaborative access.
+
+---
 
 ## 10. Audit Log (Known Issues)
-- **Desync:** `children` array is currently not automatically updated when a `parent` is added.
-- **Propagation:** XP/Progress calculation logic is pending backend implementation.
-- **Workspace Resolution:** Brittle TypeScript resolution between `apps/web` and `packages/shared`.
+
+- **Desync:** `children` array not auto-updated when a `parent` is added — needs bidirectional write in `NodesService`.
+- **Propagation:** XP/Progress calculation logic pending.
+- **Workspace Resolution:** Brittle TypeScript path resolution between `apps/web` and `packages/shared`.
+
+---
+
+## 11. Obsidian Sync Layer (One-Way Push: XP → Obsidian)
+
+### 11.1 Design Principles
+
+- **XP is the source of truth.** MongoDB is canonical for all structured data.
+- **Obsidian is the Vault.** Hand-written notes and ideas live in Obsidian natively. XP nodes are pushed there as a mirror — never edit the XP-pushed files in Obsidian.
+- **One-way push only.** No CouchDB, no LiveSync, no watcher. NestJS writes files; Obsidian reads them.
+- **Every mutation triggers a sync.** `create`, `update`, `delete` in `NodesService` each call `ObsidianSyncService`.
+
+### 11.2 Vault Configuration
+
+| Setting | Value |
+|---------|-------|
+| **Vault root** | `C:\Projects\Obsidian\Second Brain\` |
+| **Env var** | `OBSIDIAN_VAULT_PATH` |
+
+### 11.3 Flat Folder Structure (Domain-Mirrored)
+
+XP nodes and hand-written notes coexist in the same domain-mirrored folders. The folder hierarchy is driven by XP DOMAIN nodes.
+
+```
+Second Brain/
+  Work/                              ← DOMAIN node (no mainParent)
+    Dev/                             ← DOMAIN node (mainParent: Work)
+      project_xp_<id>.md            ← PROJECT pushed from XP
+      task_1_<id>.md                 ← TASK pushed from XP
+      My note on system design.md    ← hand-written, Obsidian-native
+      _xp_index.md                   ← AUTO-GENERATED by XP sync (list of XP nodes in this domain)
+      _index.md                      ← MANUAL personal MOC — not touched by sync
+    Finance/
+      ...
+  Personal/
+    ...
+  Relationships/                     ← DOMAIN node
+    alice_<id>.md                    ← PERSON node pushed from XP
+  _tags/                             ← All TAG nodes pushed from XP
+    urgent_<id>.md
+    dev_<id>.md
+  _index.md                          ← Global home dashboard (manual, not touched by sync)
+```
+
+**Rules:**
+- Root DOMAIN nodes (no `mainParent`) → top-level folders under vault root.
+- Sub-DOMAIN nodes → subfolders mirroring the `mainParent` chain.
+- DOMAIN and PROJECT nodes with children → become folders. Their own file is `_index_xp_<id>.md` inside the folder (not `_xp_index.md`, which is the domain aggregate).
+- TAG nodes → `_tags/` subfolder.
+- Creating a new DOMAIN in XP auto-creates the folder and `_xp_index.md`.
+
+### 11.4 Index Pages (Hybrid)
+
+| File | Author | Content | Touched by sync? |
+|------|--------|---------|-----------------|
+| `_xp_index.md` | XP (auto) | Auto-generated list of all XP nodes in this domain with wikilinks | Yes — overwritten on every relevant mutation |
+| `_index.md` | You (manual) | Personal MOC — curated links, hand-written notes, context | Never |
+
+`_xp_index.md` example for `Work/Dev/`:
+```markdown
+---
+auto_generated: true
+domain: Dev
+updated: 2026-05-19T10:00:00Z
+---
+
+# XP Index — Dev
+
+## Projects
+- [[project_xp_683b...|Project XP]]
+- [[project_aura_683b...|Project Aura]]
+
+## Tasks
+- [[task_1_683b...|Task 1]] · IN_PROGRESS · due 2026-06-01
+- [[task_2_683b...|Task 2]] · TODO
+
+## Skills
+- [[swe_683b...|SWE]] · Level 2 · 340 XP
+```
+
+### 11.5 File Naming
+
+```
+{slugified-title}_{_id}.md
+```
+
+Slugify: lowercase, spaces and special chars → underscores. `_id` = 24-char MongoDB ObjectId hex.
+
+### 11.6 Frontmatter Schema
+
+Every XP-pushed file includes `aliases` (human-readable title for clean wikilinks) and `tags` (Obsidian native tags for cross-system filtering).
+
+```yaml
+---
+xp_id: 683b2f4e1a2b3c4d5e6f7890
+type: TASK
+title: Task 1
+aliases: ["Task 1"]          # ← enables [[Task 1]] wikilinks from hand-written notes
+tags: [urgent, dev]          # ← Obsidian native tags; shared with hand-written notes
+status: IN_PROGRESS
+progress: 40
+mainParent: 683b2f4e1a2b3c4d5e6f1111
+parents:
+  - 683b2f4e1a2b3c4d5e6f1111
+  - 683b2f4e1a2b3c4d5e6f2222
+children:
+  - 683b2f4e1a2b3c4d5e6f3333
+dueDate: 2026-06-01
+updatedAt: 2026-05-19T10:00:00.000Z
+---
+```
+
+Only fields with values are written. No empty/null keys.
+
+### 11.7 Tag System (Shared)
+
+Tags are unified across XP and Obsidian via two mechanisms:
+
+| Mechanism | Purpose |
+|-----------|---------|
+| `_tags/{name}_{id}.md` file | TAG node definition page. Obsidian backlinks panel shows all XP nodes that wikilink to it. |
+| `tags: [...]` in frontmatter | Obsidian native tag property. Enables `#urgent` filtering across ALL files — both XP-pushed and hand-written notes. |
+
+Hand-written notes use the same tag names in their frontmatter (`tags: [dev, learning]`) to participate in the shared tag filtering system. Obsidian's tag pane and search queries (`tag:#dev`) return results from both systems.
+
+### 11.8 File Body
+
+```markdown
+# Task 1
+
+[[project_xp_683b...|Project XP]]  [[urgent_683b...|urgent]]
+
+Plain text description here.
+```
+
+- `# {title}` header.
+- Wikilinks auto-generated from `parents` array — `[[{filename}|{title}]]` — powers Obsidian graph view.
+- `description` written as plain text.
+
+### 11.9 `obsidianPath` on Node
+
+Stored on the Node document for rename/delete without re-traversing the parent chain.
+
+```typescript
+obsidianPath?: string; // e.g. "Work/Dev/task_1_683b....md"
+```
+
+| Event | Action |
+|-------|--------|
+| Create | Compute path → write file → save `obsidianPath`. If new DOMAIN, create folder + `_xp_index.md`. |
+| Update (title or mainParent changed) | Delete old path → write new path → update `obsidianPath` → regenerate affected `_xp_index.md` files. |
+| Update (description / status / progress only) | Overwrite same path — `obsidianPath` unchanged. Regenerate `_xp_index.md` if status changed. |
+| Delete | Delete file at `obsidianPath` → regenerate affected `_xp_index.md`. |
+
+### 11.10 `ObsidianSyncService` Interface
+
+```typescript
+class ObsidianSyncService {
+  upsertNode(node: Node): Promise<void>          // create or update node file
+  deleteNode(node: Node): Promise<void>          // remove .md file
+  regenerateIndex(domainPath: string): Promise<void> // rebuild _xp_index.md for a domain
+  private buildPath(node: Node): string          // derive vault path from mainParent chain
+  private buildContent(node: Node): string       // frontmatter + wikilinks + description
+  private resolveTagNames(tagIds: string[]): Promise<string[]> // TAG id → title for frontmatter
+}
+```
+
+Called from `NodesService` after every successful `create`, `update`, or `remove`.
+
+---
+
+## 12. Use Cases
+
+All use cases are organized by pillar. Each describes WHO does WHAT, the TRIGGER, the FLOW, and the OUTCOME. These drive the frontend views and backend logic.
+
+### 12.1 Core — Node Management
+
+#### UC-C1: Create a Node
+**Actor:** CT
+**Trigger:** Click "+" button in Sidebar, or "Quick Create" from any view.
+**Flow:**
+1. Modal or inline form appears with: title (required), type selector (DOMAIN / SKILL / PROJECT / TASK / PERSON / TAG).
+2. Based on selected type, allowed `mainParent` options are filtered (per NODE.md §1).
+3. SmartSearch for `mainParent` — type-ahead against existing nodes.
+4. Optional: add `description` (textarea), `tags` (multi-select from existing TAG nodes or create new), additional `parents`.
+5. Type-specific fields appear: TASK gets `status`/`dueDate`/`priority`, PERSON gets `email`/`phone`, etc.
+6. Submit → `createNode` mutation → backend saves to MongoDB, auto-adds to parent's `children[]`, triggers Obsidian sync.
+**Outcome:** Node appears in Sidebar tree, Graph view, and relevant Kanban/views. `.md` file written to Obsidian vault.
+
+#### UC-C2: View/Edit a Node
+**Actor:** CT
+**Trigger:** Click any node from Sidebar, Graph, Kanban card, or direct URL (`/node/:id`).
+**Flow:**
+1. NodeDetail panel loads with all fields pre-filled.
+2. Editable: title, description, mainParent, parents, tags, type-specific metadata.
+3. Read-only computed fields: progress (for PROJECT — derived from children), XP/level (for SKILL — derived from propagation).
+4. "Connections" section shows: mainParent (breadcrumb path), parents (graph links), children (list with type badges).
+5. Save → `updateNode` mutation → Obsidian sync.
+**Outcome:** Changes persisted. If title or mainParent changed, Obsidian file moves to new path.
+
+#### UC-C3: Delete a Node
+**Actor:** CT
+**Trigger:** Delete button on NodeDetail, or context menu.
+**Flow:**
+1. Confirmation dialog showing impact: "This node has N children. They will become orphans (mainParent cleared)."
+2. On confirm → `deleteNode` mutation → removes from all parents' `children[]`, clears `mainParent` on orphaned children, deletes Obsidian file.
+**Outcome:** Node removed. Children re-parented or orphaned. Graph/Kanban/Sidebar updated.
+
+#### UC-C4: Search and Filter Nodes
+**Actor:** CT
+**Trigger:** Global search bar (Cmd+K / Ctrl+K), or filter controls on any view.
+**Flow:**
+1. Type-ahead search by title (regex match).
+2. Filter by: type (multi-select), status (for TASKs), tags, domain (mainParent chain).
+3. Results shown as a list with type badges, status chips, and breadcrumb paths.
+4. Click result → navigates to `/node/:id`.
+**Outcome:** Fast node lookup without navigating the tree manually.
+
+#### UC-C5: Navigate the Domain Tree
+**Actor:** CT
+**Trigger:** Sidebar always visible.
+**Flow:**
+1. Sidebar shows the full `mainParent` hierarchy as a collapsible tree.
+2. Root level: DOMAIN nodes with no mainParent.
+3. Expanding a DOMAIN shows its children (sub-DOMAINs, SKILLs, PROJECTs).
+4. Expanding a PROJECT shows its TASKs.
+5. Click any node → opens NodeDetail (`/node/:id`).
+6. Drag a node onto another → reparent (update `mainParent`).
+**Outcome:** Spatial awareness of the full life graph. Quick navigation.
+
+---
+
+### 12.2 The Game — Progress & Skill Tracking
+
+#### UC-G1: Complete a Task (Trigger Upward Propagation)
+**Actor:** CT
+**Trigger:** Set TASK status to `DONE` (via Kanban drag, NodeDetail dropdown, or quick-action checkbox).
+**Flow:**
+1. TASK `status` → `DONE`, `progress` → 100.
+2. Backend propagation engine fires:
+   a. Find TASK's `mainParent` (e.g., PROJECT).
+   b. Recalculate PROJECT `progress` = average of all children's progress (or weighted).
+   c. If PROJECT's parent is a SKILL → recalculate SKILL XP: `+N XP` for completed task.
+   d. If SKILL XP crosses a threshold → SKILL `level` increments.
+   e. Continue up to DOMAIN if applicable (DOMAIN progress = aggregate of children).
+3. All affected nodes trigger Obsidian sync.
+**Outcome:** Completing one task ripples XP/progress up the entire hierarchy. Skill levels up. Visible in SkillsView and Dashboard.
+
+#### UC-G2: View Skill Progression
+**Actor:** CT
+**Trigger:** Navigate to `/skills` or click a SKILL node.
+**Flow:**
+1. SkillsView shows all SKILL nodes grouped by parent DOMAIN.
+2. Each SKILL card: title, current level, XP bar (current / next threshold), child projects count, recent activity.
+3. Click a SKILL → NodeDetail with full breakdown: child projects, their progress, contributing tasks.
+4. Historical XP gain chart (stretch goal — track XP over time).
+**Outcome:** Gamified view of personal growth. "Am I leveling up in SWE? What tasks contributed?"
+
+#### UC-G3: View the Full Life Graph
+**Actor:** CT
+**Trigger:** Navigate to `/graph`.
+**Flow:**
+1. React Flow canvas renders all nodes as interactive cards with edges from `parents`/`children`.
+2. Nodes colored by type (DOMAIN = blue, SKILL = green, PROJECT = orange, TASK = gray, PERSON = pink, TAG = yellow).
+3. Filter toggles per type — hide/show DOMAINs, TASKs, etc.
+4. Click a node → highlight its connections, show mini-detail panel.
+5. Double-click → navigate to `/node/:id`.
+6. Zoom/pan for large graphs. Auto-layout options (hierarchical top-down, force-directed).
+**Outcome:** Bird's-eye view of your entire life system. See how everything connects.
+
+#### UC-G4: Dashboard — Daily Overview
+**Actor:** CT
+**Trigger:** Navigate to `/` (home).
+**Flow:**
+1. **Overdue tasks:** TASKs with `dueDate < today` and `status != DONE`.
+2. **In-progress tasks:** TASKs with `status = IN_PROGRESS`, sorted by due date.
+3. **Recent completions:** Last 5 tasks marked DONE (with XP gained).
+4. **Skill summary:** Top 3 most-active SKILLs (by recent XP gain).
+5. **Upcoming catch-ups:** PERSON nodes with `nextCatchupDate` approaching.
+6. **Streak indicator:** Current daily streak count + weekly completion rate.
+**Outcome:** "What should I work on today?" answered in 5 seconds.
+
+#### Future Work — The Game (v2.x+)
+
+##### UC-G5: Time-Based XP on Tasks & Projects
+**Concept:** XP awarded is not flat — it scales with estimated effort and actual time invested.
+**Design:**
+1. TASKs gain `metadata.estimatedHours` and `metadata.actualHours` fields.
+2. XP formula: `baseXP * timeMultiplier` where `timeMultiplier = max(1, actualHours / 2)` — a 10-hour task gives 5× the XP of a 2-hour task.
+3. PROJECTs aggregate time from child TASKs. SKILL XP reflects total time invested across all contributing projects.
+4. Optional time-tracking integration: start/stop timer on a TASK to log `actualHours` automatically (stored in `metadata.timeEntries[]`).
+5. Dashboard shows: "This week: 12h invested → 340 XP earned."
+**Outcome:** XP reflects real effort, not just checkbox-counting. A weekend deep-dive project contributes more than 10 trivial tasks.
+
+##### UC-G6: World's Greatest Leaderboard — Benchmark Comparison
+**Concept:** Compare your skill hours and progress against benchmarks from the world's best in each domain. Context: "Where am I vs. where the greats were at this stage?"
+**Design:**
+1. Each SKILL or DOMAIN can have `metadata.benchmarks[]` — a curated list of reference points:
+   ```json
+   {
+     "name": "Anders Hejlsberg",
+     "domain": "Programming Languages",
+     "milestone": "Created TypeScript",
+     "estimatedHours": 50000,
+     "age": 52
+   }
+   ```
+2. LeaderboardView (`/leaderboard` or panel within SkillsView): your total hours and XP in a SKILL plotted on a timeline alongside the greats.
+3. Visual: horizontal bar chart or timeline — "You: 200h → Beginner. 10,000h = Mastery (Malcolm Gladwell). Anders Hejlsberg had ~50,000h when he created TypeScript."
+4. Benchmarks are user-curated (not auto-fetched). CT populates them manually or imports from a seed dataset.
+5. Motivational, not competitive — framing is "journey comparison", not ranking.
+**Outcome:** Perspective on the long game. "I've invested 200 hours in SWE — the greats had 10,000+. Keep going."
+
+##### UC-G7: Daily Task Streaks
+**Concept:** Track consecutive days where at least one TASK was completed. Streaks motivate consistency.
+**Design:**
+1. System-level `metadata` (global or per-user): `currentStreak`, `longestStreak`, `lastCompletionDate`.
+2. When a TASK is marked DONE:
+   a. If `lastCompletionDate == today` → no change (already counted today).
+   b. If `lastCompletionDate == yesterday` → `currentStreak++`.
+   c. If `lastCompletionDate < yesterday` → `currentStreak = 1` (streak broken).
+   d. Update `longestStreak = max(longestStreak, currentStreak)`.
+3. Dashboard shows: streak flame icon + count ("🔥 14 days"), longest streak record.
+4. Streak freeze (optional): spend earned XP to preserve streak on a rest day (1 freeze per week max).
+5. Weekly view: calendar heatmap showing completion density (GitHub-contribution-graph style).
+**Outcome:** Consistency > intensity. Small daily progress compounds. Visual motivation to not break the chain.
+
+##### UC-G8: Weekly Task Goals & Review
+**Concept:** Set a weekly target (e.g., "Complete 15 tasks this week") and track against it.
+**Design:**
+1. Weekly goal stored in system metadata: `weeklyTarget` (number of tasks), `weekStart` (day-of-week, default Monday).
+2. Dashboard widget: progress ring showing `completedThisWeek / weeklyTarget`.
+3. End-of-week auto-summary (generated on `weekStart`):
+   - Tasks completed vs. target.
+   - Top domains/skills where XP was earned.
+   - Streak status.
+   - Carry-over: incomplete IN_PROGRESS tasks flagged for next week.
+4. Weekly history: bar chart of tasks completed per week over the last 12 weeks — spot trends.
+5. Optional: per-PROJECT weekly goals (e.g., "Finish 5 XP tasks this week").
+**Outcome:** Weekly rhythm. Plan on Monday, execute through the week, review on Sunday. Prevents both overcommitting and coasting.
+
+---
+
+### 12.3 The Orchestra — Project Management
+
+#### UC-O1: Kanban Board — Manage Tasks by Status
+**Actor:** CT
+**Trigger:** Navigate to `/kanban` (all tasks) or `/kanban/:projectId` (scoped to a project).
+**Flow:**
+1. Three columns: TODO, IN_PROGRESS, DONE.
+2. Each task rendered as a `NodeCard`: title, type badge, due date, priority, tags, assignee.
+3. Drag a card between columns → updates `status` via `updateNode` mutation.
+4. Drag within a column → reorder (position stored in `metadata.sortOrder`).
+5. Click a card → slide-out NodeDetail panel (no full navigation — stay on Kanban).
+6. "+ Add Task" at the bottom of each column → inline create with project pre-filled as `mainParent`.
+7. Filter bar: by tag, priority, due date range.
+**Outcome:** Visual task flow. Move tasks through pipeline by dragging. Like Trello/Linear but backed by the XP graph.
+
+#### UC-O2: Gantt Chart — Timeline View (Phase 8)
+**Actor:** CT
+**Trigger:** Navigate to `/gantt` or `/gantt/:projectId`.
+**Flow:**
+1. Horizontal timeline with PROJECT and TASK bars plotted by `startDate` → `dueDate`.
+2. Bars colored by status (gray = TODO, blue = IN_PROGRESS, green = DONE).
+3. Dependency lines between tasks if `parents` relationship implies ordering.
+4. Drag bar edges to adjust dates → `updateNode` mutation.
+5. Hover a bar → tooltip with title, status, progress, assignee.
+**Outcome:** Timeline awareness. "Is Project XP on track? What overlaps with what?"
+
+#### UC-O3: Sprint Planning (Phase 8+)
+**Actor:** CT
+**Trigger:** Create a sprint from `/kanban/:projectId` or ProjectDetail.
+**Flow:**
+1. Sprint = a time-boxed grouping of TASKs. Stored as a TASK-like node with `type: SPRINT` in metadata (or a virtual grouping via date range).
+2. Select tasks → assign to sprint → sprint board shows only those tasks.
+3. Sprint burndown: tasks completed vs. remaining over the sprint window.
+4. Sprint retrospective: auto-summary of completed/incomplete at sprint end.
+**Outcome:** Agile-lite project management. Time-box work without heavyweight tools.
+
+#### UC-O4: People & Catch-Up Tracker
+**Actor:** CT
+**Trigger:** Navigate to `/people`.
+**Flow:**
+1. Grid of PERSON nodes: photo placeholder, name, email, phone, last catch-up date, next catch-up date.
+2. Sort by: next catch-up (soonest first), last contact (oldest first), domain grouping.
+3. Click a person → NodeDetail with: contact info, related projects/tasks (from `parents` links), catch-up history (from metadata).
+4. "Schedule Catch-Up" button → set `nextCatchupDate` in metadata.
+5. Overdue catch-ups highlighted (nextCatchupDate < today).
+**Outcome:** Never lose touch. "Who haven't I caught up with in a while?"
+
+#### UC-O5: Tag-Based Filtering Across Views
+**Actor:** CT
+**Trigger:** Click a tag chip on any node, or select tags in filter bar.
+**Flow:**
+1. Clicking a tag (e.g., "urgent") from any view → filters current view to only nodes with that tag in `parents`.
+2. Tag filter persists across view switches (Kanban → Graph → Dashboard — all filtered to "urgent").
+3. Tag management page (accessible via `_tags/` concept): list all tags, see node counts, edit colors.
+**Outcome:** Cross-cutting views. "Show me everything tagged 'urgent' regardless of project or domain."
+
+---
+
+### 12.4 Cross-Pillar — Obsidian Integration
+
+#### UC-X1: Auto-Sync on Every Mutation
+**Actor:** System (automatic)
+**Trigger:** Any `createNode`, `updateNode`, `deleteNode` mutation completes successfully.
+**Flow:**
+1. `NodesService` calls `ObsidianSyncService.upsertNode(node)` or `deleteNode(node)`.
+2. Service builds path from `mainParent` chain, writes `.md` file with frontmatter + wikilinks + description.
+3. Regenerates `_xp_index.md` for the affected domain.
+4. If `mainParent` or `title` changed → old file deleted, new file written, `obsidianPath` updated.
+**Outcome:** Obsidian vault always mirrors XP state. No manual export needed.
+
+#### UC-X2: Link a Hand-Written Obsidian Note to an XP Node
+**Actor:** CT (in Obsidian)
+**Trigger:** Writing a note in Obsidian and wanting to connect it to an XP project/task.
+**Flow:**
+1. In the Obsidian note's frontmatter, set `xp_link: [[Project XP]]` (using the alias).
+2. In the note body, write `[[Project XP]]` as a wikilink.
+3. Obsidian resolves both via the `aliases` frontmatter on the XP-pushed file.
+4. Obsidian's graph view now shows the hand-written note connected to the XP node.
+**Outcome:** Knowledge (Obsidian) and action (XP) linked visually in Obsidian's graph. No XP changes needed — the link is Obsidian-native.
+
+#### UC-X3: Browse XP Data in Obsidian
+**Actor:** CT (in Obsidian)
+**Trigger:** Open `_xp_index.md` in any domain folder, or browse XP-pushed files directly.
+**Flow:**
+1. `_xp_index.md` shows all XP nodes in that domain: projects with status, tasks with due dates, skills with levels.
+2. Click any wikilink → opens the XP-pushed node file with full frontmatter properties.
+3. Obsidian's backlinks panel shows hand-written notes that reference this XP node.
+4. Obsidian search (`tag:#dev`) finds both XP-pushed and hand-written files.
+**Outcome:** Read XP data without opening the XP app. Quick reference while writing notes.

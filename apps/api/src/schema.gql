@@ -4,14 +4,20 @@
 
 input CreateNodeInput {
   children: [ID]
-  content: String
+  description: String
   mainParent: ID
+  metadata: JSON
   parents: [ID]
   progress: Float
   status: String
   title: String!
   type: String!
 }
+
+"""
+The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
 
 type Mutation {
   createNode(createNodeInput: CreateNodeInput!): Node!
@@ -22,13 +28,16 @@ type Mutation {
 type Node {
   _id: ID!
   children: [ID]
-  content: String
+  createdAt: String
+  description: String
   mainParent: ID
+  metadata: JSON
   parents: [ID]
   progress: Float
   status: String
   title: String!
   type: String!
+  updatedAt: String
 }
 
 type Query {
@@ -41,8 +50,9 @@ type Query {
 input UpdateNodeInput {
   _id: ID!
   children: [ID!]
-  content: String
+  description: String
   mainParent: ID
+  metadata: JSON
   parents: [ID!]
   progress: Float
   status: String

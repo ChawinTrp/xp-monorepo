@@ -17,7 +17,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "seed": "ts-node src/seed.ts"
   },
   "overrides": {
     "@apollo/server": "5.4.0"
@@ -27,11 +28,13 @@
     "@as-integrations/express5": "^1.1.2",
     "@nestjs/apollo": "^13.2.4",
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/graphql": "^13.2.4",
     "@nestjs/mongoose": "^11.0.4",
     "@nestjs/platform-express": "^11.0.1",
     "graphql": "^16.13.0",
+    "graphql-type-json": "^0.3.2",
     "mongoose": "^9.2.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"

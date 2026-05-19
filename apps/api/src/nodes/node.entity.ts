@@ -1,6 +1,19 @@
-import { ObjectType, Field, ID, Int, Float } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Float } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import GraphQLJSON from 'graphql-type-json';
+
+export const NODE_TYPES = [
+  'DOMAIN',
+  'SKILL',
+  'PROJECT',
+  'TASK',
+  'PERSON',
+  'TAG',
+  'ROUTINE',
+] as const;
+
+export type NodeType = (typeof NODE_TYPES)[number];
 
 export type NodeDocument = Node & Document;
 
@@ -14,33 +27,18 @@ export class Node {
   @Field(() => String)
   title!: string;
 
-  @Prop({
-    required: true,
-    enum: [
-      'DOMAIN',
-      'SKILL',
-      'PROJECT',
-      'TASK',
-      'NOTE',
-      'PERSON',
-      'IDEA',
-      'TAG',
-    ],
-  })
+  @Prop({ required: true, enum: NODE_TYPES })
   @Field(() => String)
   type!: string;
 
-  // The primary parent for clean UI tree navigation
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Node', required: false })
   @Field(() => ID, { nullable: true })
   mainParent?: string;
 
-  // Multi-parent support for the DAG (Directed Acyclic Graph)
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Node' }] })
   @Field(() => [ID], { nullable: 'itemsAndList' })
   parents?: string[];
 
-  // Children references
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Node' }] })
   @Field(() => [ID], { nullable: 'itemsAndList' })
   children?: string[];
@@ -55,7 +53,20 @@ export class Node {
 
   @Prop({ required: false })
   @Field(() => String, { nullable: true })
-  content?: string; // For markdown notes
+  description?: string;
+
+  @Prop({ type: Object, required: false })
+  @Field(() => GraphQLJSON, { nullable: true })
+  metadata?: Record<string, unknown>;
+
+  @Prop({ required: false })
+  obsidianPath?: string;
+
+  @Field(() => String, { nullable: true })
+  createdAt?: Date;
+
+  @Field(() => String, { nullable: true })
+  updatedAt?: Date;
 }
 
 export const NodeSchema = SchemaFactory.createForClass(Node);

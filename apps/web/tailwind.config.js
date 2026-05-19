@@ -4,15 +4,41 @@ export default {
   theme: {
     extend: {
       colors: {
-        obsidian: {
-          bg: "#1e1e1e", // Main editor background
-          sidebar: "#181818", // Slightly darker sidebar
-          accent: "#7a62cb", // Obsidian's classic purple highlight
-          text: "#dcddde", // Soft white text
-          muted: "#8b8b8b", // Secondary text
-          border: "#2f2f2f", // Subtle dividers
-          hover: "#2a2a2a", // Sidebar item hover state
+        ctp: {
+          base: "var(--base)",
+          mantle: "var(--mantle)",
+          crust: "var(--crust)",
+          surface0: "var(--surface0)",
+          surface1: "var(--surface1)",
+          surface2: "var(--surface2)",
+          overlay0: "var(--overlay0)",
+          overlay1: "var(--overlay1)",
+          overlay2: "var(--overlay2)",
+          text: "var(--text)",
+          subtext0: "var(--subtext0)",
+          subtext1: "var(--subtext1)",
+          accent: "var(--accent)",
+          red: "var(--red)",
+          green: "var(--green)",
+          yellow: "var(--yellow)",
+          orange: "var(--orange)",
+          blue: "var(--blue)",
+          pink: "var(--pink)",
+          teal: "var(--teal)",
         },
+        node: {
+          domain: "var(--c-domain)",
+          skill: "var(--c-skill)",
+          project: "var(--c-project)",
+          task: "var(--c-task)",
+          person: "var(--c-person)",
+          tag: "var(--c-tag)",
+          routine: "var(--c-routine)",
+        },
+      },
+      fontFamily: {
+        sans: ["Inter", "-apple-system", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
     },
   },

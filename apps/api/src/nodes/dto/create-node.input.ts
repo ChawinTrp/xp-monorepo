@@ -1,8 +1,8 @@
 import { InputType, Field, ID, Float } from '@nestjs/graphql';
+import GraphQLJSON from 'graphql-type-json';
 
 @InputType()
 export class CreateNodeInput {
-  // Strict mode assertions aligned
   @Field(() => String)
   title!: string;
 
@@ -10,9 +10,8 @@ export class CreateNodeInput {
   type!: string;
 
   @Field(() => String, { nullable: true })
-  content?: string;
+  description?: string;
 
-  // --- NEW GRAPH FIELDS ---
   @Field(() => ID, { nullable: true })
   mainParent?: string;
 
@@ -27,4 +26,7 @@ export class CreateNodeInput {
 
   @Field(() => Float, { nullable: true })
   progress?: number;
+
+  @Field(() => GraphQLJSON, { nullable: true })
+  metadata?: Record<string, unknown>;
 }
