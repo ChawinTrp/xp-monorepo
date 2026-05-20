@@ -1,209 +1,332 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import ForceGraph from 'force-graph';
 import { useNodes } from '../lib/hooks';
-import { TypeIcon, TypeBadge, StatusDot, ProgressBar, LevelBadge, Button, Dropdown, Icons } from '../components/ui';
+import { TypeBadge, StatusDot, ProgressBar, LevelBadge, Button, Icons } from '../components/ui';
+import { TypeIcon } from '../components/ui';
 import { TYPE_COLORS } from '../lib/types';
 
 interface GraphProps {
   onOpen: (id: string) => void;
 }
 
-const W = 1100;
-const H = 640;
+const NODE_RADIUS: Record<string, number> = {
+  DOMAIN: 12, SKILL: 8, PROJECT: 8, TASK: 5, PERSON: 7, TAG: 4, ROUTINE: 6,
+};
 
-function nodeDim(type: string) {
-  switch (type) {
-    case 'DOMAIN': return { w: 140, h: 60 };
-    case 'SKILL': return { w: 110, h: 54 };
-    case 'PROJECT': return { w: 120, h: 54 };
-    case 'TASK': return { w: 96, h: 44 };
-    case 'PERSON': return { w: 96, h: 54 };
-    case 'TAG': return { w: 70, h: 30 };
-    default: return { w: 100, h: 50 };
-  }
-}
+// Canvas can't resolve CSS variables — use the resolved Catppuccin Mocha hex values
+const CANVAS_COLORS: Record<string, string> = {
+  DOMAIN:  '#89b4fa', // blue
+  SKILL:   '#a6e3a1', // green
+  PROJECT: '#fab387', // peach
+  TASK:    '#9399b2', // overlay2
+  PERSON:  '#f5c2e7', // pink
+  TAG:     '#f9e2af', // yellow
+  ROUTINE: '#94e2d5', // teal
+};
+
+const FILTER_DEFAULTS: Record<string, boolean> = {
+  DOMAIN: true, SKILL: true, PROJECT: true, TASK: true,
+  PERSON: true, ROUTINE: true, TAG: false,
+};
 
 export default function Graph({ onOpen }: GraphProps) {
   const { nodes, byId } = useNodes();
+  const containerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const graphRef = useRef<any>(null);
+
   const [selected, setSelected] = useState<string | null>(null);
-  const [layout, setLayout] = useState('hierarchical');
-  const [filters, setFilters] = useState<Record<string, boolean>>({
-    DOMAIN: true, SKILL: true, PROJECT: true, TASK: true, PERSON: true, TAG: false,
-  });
-  const [zoom, setZoom] = useState(1);
+  const [filters, setFilters] = useState<Record<string, boolean>>(FILTER_DEFAULTS);
+  const [focusMode, setFocusMode] = useState(false);
 
-  const { positions, edges } = useMemo(() => {
-    const visibleNodes = nodes.filter((n) => filters[n.type]);
-    const positions: Record<string, { x: number; y: number }> = {};
-    const edges: { from: string; to: string; dashed: boolean }[] = [];
+  // Build graph data
+  const graphData = useMemo(() => {
+    const visibleIds = new Set(nodes.filter((n) => filters[n.type]).map((n) => n._id));
 
-    const tiers: Record<string, typeof visibleNodes> = {
-      DOMAIN_ROOT: [], DOMAIN_SUB: [], SKILL_PROJECT: [], TASK: [], PERSON: [],
-    };
+    const graphNodes = nodes.filter((n) => visibleIds.has(n._id)).map((n) => ({
+      id: n._id,
+      name: n.title,
+      type: n.type,
+      nodeRef: n,
+    }));
 
-    for (const n of visibleNodes) {
-      if (n.type === 'DOMAIN' && !n.mainParent) tiers.DOMAIN_ROOT.push(n);
-      else if (n.type === 'DOMAIN') tiers.DOMAIN_SUB.push(n);
-      else if (n.type === 'SKILL' || n.type === 'PROJECT') tiers.SKILL_PROJECT.push(n);
-      else if (n.type === 'TASK') tiers.TASK.push(n);
-      else if (n.type === 'PERSON') tiers.PERSON.push(n);
-    }
-
-    const place = (arr: typeof visibleNodes, y: number) => {
-      const step = W / (arr.length + 1);
-      arr.forEach((n, i) => { positions[n._id] = { x: step * (i + 1), y }; });
-    };
-
-    place(tiers.DOMAIN_ROOT, 80);
-    place(tiers.DOMAIN_SUB, 200);
-    place(tiers.SKILL_PROJECT, 340);
-    place(tiers.TASK, 470);
-    place(tiers.PERSON, 580);
-
-    for (const n of visibleNodes) {
-      if (n.mainParent && positions[n.mainParent]) {
-        edges.push({ from: n.mainParent, to: n._id, dashed: false });
+    const graphLinks: { source: string; target: string; dashed: boolean }[] = [];
+    for (const n of nodes) {
+      if (!visibleIds.has(n._id)) continue;
+      if (n.mainParent && visibleIds.has(n.mainParent)) {
+        graphLinks.push({ source: n.mainParent, target: n._id, dashed: false });
       }
-      // Show extra parents when a node is selected
-      if (selected && (selected === n._id || n.parents?.includes(selected))) {
-        for (const pid of (n.parents ?? [])) {
-          if (pid !== n.mainParent && positions[pid]) {
-            edges.push({ from: pid, to: n._id, dashed: true });
-          }
+      for (const pid of n.parents ?? []) {
+        if (pid !== n.mainParent && visibleIds.has(pid)) {
+          graphLinks.push({ source: pid, target: n._id, dashed: true });
         }
       }
     }
 
-    return { positions, edges };
-  }, [nodes, filters, selected]);
+    return { nodes: graphNodes, links: graphLinks };
+  }, [nodes, filters]);
+
+  // Neighbours for focus mode
+  const neighbours = useMemo(() => {
+    if (!selected) return new Set<string>();
+    const s = new Set<string>([selected]);
+    for (const l of graphData.links) {
+      const src = typeof l.source === 'object' ? (l.source as any).id : l.source;
+      const tgt = typeof l.target === 'object' ? (l.target as any).id : l.target;
+      if (src === selected) s.add(tgt);
+      if (tgt === selected) s.add(src);
+    }
+    return s;
+  }, [selected, graphData.links]);
+
+  // Mount force-graph instance — use callback ref pattern via a stable effect
+  useEffect(() => {
+    // Poll until the container is in the DOM and has dimensions
+    const el = containerRef.current;
+    if (!el) return;
+
+    const fg = new ForceGraph(el)
+      .backgroundColor('#181825')
+      .nodeRelSize(1)
+      .nodeVal((n: any) => (NODE_RADIUS[n.type] ?? 6) ** 2)
+      .nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        const r = NODE_RADIUS[node.type] ?? 6;
+        const color = CANVAS_COLORS[node.type] ?? '#cdd6f4';
+        const isSel = node.id === node.__selected;
+        const isDimmed = node.__focusMode && node.__selected && !node.__neighbours?.has(node.id);
+
+        ctx.globalAlpha = isDimmed ? 0.12 : 1;
+
+        // Selection ring
+        if (isSel) {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI);
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1.5;
+          ctx.globalAlpha = isDimmed ? 0 : 0.5;
+          ctx.stroke();
+          ctx.globalAlpha = isDimmed ? 0.12 : 1;
+        }
+
+        // Node circle — small, vivid stroke, very low fill
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = isSel ? color + '55' : color + '18'; // 33% sel / 9% normal
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isSel ? 2 : 1.5;
+        ctx.stroke();
+
+        // Label with dark pill background for readability
+        if (globalScale > 0.45 || isSel) {
+          const fontSize = Math.max(3, Math.min(12, 10 / globalScale));
+          ctx.font = `${isSel ? '600 ' : '500 '}${fontSize}px Inter, sans-serif`;
+          const label = node.name?.length > 20 ? node.name.slice(0, 18) + '…' : node.name;
+          const textW = ctx.measureText(label).width;
+          const padX = 3, padY = 1.5;
+          const tx = node.x;
+          const ty = node.y + r + 4;
+
+          // Pill background
+          ctx.fillStyle = 'rgba(17,17,27,0.82)';
+          ctx.beginPath();
+          ctx.roundRect(tx - textW / 2 - padX, ty - padY, textW + padX * 2, fontSize + padY * 2, 3);
+          ctx.fill();
+
+          // Text
+          ctx.fillStyle = isSel ? color : '#bac2de';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'top';
+          ctx.fillText(label, tx, ty);
+        }
+
+        ctx.globalAlpha = 1;
+      })
+      .nodeCanvasObjectMode(() => 'replace')
+      .linkCanvasObject((link: any, ctx: CanvasRenderingContext2D) => {
+        const src = link.source;
+        const tgt = link.target;
+        if (!src?.x || !tgt?.x) return;
+        const selId = link.__selected;
+        const isSel = selId && (src.id === selId || tgt.id === selId);
+        const isDimmed = link.__focusMode && selId && !isSel;
+
+        ctx.globalAlpha = isDimmed ? 0.04 : isSel ? 0.85 : 0.3;
+        ctx.strokeStyle = isSel ? '#cba6f7' : '#585b70';
+        ctx.lineWidth = isSel ? 2 : link.dashed ? 0.8 : 1.2;
+        ctx.setLineDash(link.dashed ? [4, 4] : []);
+        ctx.beginPath();
+        ctx.moveTo(src.x, src.y);
+        ctx.lineTo(tgt.x, tgt.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+      })
+      .linkCanvasObjectMode(() => 'replace')
+      .linkDirectionalArrowLength(4)
+      .linkDirectionalArrowRelPos(1)
+      .linkDirectionalArrowColor(() => '#6c7086')
+      .onNodeClick((node: any) => {
+        setSelected((prev) => {
+          const next = prev === node.id ? null : node.id;
+          fg.centerAt(node.x, node.y, 400);
+          if (next) fg.zoom(2.5, 400);
+          return next;
+        });
+      })
+      .onBackgroundClick(() => setSelected(null))
+      .d3AlphaDecay(0.02)
+      .d3VelocityDecay(0.3)
+      .warmupTicks(60)
+      .cooldownTicks(150);
+
+    graphRef.current = fg;
+
+    // Load initial data
+    fg.graphData(graphData);
+
+    // Fit after simulation settles
+    setTimeout(() => fg.zoomToFit(400, 60), 1200);
+
+    return () => {
+      // force-graph cleans up its canvas on _destructor or by clearing innerHTML
+      try { fg.pauseAnimation(); } catch (_) {}
+      el.innerHTML = '';
+      graphRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // mount once — data updates handled below
+
+  // Update graph data when nodes/filters change
+  useEffect(() => {
+    if (!graphRef.current) return;
+    graphRef.current.graphData(graphData);
+  }, [graphData]);
+
+  // Inject selection + focus state into node/link objects for canvas painter
+  useEffect(() => {
+    if (!graphRef.current) return;
+    const data = graphRef.current.graphData();
+    for (const n of data.nodes) {
+      n.__selected = selected;
+      n.__focusMode = focusMode;
+      n.__neighbours = neighbours;
+    }
+    for (const l of data.links) {
+      l.__selected = selected;
+      l.__focusMode = focusMode;
+    }
+    // No explicit refresh needed — force-graph repaints every rAF tick
+  }, [selected, focusMode, neighbours]);
+
+  // Resize observer — watches the canvas div (inset:0, matches parent size)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    // Use the parent for size since containerRef is position:absolute inset:0
+    const target = el.parentElement ?? el;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (width > 0 && height > 0 && graphRef.current) {
+        graphRef.current.width(Math.floor(width)).height(Math.floor(height));
+      }
+    });
+    ro.observe(target);
+    return () => ro.disconnect();
+  }, []);
+
+  const handleFitView = useCallback(() => {
+    graphRef.current?.zoomToFit(400, 60);
+    setSelected(null);
+  }, []);
 
   const selectedNode = selected ? byId[selected] : null;
 
   return (
     <div className="fade-in flex flex-col h-full" style={{ padding: '20px 24px' }}>
       {/* Toolbar */}
-      <div className="flex items-center gap-3.5 mb-3.5 pb-3.5" style={{ borderBottom: '1px solid var(--surface1)' }}>
-        <div className="flex gap-1.5">
-          {Object.entries(filters).map(([type, on]) => (
-            <button
-              key={type}
-              onClick={() => setFilters((f) => ({ ...f, [type]: !f[type] }))}
-              className="inline-flex items-center gap-1.5 rounded font-semibold uppercase cursor-pointer transition-all duration-200"
-              style={{
-                padding: '5px 10px', fontSize: 11, letterSpacing: 0.4, fontFamily: 'inherit',
-                background: on ? `color-mix(in srgb, ${TYPE_COLORS[type]} 18%, transparent)` : 'var(--surface0)',
-                color: on ? TYPE_COLORS[type] : 'var(--overlay1)',
-                border: `1px solid ${on ? TYPE_COLORS[type] : 'var(--surface1)'}`,
-              }}
-            >
-              <TypeIcon type={type} size={11} />
-              {type}
-            </button>
-          ))}
+      <div className="flex items-center gap-3 mb-3.5 pb-3.5 flex-wrap"
+        style={{ borderBottom: '1px solid var(--surface1)' }}>
+        <div className="flex gap-1.5 flex-wrap">
+          {Object.keys(FILTER_DEFAULTS).map((type) => {
+            const on = filters[type];
+            return (
+              <button key={type}
+                onClick={() => setFilters((f) => ({ ...f, [type]: !f[type] }))}
+                className="inline-flex items-center gap-1.5 rounded font-semibold uppercase cursor-pointer transition-all duration-200"
+                style={{
+                  padding: '5px 10px', fontSize: 11, letterSpacing: 0.4, fontFamily: 'inherit',
+                  background: on ? `color-mix(in srgb, ${TYPE_COLORS[type]} 18%, transparent)` : 'var(--surface0)',
+                  color: on ? TYPE_COLORS[type] : 'var(--overlay1)',
+                  border: `1px solid ${on ? TYPE_COLORS[type] : 'var(--surface1)'}`,
+                }}>
+                <TypeIcon type={type} size={11} />
+                {type}
+              </button>
+            );
+          })}
         </div>
+
         <div className="flex-1" />
-        <Dropdown value={layout} onChange={setLayout} options={[
-          { value: 'hierarchical', label: 'Hierarchical' },
-          { value: 'radial', label: 'Radial (preview)' },
-        ]} />
-        <div className="flex gap-1 rounded-md" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
-          <ZoomBtn onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))}>−</ZoomBtn>
-          <span className="mono min-w-[44px] text-center text-ctp-subtext1 py-1" style={{ fontSize: 11 }}>
-            {Math.round(zoom * 100)}%
-          </span>
-          <ZoomBtn onClick={() => setZoom((z) => Math.min(2, z + 0.1))}>+</ZoomBtn>
-          <ZoomBtn onClick={() => setZoom(1)}>Fit</ZoomBtn>
-        </div>
+
+        <button onClick={() => setFocusMode((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded font-semibold uppercase cursor-pointer transition-all duration-200"
+          style={{
+            padding: '5px 10px', fontSize: 11, letterSpacing: 0.4, fontFamily: 'inherit',
+            background: focusMode ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : 'var(--surface0)',
+            color: focusMode ? 'var(--accent)' : 'var(--overlay1)',
+            border: `1px solid ${focusMode ? 'var(--accent)' : 'var(--surface1)'}`,
+          }}>
+          <Icons.Target size={11} /> Focus
+        </button>
+
+        <button onClick={handleFitView}
+          className="inline-flex items-center gap-1.5 rounded cursor-pointer"
+          style={{
+            padding: '5px 10px', fontSize: 11, fontFamily: 'inherit',
+            background: 'var(--surface0)', color: 'var(--subtext1)',
+            border: '1px solid var(--surface1)',
+          }}>
+          <Icons.Layers size={11} /> Fit view
+        </button>
+
+        <span className="mono text-ctp-overlay1" style={{ fontSize: 11 }}>
+          {graphData.nodes.length} nodes · {graphData.links.length} links
+        </span>
       </div>
 
       {/* Canvas + side panel */}
       <div className="flex-1 flex gap-4 min-h-0">
-        <div className="flex-1 relative overflow-hidden rounded-xl" style={{
-          background: 'var(--mantle)',
-          border: '1px solid var(--surface1)',
-          backgroundImage: 'radial-gradient(circle, var(--surface1) 1px, transparent 1px)',
-          backgroundSize: '24px 24px',
-          backgroundPosition: '12px 12px',
-        }}>
-          <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" style={{ display: 'block' }}>
-            <defs>
-              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 z" fill="var(--overlay0)" />
-              </marker>
-            </defs>
-            <g transform={`translate(${(W * (1 - zoom)) / 2}, ${(H * (1 - zoom)) / 2}) scale(${zoom})`}>
-              {edges.map((e, i) => {
-                const a = positions[e.from];
-                const b = positions[e.to];
-                if (!a || !b) return null;
-                const isSel = selected && (selected === e.from || selected === e.to);
-                return (
-                  <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                    stroke={isSel ? 'var(--accent)' : 'var(--overlay0)'}
-                    strokeWidth={isSel ? 2.2 : (e.dashed ? 1 : 1.6)}
-                    strokeDasharray={e.dashed ? '4 4' : '0'}
-                    opacity={selected && !isSel ? 0.25 : 0.7}
-                    markerEnd="url(#arrow)"
-                  />
-                );
-              })}
-              {Object.entries(positions).map(([id, pos]) => {
-                const n = byId[id];
-                if (!n) return null;
-                const isSel = selected === id;
-                const dim = nodeDim(n.type);
-                const color = TYPE_COLORS[n.type];
-                return (
-                  <g key={id}
-                    transform={`translate(${pos.x - dim.w / 2}, ${pos.y - dim.h / 2})`}
-                    onClick={() => setSelected(id)}
-                    style={{ cursor: 'pointer' }}
-                    opacity={selected && !isSel ? 0.5 : 1}
-                  >
-                    {isSel && (
-                      <rect x={-4} y={-4} width={dim.w + 8} height={dim.h + 8} rx={10}
-                        fill="none" stroke={color} strokeWidth={2} opacity={0.5} />
-                    )}
-                    <rect x={0} y={0} width={dim.w} height={dim.h} rx={8}
-                      fill="var(--surface0)" stroke={color} strokeWidth={2} />
-                    <foreignObject x={0} y={0} width={dim.w} height={dim.h}>
-                      <div style={{
-                        width: '100%', height: '100%',
-                        display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', justifyContent: 'center',
-                        gap: 2, padding: 4, color: 'var(--text)',
-                      }}>
-                        <div className="flex items-center gap-1">
-                          <TypeIcon type={n.type} size={10} color={color} />
-                          <span className="font-semibold overflow-hidden text-ellipsis whitespace-nowrap"
-                            style={{ fontSize: n.type === 'TAG' ? 9 : 11, maxWidth: dim.w - 16 }}>{n.title}</span>
-                        </div>
-                        {n.type === 'SKILL' && <span className="mono text-[9px] font-bold" style={{ color: 'var(--c-tag)' }}>Lv.{(n.metadata as any)?.level}</span>}
-                        {n.type === 'TASK' && <StatusDot status={n.status ?? undefined} size={6} />}
-                        {n.type === 'PROJECT' && (
-                          <div className="overflow-hidden rounded-sm" style={{ width: '70%', height: 3, background: 'var(--surface1)' }}>
-                            <div style={{ width: `${n.progress ?? 0}%`, height: '100%', background: color }} />
-                          </div>
-                        )}
-                      </div>
-                    </foreignObject>
-                  </g>
-                );
-              })}
-            </g>
-          </svg>
+        {/*
+          Outer wrapper: React owns this div (legend + hint live here as siblings).
+          Inner canvasRef: force-graph owns this div exclusively — React never
+          adds/removes children from it, so no removeChild conflict.
+        */}
+        <div className="flex-1 relative overflow-hidden rounded-xl"
+          style={{ background: 'var(--mantle)', border: '1px solid var(--surface1)' }}>
 
-          {/* Minimap */}
-          <div className="absolute bottom-3 right-3 rounded-md" style={{
-            width: 140, height: 90,
-            background: 'var(--base)', border: '1px solid var(--surface1)', padding: 4,
-          }}>
-            <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%">
-              {Object.entries(positions).map(([id, pos]) => {
-                const n = byId[id];
-                return n ? <circle key={id} cx={pos.x} cy={pos.y} r={14} fill={TYPE_COLORS[n.type]} opacity={0.7} /> : null;
-              })}
-            </svg>
+          {/* force-graph mounts its canvas here — React must never touch children */}
+          <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+
+          {/* Legend — sibling of canvas div, safe for React to reconcile */}
+          <div className="absolute top-3 left-3 z-10 rounded-md flex flex-col gap-1.5 pointer-events-none"
+            style={{ background: 'rgba(24,24,37,0.85)', border: '1px solid var(--surface1)', padding: '10px 12px', backdropFilter: 'blur(4px)' }}>
+            {Object.entries(TYPE_COLORS)
+              .filter(([type]) => filters[type])
+              .map(([type, color]) => (
+                <div key={type} className="flex items-center gap-2">
+                  <span className="rounded-full shrink-0" style={{ width: 8, height: 8, background: color }} />
+                  <span className="uppercase font-semibold" style={{ fontSize: 10, letterSpacing: 0.5, color: 'var(--subtext1)' }}>{type}</span>
+                </div>
+              ))}
           </div>
+
+          {!selected && (
+            <div className="absolute bottom-3 left-3 z-10 pointer-events-none text-ctp-overlay0"
+              style={{ fontSize: 11 }}>
+              Click node to inspect · Drag to move · Scroll to zoom
+            </div>
+          )}
         </div>
 
         {selectedNode && (
@@ -214,34 +337,30 @@ export default function Graph({ onOpen }: GraphProps) {
   );
 }
 
-function ZoomBtn({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="bg-transparent border-none text-ctp-subtext1 cursor-pointer"
-      style={{ padding: '4px 10px', fontSize: 13, fontFamily: 'inherit' }}>{children}</button>
-  );
-}
-
 function GraphSidePanel({ node, onClose, onOpen }: { node: any; onClose: () => void; onOpen: (id: string) => void }) {
-  const { breadcrumb } = useNodes();
+  const { breadcrumb, childrenOf } = useNodes();
   const m = node.metadata as any ?? {};
   const bc = breadcrumb(node._id).map((c: any) => c.title).join(' / ');
+  const children = childrenOf[node._id] ?? [];
 
   return (
-    <div className="slide-right flex flex-col gap-3.5 rounded-xl" style={{
-      width: 320, background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 20,
-    }}>
+    <div className="slide-right flex flex-col gap-3.5 rounded-xl overflow-y-auto"
+      style={{ width: 300, background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 20 }}>
       <div className="flex justify-between items-start">
         <TypeBadge type={node.type} />
         <button onClick={onClose} className="bg-transparent border-none text-ctp-overlay1 cursor-pointer p-1">
           <Icons.X size={14} />
         </button>
       </div>
-      <h2 className="m-0 text-lg font-bold">{node.title}</h2>
-      <div className="mono text-ctp-subtext1" style={{ fontSize: 11 }}>{bc || '—'}</div>
+
+      <h2 className="m-0 font-bold" style={{ fontSize: 17 }}>{node.title}</h2>
+      {bc && <div className="mono text-ctp-subtext1" style={{ fontSize: 11 }}>{bc}</div>}
+
       {node.type === 'TASK' && (
         <>
-          <Row label="Status"><StatusDot status={node.status} /> <span>{node.status}</span></Row>
-          {m.priority && <Row label="Priority">{m.priority}</Row>}
+          <Row label="Status"><StatusDot status={node.status} /><span>{node.status}</span></Row>
+          {m.priority && <Row label="Priority"><span className="capitalize">{m.priority}</span></Row>}
+          {m.due && <Row label="Due"><span className="mono">{m.due}</span></Row>}
         </>
       )}
       {node.type === 'PROJECT' && (
@@ -263,11 +382,46 @@ function GraphSidePanel({ node, onClose, onOpen }: { node: any; onClose: () => v
           </div>
         </>
       )}
+      {node.type === 'ROUTINE' && (
+        <>
+          <Row label="Cadence"><span className="capitalize">{m.cadence}</span></Row>
+          <Row label="Streak"><span className="font-bold text-ctp-green">🔥 {m.streak ?? 0} days</span></Row>
+        </>
+      )}
+      {node.type === 'PERSON' && (
+        <>
+          {m.circle && <Row label="Circle">{m.circle}</Row>}
+          {m.role && <Row label="Role">{m.role}</Row>}
+        </>
+      )}
+
       {node.description && (
-        <div className="rounded-md" style={{ fontSize: 12, color: 'var(--subtext0)', padding: 10, background: 'var(--mantle)' }}>
+        <div className="rounded-md" style={{ fontSize: 12, color: 'var(--subtext0)', padding: 10, background: 'var(--mantle)', lineHeight: 1.5 }}>
           {node.description}
         </div>
       )}
+
+      {children.length > 0 && (
+        <div>
+          <div className="uppercase text-ctp-subtext1 mb-2" style={{ fontSize: 10, letterSpacing: 0.6 }}>
+            Children ({children.length})
+          </div>
+          <div className="flex flex-col gap-1">
+            {children.slice(0, 6).map((c: any) => (
+              <div key={c._id} className="flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer"
+                style={{ background: 'var(--mantle)', fontSize: 12 }}
+                onClick={() => onOpen(c._id)}>
+                <TypeIcon type={c.type} size={10} />
+                <span className="flex-1 truncate">{c.title}</span>
+              </div>
+            ))}
+            {children.length > 6 && (
+              <span className="text-ctp-overlay1" style={{ fontSize: 11 }}>+{children.length - 6} more</span>
+            )}
+          </div>
+        </div>
+      )}
+
       <Button variant="secondary" icon={<Icons.ArrowRight size={12} />} onClick={() => onOpen(node._id)}>
         Open full detail
       </Button>
@@ -278,7 +432,7 @@ function GraphSidePanel({ node, onClose, onOpen }: { node: any; onClose: () => v
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="uppercase min-w-[70px] text-ctp-subtext1" style={{ fontSize: 10, letterSpacing: 0.6 }}>{label}</span>
+      <span className="uppercase min-w-[64px] text-ctp-subtext1" style={{ fontSize: 10, letterSpacing: 0.6 }}>{label}</span>
       <div className="inline-flex items-center gap-1.5" style={{ fontSize: 13 }}>{children}</div>
     </div>
   );

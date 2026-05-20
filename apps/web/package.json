@@ -16,6 +16,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@xp/shared": "^1.0.0",
     "date-fns": "^4.2.1",
+    "force-graph": "^1.51.4",
     "graphql": "^16.13.0",
     "lucide-react": "^0.577.0",
     "react": "^19.2.0",
