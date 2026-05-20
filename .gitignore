@@ -1,4 +1,23 @@
 node_modules
-.env
 dist
+.env
+*.env.local
+
+# Claude Code
+.claude/worktrees/
+.claude-design/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build / cache
+*.tsbuildinfo
+coverage/
+
+# Misc
 GEMINI.md
