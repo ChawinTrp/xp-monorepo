@@ -148,18 +148,18 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   };
 
   return (
-    <div className="fade-in" style={{ padding: 32, maxWidth: 1100, margin: '0 auto' }}>
+    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1100, margin: '0 auto' }}>
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <button onClick={onClose} className="bg-transparent border-none text-ctp-subtext1 p-1 cursor-pointer inline-flex items-center gap-1"
+        <div className="flex items-center gap-2 mb-3" style={{ overflow: 'hidden' }}>
+          <button onClick={onClose} className="bg-transparent border-none text-ctp-subtext1 p-1 cursor-pointer inline-flex items-center gap-1 shrink-0"
             style={{ fontSize: 12, fontFamily: 'inherit' }}>
             <Icons.ChevronLeft size={14} /> Back
           </button>
-          <span className="text-ctp-overlay0">·</span>
-          <div className="mono flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--subtext1)' }}>
+          <span className="text-ctp-overlay0 shrink-0">·</span>
+          <div className="mono flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--subtext1)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
             {crumb.map((c) => (
-              <span key={c._id} className="flex items-center gap-1.5">
+              <span key={c._id} className="flex items-center gap-1.5 shrink-0">
                 <span onClick={() => onOpen(c._id)} className="cursor-pointer">{c.title}</span>
                 <Icons.ChevronRight size={10} color="var(--overlay0)" />
               </span>
@@ -167,9 +167,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
             <span className="text-ctp-text">{n.title}</span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <TypeBadge type={n.type} />
-          <h1 className="m-0 text-[28px] font-bold" style={{ letterSpacing: -0.4 }}>{n.title}</h1>
+          <h1 className="m-0 font-bold" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>{n.title}</h1>
           {isOverdue && (
             <span className="inline-flex items-center gap-1 font-semibold text-ctp-red rounded"
               style={{ fontSize: 11, padding: '3px 8px', background: 'color-mix(in srgb, var(--red) 14%, transparent)' }}>
@@ -182,15 +182,15 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         </div>
       </div>
 
-      {/* Two column */}
-      <div className="grid gap-6" style={{ gridTemplateColumns: '1.6fr 1fr' }}>
+      {/* Two column — stacks on mobile */}
+      <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
         <div className="flex flex-col gap-5">
           {/* Task/Routine action bar */}
           {(isTask || isRoutine) && !isDone && (
-            <div className="rounded-xl flex items-center gap-3" style={{
+            <div className="rounded-xl flex items-center gap-3 flex-wrap" style={{
               background: `linear-gradient(135deg, color-mix(in srgb, ${TYPE_COLORS[n.type]} 8%, var(--surface0)), var(--surface0))`,
               border: `1px solid color-mix(in srgb, ${TYPE_COLORS[n.type]} 20%, var(--surface1))`,
-              padding: 16,
+              padding: 'clamp(10px, 2vw, 16px)',
             }}>
               {isTask && (
                 <Button
@@ -515,7 +515,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       </div>
 
       {/* Footer */}
-      <div className="flex justify-end gap-3 mt-7 pt-5" style={{ borderTop: '1px solid var(--surface1)' }}>
+      <div className="flex justify-end gap-3 mt-7 pt-5 flex-wrap" style={{ borderTop: '1px solid var(--surface1)' }}>
         <Button variant="danger" icon={<Icons.Trash2 size={12} />} onClick={handleDelete}>Delete</Button>
         <Button icon={<Icons.Save size={12} />} onClick={handleSave} disabled={saving}>
           {saving ? 'Saving...' : 'Save changes'}
@@ -583,7 +583,7 @@ function SkillPicker({ linkedIds, onAdd, byId, byType, breadcrumb }: {
         <div
           className="absolute top-full left-0 mt-1 z-50 rounded-lg overflow-hidden"
           style={{
-            width: 300, maxHeight: 300,
+            width: 'min(300px, calc(100vw - 48px))', maxHeight: 300,
             background: 'var(--surface0)', border: '1px solid var(--surface1)',
             boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
           }}
@@ -747,7 +747,7 @@ function formatDuration(ms: number): string {
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 18 }}>
+    <div className="rounded-xl" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 'clamp(12px, 2vw, 18px)' }}>
       <div className="font-semibold uppercase mb-3 text-ctp-subtext0" style={{ fontSize: 11, letterSpacing: 0.8 }}>{title}</div>
       {children}
     </div>

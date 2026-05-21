@@ -132,9 +132,9 @@ export default function Gantt({ onOpen }: GanttProps) {
   const HEADER_H = 52;
 
   return (
-    <div className="fade-in flex flex-col h-full" style={{ padding: '24px 32px' }}>
+    <div className="fade-in flex flex-col h-full" style={{ padding: 'clamp(12px, 2vw, 24px) clamp(16px, 3vw, 32px)' }}>
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-4 pb-3" style={{ borderBottom: '1px solid var(--surface1)' }}>
+      <div className="flex items-center gap-3 mb-4 pb-3 flex-wrap" style={{ borderBottom: '1px solid var(--surface1)' }}>
         <Icons.Filter size={14} color="var(--subtext1)" />
         <Dropdown value={filter} onChange={setFilter} options={[
           { value: 'all', label: 'All projects' },
@@ -169,7 +169,7 @@ export default function Gantt({ onOpen }: GanttProps) {
       {/* Chart area */}
       <div className="flex flex-1 overflow-hidden rounded-xl" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
         {/* Left panel — names */}
-        <div className="shrink-0 overflow-y-auto" style={{ width: 220, borderRight: '1px solid var(--surface1)' }}>
+        <div className="shrink-0 overflow-y-auto" style={{ width: 'clamp(140px, 20vw, 220px)', borderRight: '1px solid var(--surface1)' }}>
           <div style={{ height: HEADER_H, borderBottom: '1px solid var(--surface1)' }} />
           {grouped.map(g => (
             <div key={g.project?._id ?? '__none'}>

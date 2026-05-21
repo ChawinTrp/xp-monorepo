@@ -67,15 +67,15 @@ export default function Calendar({ onOpen }: CalendarProps) {
   const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="fade-in" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
+    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1280, margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <button onClick={() => setCurrentMonth(m => subMonths(m, 1))}
             className="bg-transparent border-none cursor-pointer text-ctp-subtext1 hover:text-ctp-text p-1">
             <Icons.ChevronLeft size={20} />
           </button>
-          <h1 className="text-[28px] font-bold m-0" style={{ letterSpacing: -0.4, minWidth: 260, textAlign: 'center' }}>
+          <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4, minWidth: 200, textAlign: 'center' }}>
             {format(currentMonth, 'MMMM yyyy')}
           </h1>
           <button onClick={() => setCurrentMonth(m => addMonths(m, 1))}
@@ -124,7 +124,7 @@ export default function Calendar({ onOpen }: CalendarProps) {
                 key={i}
                 className="relative cursor-pointer hover:bg-ctp-mantle transition-colors"
                 style={{
-                  minHeight: 90,
+                  minHeight: 'clamp(60px, 12vw, 90px)' as any,
                   padding: 6,
                   borderRight: (i + 1) % 7 !== 0 ? '1px solid var(--surface1)' : 'none',
                   borderBottom: i < 35 ? '1px solid var(--surface1)' : 'none',

@@ -26,10 +26,10 @@ export default function Skills({ onOpen }: SkillsProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   return (
-    <div className="fade-in" style={{ padding: 32, maxWidth: 1100, margin: '0 auto' }}>
+    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1100, margin: '0 auto' }}>
       <div className="mb-6">
-        <h1 className="text-[28px] font-bold m-0" style={{ letterSpacing: -0.4 }}>Skills</h1>
-        <div className="flex gap-4 mt-3">
+        <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>Skills</h1>
+        <div className="flex gap-4 mt-3 flex-wrap">
           <Stat label="Skills" value={String(skills.length)} />
           <Stat label="Total hours" value={`${totalHours.toLocaleString()}h`} mono />
         </div>
@@ -109,7 +109,7 @@ function SkillCard({ skill, expanded, onToggle }: {
     <div
       onClick={onToggle}
       className="rounded-[10px] cursor-pointer transition-all duration-200"
-      style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 18 }}
+      style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 'clamp(12px, 2vw, 18px)' }}
       onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--surface2)'}
       onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--surface1)'}
     >
@@ -137,9 +137,11 @@ function SkillCard({ skill, expanded, onToggle }: {
         </div>
       </div>
 
-      <div className="flex items-center gap-3.5 mb-1.5">
-        <ProgressBar value={pct} color="var(--c-skill)" height={8} />
-        <span className="mono text-ctp-subtext0 min-w-[120px] text-right" style={{ fontSize: 12 }}>
+      <div className="flex items-center gap-2 mb-1.5" style={{ flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 120px', minWidth: 0 }}>
+          <ProgressBar value={pct} color="var(--c-skill)" height={8} />
+        </div>
+        <span className="mono text-ctp-subtext0" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
           {pct}% to next tier
         </span>
       </div>

@@ -81,13 +81,13 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   };
 
   return (
-    <div className="fade-in" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
-      <div className="flex items-end justify-between mb-6">
+    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1280, margin: '0 auto' }}>
+      <div className="flex items-end justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h1 className="text-[28px] font-bold m-0" style={{ letterSpacing: -0.4 }}>Routines</h1>
+          <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>Routines</h1>
           <div className="mono text-ctp-subtext1 mt-1.5" style={{ fontSize: 12 }}>Last 30 days · consistency tracking</div>
         </div>
-        <div className="flex gap-2.5">
+        <div className="flex gap-2.5 flex-wrap">
           <Dropdown value={selectedCadence} onChange={setSelectedCadence} options={[
             { value: 'all', label: 'All cadences' },
             { value: 'daily', label: 'Daily' },
@@ -103,7 +103,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-4 gap-3.5 mb-7" style={{ gridTemplateColumns: '1.4fr 1fr 1fr 1fr' }}>
+      <div className="mb-7" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
         <ConsistencyCard pct={overallPct} routineCount={routines.length} />
         <BigStat label="Longest streak" value={longestStreak} suffix=" days" color="var(--orange)"
           icon={<Icons.Flame size={20} color="var(--orange)" />} />
@@ -134,7 +134,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
       </div>
 
       {/* Cadence breakdowns */}
-      <div className="grid grid-cols-3 gap-3.5">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
         {['daily', 'weekly', 'monthly'].map((cadence) => {
           const cadenceRoutines = routines.filter(r => (r.metadata as any)?.cadence === cadence);
           const icons: Record<string, React.ReactNode> = {

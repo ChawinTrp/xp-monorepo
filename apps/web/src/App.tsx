@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNodes } from './lib/hooks';
 import { ToastProvider } from './components/ui';
 import Sidebar from './components/Sidebar';
@@ -23,11 +23,23 @@ const VIEW_LABELS: Record<string, string> = {
   routines: 'Routines', skills: 'Skills', people: 'People', graph: 'Graph', settings: 'Settings',
 };
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', h);
+    return () => window.removeEventListener('resize', h);
+  }, []);
+  return isMobile;
+}
+
 export default function App() {
   const { byId, breadcrumb, loading } = useNodes();
+  const isMobile = useIsMobile();
   const [view, setView] = useState<ViewId>('dashboard');
   const [openId, setOpenId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -37,7 +49,6 @@ export default function App() {
         e.preventDefault();
         setSearchOpen(true);
       }
-      // Ctrl+N to create
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         setCreateOpen(true);
@@ -47,15 +58,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', h);
   }, []);
 
-  const onOpen = (id: string) => {
+  const onOpen = useCallback((id: string) => {
     if (!byId[id]) return;
     setOpenId(id);
-  };
+    setMobileMenuOpen(false);
+  }, [byId]);
 
-  const onNavigate = (v: string) => {
+  const onNavigate = useCallback((v: string) => {
     setOpenId(null);
     setView(v as ViewId);
-  };
+    setMobileMenuOpen(false);
+  }, []);
 
   const closeDetail = () => setOpenId(null);
 
@@ -86,16 +99,44 @@ export default function App() {
   return (
     <ToastProvider>
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--base)' }}>
-      <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        view={view}
-        onNavigate={onNavigate as any}
-        onOpen={onOpen}
-        openId={openId}
-        onSearch={() => setSearchOpen(true)}
-        onCreate={() => setCreateOpen(true)}
-      />
+      {/* Mobile sidebar overlay */}
+      {isMobile && mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      {isMobile ? (
+        <div
+          className="fixed inset-y-0 left-0 z-50 transition-transform duration-200"
+          style={{ transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}
+        >
+          <Sidebar
+            collapsed={false}
+            setCollapsed={setCollapsed}
+            view={view}
+            onNavigate={onNavigate as any}
+            onOpen={onOpen}
+            openId={openId}
+            onSearch={() => { setSearchOpen(true); setMobileMenuOpen(false); }}
+            onCreate={() => { setCreateOpen(true); setMobileMenuOpen(false); }}
+          />
+        </div>
+      ) : (
+        <Sidebar
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+          view={view}
+          onNavigate={onNavigate as any}
+          onOpen={onOpen}
+          openId={openId}
+          onSearch={() => setSearchOpen(true)}
+          onCreate={() => setCreateOpen(true)}
+        />
+      )}
 
       <main className="flex-1 flex flex-col min-w-0" style={{ background: 'var(--base)' }}>
         <TopBar
@@ -103,6 +144,8 @@ export default function App() {
           view={view}
           onNavigate={onNavigate}
           inDetail={!!openId}
+          isMobile={isMobile}
+          onMenuToggle={() => setMobileMenuOpen(v => !v)}
         />
         <div className="flex-1 overflow-y-auto">
           {openId ? (

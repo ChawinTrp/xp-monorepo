@@ -40,18 +40,18 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="fade-in" style={{ padding: 32, maxWidth: 1320, margin: '0 auto' }}>
+    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1320, margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex items-baseline justify-between mb-6">
+      <div className="flex items-baseline justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h1 className="text-[28px] font-bold m-0" style={{ letterSpacing: -0.4 }}>Good morning, CT</h1>
+          <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>Good morning, CT</h1>
           <div className="mono text-ctp-subtext1 mt-1.5" style={{ fontSize: 12 }}>{dateLabel}</div>
         </div>
         <Button icon={<Icons.Plus size={14} />} onClick={onCreate}>Quick capture</Button>
       </div>
 
       {/* Stat row */}
-      <div className="grid grid-cols-4 gap-3.5 mb-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }} className="mb-6">
         <StatCard icon={<Icons.Flame size={20} color="var(--mantle)" strokeWidth={2.4} />}
           iconBg="linear-gradient(135deg, var(--orange), var(--red))"
           label="Streak" value={String(longestStreak)} suffix="days" />
@@ -66,7 +66,7 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
       </div>
 
       {/* Two columns */}
-      <div className="grid grid-cols-2 gap-5 mb-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }} className="mb-6">
         <Panel icon={<Icons.CheckSquare size={14} color="var(--c-task)" />} title="Tasks"
           accentColor="var(--c-task)" rightLabel={`${overdue.length + inProgress.length} active`}
           onMore={() => onNavigate('kanban')}>
@@ -114,7 +114,7 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
       </div>
 
       {/* Catch-ups */}
-      <div className="grid grid-cols-2 gap-5">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
         <Panel icon={<Icons.Users size={14} color="var(--c-person)" />} title="Upcoming catch-ups"
           accentColor="var(--c-person)" onMore={() => onNavigate('people')}>
           {people

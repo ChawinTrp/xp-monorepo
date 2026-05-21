@@ -164,8 +164,8 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
   };
 
   return (
-    <div className="fade-in flex flex-col h-full" style={{ padding: '24px 32px' }}>
-      <div className="flex items-center gap-3 mb-5 pb-4" style={{ borderBottom: '1px solid var(--surface1)' }}>
+    <div className="fade-in flex flex-col h-full" style={{ padding: 'clamp(12px, 2vw, 24px) clamp(16px, 3vw, 32px)' }}>
+      <div className="flex items-center gap-3 mb-5 pb-4 flex-wrap" style={{ borderBottom: '1px solid var(--surface1)' }}>
         {/* Mode toggle */}
         <div className="flex gap-0.5 p-0.5 rounded-md" style={{ background: 'var(--mantle)', border: '1px solid var(--surface1)' }}>
           {(['board', 'sprint'] as const).map(m => (
@@ -273,7 +273,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
         </div>
       )}
 
-      <div className="grid gap-4 flex-1 overflow-hidden" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(260px, 1fr))', gap: 16 }}>
         {COLUMNS.map((col) => {
           const colTasks = filtered.filter((t) => (t.status ?? 'TODO') === col.key);
           const isOver = overCol === col.key;

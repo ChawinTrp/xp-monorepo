@@ -28,11 +28,11 @@ export default function People({ onOpen }: PeopleProps) {
   const overdue = people.filter((p) => (p.metadata as any)?.catchupState === 'overdue');
 
   return (
-    <div className="fade-in" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
-      <div className="flex items-end justify-between mb-6">
+    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1280, margin: '0 auto' }}>
+      <div className="flex items-end justify-between mb-6 gap-3 flex-wrap">
         <div>
-          <h1 className="text-[28px] font-bold m-0" style={{ letterSpacing: -0.4 }}>People</h1>
-          <div className="flex gap-3.5 mt-2.5" style={{ fontSize: 12 }}>
+          <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>People</h1>
+          <div className="flex gap-3.5 mt-2.5 flex-wrap" style={{ fontSize: 12 }}>
             <span className="text-ctp-subtext1">{people.length} contacts</span>
             <span className="text-ctp-subtext1">·</span>
             <span className="text-ctp-subtext1">{GROUP_META.filter(g => byGroup[g.name]?.length).length} circles</span>
@@ -101,7 +101,7 @@ export default function People({ onOpen }: PeopleProps) {
                   </div>
                 </div>
               </header>
-              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', paddingLeft: 48 }}>
+              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', paddingLeft: 'clamp(0px, 5vw, 48px)' }}>
                 {members.map((p) => <PersonChip key={p._id} person={p} circleColor={meta.color} onOpen={onOpen} />)}
               </div>
             </section>
