@@ -5,6 +5,7 @@ import {
   CheckCircle, CalendarDays, GripVertical, X, Filter, Network, LayoutDashboard,
   Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, CalendarRange,
   TrendingUp, TrendingDown, Award, Sparkles, Play, Square, Clock, Timer,
+  GanttChart, Calendar,
   type LucideProps,
 } from 'lucide-react';
 import { TYPE_COLORS } from '../../lib/types';
@@ -15,6 +16,7 @@ export const Icons = {
   CheckCircle, CalendarDays, GripVertical, X, Filter, Network, LayoutDashboard,
   Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, CalendarRange,
   TrendingUp, TrendingDown, Award, Sparkles, Play, Square, Clock, Timer,
+  GanttChart, Calendar,
 };
 
 const TYPE_ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {

@@ -1,9 +1,9 @@
 import { Icons } from './ui';
 
-const VIEWS = ['dashboard', 'kanban', 'routines', 'graph', 'skills', 'people'] as const;
+const VIEWS = ['dashboard', 'kanban', 'gantt', 'calendar', 'routines', 'graph', 'skills', 'people'] as const;
 const VIEW_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard', kanban: 'Kanban', routines: 'Routines',
-  graph: 'Graph', skills: 'Skills', people: 'People',
+  dashboard: 'Dashboard', kanban: 'Kanban', gantt: 'Gantt', calendar: 'Calendar',
+  routines: 'Routines', graph: 'Graph', skills: 'Skills', people: 'People',
 };
 
 interface TopBarProps {

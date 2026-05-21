@@ -421,7 +421,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                     <div className="mono text-ctp-subtext0 text-right" style={{ fontSize: 11 }}>{progress}%</div>
                   </Field>
                   {m.due && <Field label="Due date"><span className="mono">{m.due}</span></Field>}
+                  {m.startDate && <Field label="Start date"><span className="mono">{m.startDate}</span></Field>}
                   {m.priority && <Field label="Priority"><span className="capitalize">{m.priority}</span></Field>}
+                  {m.sprint && <Field label="Sprint"><span className="font-semibold" style={{ color: 'var(--accent)' }}>{m.sprint}</span></Field>}
                 </>
               )}
               {n.type === 'PROJECT' && (

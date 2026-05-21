@@ -11,13 +11,15 @@ import Routines from './views/Routines';
 import Skills from './views/Skills';
 import People from './views/People';
 import Graph from './views/Graph';
+import Gantt from './views/Gantt';
+import Calendar from './views/Calendar';
 import NodeDetail from './views/NodeDetail';
 
-type ViewId = 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph';
+type ViewId = 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph' | 'gantt' | 'calendar';
 
 const VIEW_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard', kanban: 'Kanban', routines: 'Routines',
-  skills: 'Skills', people: 'People', graph: 'Graph',
+  dashboard: 'Dashboard', kanban: 'Kanban', gantt: 'Gantt', calendar: 'Calendar',
+  routines: 'Routines', skills: 'Skills', people: 'People', graph: 'Graph',
 };
 
 export default function App() {
@@ -132,6 +134,8 @@ function ViewRenderer({ view, onOpen, onNavigate, onCreate }: {
   switch (view) {
     case 'dashboard': return <Dashboard onOpen={onOpen} onNavigate={onNavigate} onCreate={onCreate} />;
     case 'kanban': return <Kanban onOpen={onOpen} onCreate={onCreate} />;
+    case 'gantt': return <Gantt onOpen={onOpen} />;
+    case 'calendar': return <Calendar onOpen={onOpen} />;
     case 'routines': return <Routines onOpen={onOpen} onCreate={onCreate} />;
     case 'skills': return <Skills onOpen={onOpen} />;
     case 'people': return <People onOpen={onOpen} />;
