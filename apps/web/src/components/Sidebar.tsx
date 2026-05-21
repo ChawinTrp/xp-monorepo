@@ -4,7 +4,7 @@ import { TYPE_COLORS } from '../lib/types';
 import type { XPNode } from '../lib/types';
 import { useNodes } from '../lib/hooks';
 
-type ViewId = 'dashboard' | 'kanban' | 'gantt' | 'calendar' | 'routines' | 'skills' | 'people' | 'graph';
+type ViewId = 'dashboard' | 'kanban' | 'gantt' | 'calendar' | 'routines' | 'skills' | 'people' | 'graph' | 'settings';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -157,17 +157,35 @@ export default function Sidebar({ collapsed, setCollapsed, view, onNavigate, onO
       {/* Footer */}
       <div style={{ padding: collapsed ? 10 : 14, borderTop: '1px solid var(--surface0)' }}>
         {collapsed ? (
-          <button
-            onClick={onCreate}
-            className="grid place-items-center rounded-lg border-none cursor-pointer mx-auto"
-            style={{ width: 36, height: 36, background: 'var(--accent)', color: 'var(--mantle)' }}
-          >
-            <Icons.Plus size={16} strokeWidth={2.4} />
-          </button>
+          <>
+            <button
+              onClick={onCreate}
+              className="grid place-items-center rounded-lg border-none cursor-pointer mx-auto mb-2"
+              style={{ width: 36, height: 36, background: 'var(--accent)', color: 'var(--mantle)' }}
+            >
+              <Icons.Plus size={16} strokeWidth={2.4} />
+            </button>
+            <button
+              onClick={() => onNavigate('settings')}
+              className="grid place-items-center rounded-lg border-none cursor-pointer mx-auto"
+              style={{ width: 36, height: 36, background: 'transparent', color: 'var(--overlay1)' }}
+            >
+              <Icons.Settings size={16} />
+            </button>
+          </>
         ) : (
-          <Button icon={<Icons.Plus size={14} />} onClick={onCreate} style={{ width: '100%', justifyContent: 'center' }}>
-            New node
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button icon={<Icons.Plus size={14} />} onClick={onCreate} style={{ width: '100%', justifyContent: 'center' }}>
+              New node
+            </Button>
+            <button
+              onClick={() => onNavigate('settings')}
+              className="inline-flex items-center gap-2 border-none cursor-pointer rounded-md px-3 py-2 w-full"
+              style={{ fontSize: 12, background: 'transparent', color: 'var(--overlay1)', fontFamily: 'inherit' }}
+            >
+              <Icons.Settings size={14} /> Settings
+            </button>
+          </div>
         )}
       </div>
     </aside>

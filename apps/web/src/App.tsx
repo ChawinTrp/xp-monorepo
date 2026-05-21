@@ -13,13 +13,14 @@ import People from './views/People';
 import Graph from './views/Graph';
 import Gantt from './views/Gantt';
 import Calendar from './views/Calendar';
+import Settings from './views/Settings';
 import NodeDetail from './views/NodeDetail';
 
-type ViewId = 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph' | 'gantt' | 'calendar';
+type ViewId = 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph' | 'gantt' | 'calendar' | 'settings';
 
 const VIEW_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', kanban: 'Kanban', gantt: 'Gantt', calendar: 'Calendar',
-  routines: 'Routines', skills: 'Skills', people: 'People', graph: 'Graph',
+  routines: 'Routines', skills: 'Skills', people: 'People', graph: 'Graph', settings: 'Settings',
 };
 
 export default function App() {
@@ -140,6 +141,7 @@ function ViewRenderer({ view, onOpen, onNavigate, onCreate }: {
     case 'skills': return <Skills onOpen={onOpen} />;
     case 'people': return <People onOpen={onOpen} />;
     case 'graph': return <Graph onOpen={onOpen} />;
+    case 'settings': return <Settings />;
     default: return null;
   }
 }

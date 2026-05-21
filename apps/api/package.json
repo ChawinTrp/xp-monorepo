@@ -34,6 +34,7 @@
     "@nestjs/mongoose": "^11.0.4",
     "@nestjs/platform-express": "^11.0.1",
     "dotenv": "^17.4.2",
+    "googleapis": "^172.0.0",
     "graphql": "^16.13.0",
     "graphql-type-json": "^0.3.2",
     "mongoose": "^9.2.3",

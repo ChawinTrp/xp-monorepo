@@ -1,22 +1,29 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
 import { CreateNodeInput } from './dto/create-node.input';
 import { UpdateNodeInput } from './dto/update-node.input';
 import { PropagationService } from './propagation.service';
+import { GCalService } from '../gcal/gcal.service';
 
 @Injectable()
 export class NodesService {
   constructor(
     @InjectModel(Node.name) private nodeModel: Model<NodeDocument>,
     private propagationService: PropagationService,
+    private gcalService: GCalService,
   ) {}
 
   async create(input: CreateNodeInput): Promise<Node> {
     const node = await new this.nodeModel(input).save();
 
     await this.addToParentChildren(node._id.toString(), node.mainParent, input.parents);
+
+    // GCal sync (fire-and-forget)
+    if (this.gcalService.isConnected()) {
+      this.gcalService.upsertEvent(node as NodeDocument).catch(() => {});
+    }
 
     return node;
   }
@@ -92,6 +99,11 @@ export class NodesService {
       await this.propagationService.onTaskCompleted(id);
     }
 
+    // GCal sync (fire-and-forget)
+    if (this.gcalService.isConnected()) {
+      this.gcalService.upsertEvent(updatedNode as NodeDocument).catch(() => {});
+    }
+
     return updatedNode;
   }
 
@@ -121,6 +133,11 @@ export class NodesService {
         { _id: { $in: node.children } },
         { $pull: { parents: id } },
       );
+    }
+
+    // GCal sync (fire-and-forget)
+    if (this.gcalService.isConnected()) {
+      this.gcalService.deleteEvent(node as NodeDocument).catch(() => {});
     }
 
     await this.nodeModel.findByIdAndDelete(id).exec();

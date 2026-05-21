@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { join } from 'path';
 import { PingResolver } from './ping.resolver';
 import { NodesModule } from './nodes/nodes.module';
+import { GCalModule } from './gcal/gcal.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { NodesModule } from './nodes/nodes.module';
       playground: true,
     }),
     NodesModule,
+    GCalModule,
   ],
   controllers: [AppController],
   providers: [AppService, PingResolver],
