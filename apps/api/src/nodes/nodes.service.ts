@@ -4,10 +4,14 @@ import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
 import { CreateNodeInput } from './dto/create-node.input';
 import { UpdateNodeInput } from './dto/update-node.input';
+import { PropagationService } from './propagation.service';
 
 @Injectable()
 export class NodesService {
-  constructor(@InjectModel(Node.name) private nodeModel: Model<NodeDocument>) {}
+  constructor(
+    @InjectModel(Node.name) private nodeModel: Model<NodeDocument>,
+    private propagationService: PropagationService,
+  ) {}
 
   async create(input: CreateNodeInput): Promise<Node> {
     const node = await new this.nodeModel(input).save();
@@ -78,6 +82,14 @@ export class NodesService {
           { $addToSet: { children: id } },
         );
       }
+    }
+
+    if (
+      input.status === 'DONE' &&
+      oldNode.status !== 'DONE' &&
+      updatedNode.type === 'TASK'
+    ) {
+      await this.propagationService.onTaskCompleted(id);
     }
 
     return updatedNode;

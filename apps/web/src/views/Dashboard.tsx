@@ -1,21 +1,40 @@
 import { useNodes } from '../lib/hooks';
-import { Icons, ProgressBar, LevelBadge, Avatar, RingGauge, Button } from '../components/ui';
+import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui';
 import NodeCard from '../components/NodeCard';
 
 interface DashboardProps {
   onOpen: (id: string) => void;
   onNavigate: (v: string) => void;
+  onCreate?: () => void;
 }
 
-export default function Dashboard({ onOpen, onNavigate }: DashboardProps) {
+export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardProps) {
   const { byType, breadcrumb } = useNodes();
   const tasks = byType('TASK');
+  const routines = byType('ROUTINE');
+  const allSkills = byType('SKILL');
 
-  const overdue = tasks.filter((t) => (t.metadata as any)?.overdue);
+  const overdue = tasks.filter((t) => {
+    const m = t.metadata as any;
+    if (!m?.due || t.status === 'DONE') return false;
+    return new Date(m.due) < new Date();
+  });
   const inProgress = tasks.filter((t) => t.status === 'IN_PROGRESS');
   const done = tasks.filter((t) => t.status === 'DONE');
-  const skills = byType('SKILL').slice(0, 3);
+  const skills = allSkills.slice(0, 3);
   const people = byType('PERSON');
+
+  // Computed stats
+  const longestStreak = routines.reduce((max, r) => Math.max(max, (r.metadata as any)?.streak ?? 0), 0);
+
+  const dailyRoutines = routines.filter(r => (r.metadata as any)?.cadence === 'daily');
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const dailyDoneToday = dailyRoutines.filter(r => (r.metadata as any)?.lastCheckInDate === todayStr).length;
+
+  const totalSkillHours = allSkills.reduce((sum, s) => sum + ((s.metadata as any)?.totalHours ?? 0), 0);
+
+  const weekTasks = tasks.filter(t => t.status !== 'DONE');
+  const weekDone = done.length;
 
   const today = new Date();
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -28,22 +47,22 @@ export default function Dashboard({ onOpen, onNavigate }: DashboardProps) {
           <h1 className="text-[28px] font-bold m-0" style={{ letterSpacing: -0.4 }}>Good morning, CT</h1>
           <div className="mono text-ctp-subtext1 mt-1.5" style={{ fontSize: 12 }}>{dateLabel}</div>
         </div>
-        <Button icon={<Icons.Plus size={14} />} onClick={() => onNavigate('kanban')}>Quick capture</Button>
+        <Button icon={<Icons.Plus size={14} />} onClick={onCreate}>Quick capture</Button>
       </div>
 
       {/* Stat row */}
       <div className="grid grid-cols-4 gap-3.5 mb-6">
         <StatCard icon={<Icons.Flame size={20} color="var(--mantle)" strokeWidth={2.4} />}
           iconBg="linear-gradient(135deg, var(--orange), var(--red))"
-          label="Streak" value="14" suffix="days" />
-        <StatCard icon={<RingGauge pct={80} color="var(--c-routine)" size={44} stroke={5} />}
-          label="Routines today" value="4" suffix="/ 5" />
-        <StatCard icon={<RingGauge pct={53} color="var(--accent)" size={44} stroke={5} />}
-          label="Tasks this week" value="8" suffix="/ 15" />
+          label="Streak" value={String(longestStreak)} suffix="days" />
+        <StatCard icon={<RingGauge pct={dailyRoutines.length ? Math.round(dailyDoneToday / dailyRoutines.length * 100) : 0} color="var(--c-routine)" size={44} stroke={5} />}
+          label="Routines today" value={String(dailyDoneToday)} suffix={`/ ${dailyRoutines.length}`} />
+        <StatCard icon={<RingGauge pct={tasks.length ? Math.round(weekDone / tasks.length * 100) : 0} color="var(--accent)" size={44} stroke={5} />}
+          label="Tasks done" value={String(weekDone)} suffix={`/ ${tasks.length}`} />
         <StatCard icon={<Icons.Zap size={20} color="var(--c-skill)" strokeWidth={2.2} />}
           iconBg="color-mix(in srgb, var(--c-skill) 20%, transparent)"
           iconBorder="1px solid color-mix(in srgb, var(--c-skill) 30%, transparent)"
-          label="XP this week" value="340" extra="+50 today" />
+          label="Total hours" value={String(Math.round(totalSkillHours))} suffix="h" />
       </div>
 
       {/* Two columns */}
@@ -73,17 +92,21 @@ export default function Dashboard({ onOpen, onNavigate }: DashboardProps) {
           accentColor="var(--c-skill)" onMore={() => onNavigate('skills')}>
           {skills.map((s) => {
             const m = s.metadata as any;
+            const tier = (m?.level ?? 'unfamiliar') as string;
+            const totalH = (m?.totalHours ?? 0) as number;
             return (
               <div key={s._id} onClick={() => onOpen(s._id)} className="cursor-pointer">
                 <div className="flex items-center gap-2.5 mb-1.5">
                   <Icons.Zap size={12} color="var(--c-skill)" />
                   <span className="flex-1 font-semibold" style={{ fontSize: 13 }}>{s.title}</span>
-                  <LevelBadge level={m?.level ?? 0} />
-                  <span className="mono text-ctp-subtext1 min-w-[64px] text-right" style={{ fontSize: 11 }}>
-                    {m?.xp ?? 0}/{m?.xpToNext ?? 500}
+                  <span className="capitalize font-bold text-ctp-green" style={{ fontSize: 11 }}>
+                    {tier.replace('_', ' ')}
+                  </span>
+                  <span className="mono text-ctp-subtext1 min-w-[48px] text-right" style={{ fontSize: 11 }}>
+                    {totalH}h
                   </span>
                 </div>
-                <ProgressBar value={((m?.xp ?? 0) / (m?.xpToNext ?? 500)) * 100} color="var(--c-skill)" height={6} />
+                <ProgressBar value={dashboardMasteryPct(totalH)} color="var(--c-skill)" height={6} />
               </div>
             );
           })}
@@ -180,10 +203,10 @@ function CompletionRow({ task, onClick }: { task: any; onClick: () => void }) {
     <div onClick={onClick} className="flex items-center gap-2.5 p-1.5 rounded-md cursor-pointer hover:bg-ctp-mantle">
       <Icons.CheckCircle size={13} color="var(--green)" />
       <span className="flex-1 text-ctp-subtext0 line-through" style={{ fontSize: 12 }}>{task.title}</span>
-      {m?.xpAwarded != null && (
+      {m?.creditedHours != null && (
         <span className="text-ctp-green font-semibold rounded" style={{
           fontSize: 10, background: 'color-mix(in srgb, var(--c-skill) 14%, transparent)', padding: '1px 5px',
-        }}>+{m.xpAwarded} XP</span>
+        }}>+{m.creditedHours}h</span>
       )}
       {m?.completedAt && <span className="mono text-ctp-overlay1 min-w-[60px] text-right" style={{ fontSize: 10 }}>{m.completedAt}</span>}
     </div>
@@ -220,4 +243,18 @@ function StatCard({ icon, iconBg, iconBorder, label, value, suffix, extra }: {
       </div>
     </div>
   );
+}
+
+const MASTERY_BREAKS = [0, 20, 300, 1000, 10000];
+function dashboardMasteryPct(totalHours: number): number {
+  let low = 0, high = MASTERY_BREAKS[MASTERY_BREAKS.length - 1];
+  for (let i = 0; i < MASTERY_BREAKS.length - 1; i++) {
+    if (totalHours >= MASTERY_BREAKS[i] && totalHours < MASTERY_BREAKS[i + 1]) {
+      low = MASTERY_BREAKS[i];
+      high = MASTERY_BREAKS[i + 1];
+      break;
+    }
+  }
+  if (totalHours >= high) return 100;
+  return Math.round(((totalHours - low) / (high - low)) * 100);
 }

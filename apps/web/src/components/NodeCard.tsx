@@ -11,20 +11,23 @@ interface NodeCardProps {
   node: XPNode;
   breadcrumb?: string;
   onOpen?: (id: string) => void;
+  onComplete?: (id: string) => void;
   draggable?: boolean;
   dragging?: boolean;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }
 
-export default function NodeCard({ node, breadcrumb, onOpen, draggable, dragging, onDragStart, onDragEnd }: NodeCardProps) {
+export default function NodeCard({ node, breadcrumb, onOpen, onComplete, draggable, dragging, onDragStart, onDragEnd }: NodeCardProps) {
   const m = node.metadata as Record<string, unknown> | undefined;
-  const overdue = m?.overdue as boolean | undefined;
   const due = m?.due as string | undefined;
   const priority = m?.priority as string | undefined;
-  const xpAwarded = m?.xpAwarded as number | undefined;
+  const creditedHours = m?.creditedHours as number | undefined;
+  const estimatedHours = m?.estimatedHours as number | undefined;
   const tags = (m?.tags as string[]) ?? [];
   const done = node.status === 'DONE';
+
+  const overdue = !done && due ? new Date(due) < new Date() : false;
 
   return (
     <div
@@ -44,10 +47,23 @@ export default function NodeCard({ node, breadcrumb, onOpen, draggable, dragging
       onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface0)'; e.currentTarget.style.borderColor = 'transparent'; }}
     >
       <div className="flex items-start gap-2">
-        {done
-          ? <Icons.CheckCircle size={14} color="var(--green)" className="mt-0.5" />
-          : <PriorityDot priority={priority ?? 'low'} />
-        }
+        {done ? (
+          <Icons.CheckCircle size={14} color="var(--green)" className="mt-0.5" />
+        ) : onComplete ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onComplete(node._id); }}
+            className="grid place-items-center shrink-0 mt-0.5 bg-transparent border-none cursor-pointer p-0 rounded transition-colors duration-150"
+            style={{
+              width: 16, height: 16, borderRadius: 4,
+              border: '1.5px solid var(--overlay1)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--green) 15%, transparent)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--overlay1)'; e.currentTarget.style.background = 'transparent'; }}
+            title="Complete task"
+          />
+        ) : (
+          <PriorityDot priority={priority ?? 'low'} />
+        )}
         <div className="flex-1 min-w-0">
           <div
             className="font-semibold text-sm mb-1 overflow-hidden text-ellipsis"
@@ -65,10 +81,15 @@ export default function NodeCard({ node, breadcrumb, onOpen, draggable, dragging
             </div>
           )}
           <div className="flex items-center gap-2 flex-wrap">
-            {done && xpAwarded != null && (
+            {done && creditedHours != null && (
               <span className="text-ctp-green font-semibold rounded" style={{
                 fontSize: 11, background: 'color-mix(in srgb, var(--c-skill) 16%, transparent)', padding: '2px 6px',
-              }}>+{xpAwarded} XP</span>
+              }}>+{creditedHours}h</span>
+            )}
+            {!done && estimatedHours != null && (
+              <span className="inline-flex items-center gap-1 text-ctp-subtext1" style={{ fontSize: 11 }}>
+                <Icons.Clock size={10} /> {estimatedHours}h
+              </span>
             )}
             {!done && due && (
               <span className="inline-flex items-center gap-1" style={{

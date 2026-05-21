@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, type ReactNode, type CSSProperties } from 'react';
+import { useState, useEffect, useRef, useCallback, useContext, createContext, type ReactNode, type CSSProperties } from 'react';
 import {
   Layers, Zap, FolderKanban, CheckSquare, User, Tag, Circle, Repeat,
   ChevronRight, ChevronDown, ChevronLeft, Plus, Search, Flame, AlertTriangle,
   CheckCircle, CalendarDays, GripVertical, X, Filter, Network, LayoutDashboard,
   Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, CalendarRange,
-  TrendingUp, TrendingDown, Award, Sparkles, type LucideProps,
+  TrendingUp, TrendingDown, Award, Sparkles, Play, Square, Clock, Timer,
+  type LucideProps,
 } from 'lucide-react';
 import { TYPE_COLORS } from '../../lib/types';
 
@@ -13,7 +14,7 @@ export const Icons = {
   ChevronRight, ChevronDown, ChevronLeft, Plus, Search, Flame, AlertTriangle,
   CheckCircle, CalendarDays, GripVertical, X, Filter, Network, LayoutDashboard,
   Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, CalendarRange,
-  TrendingUp, TrendingDown, Award, Sparkles,
+  TrendingUp, TrendingDown, Award, Sparkles, Play, Square, Clock, Timer,
 };
 
 const TYPE_ICON_MAP: Record<string, React.ComponentType<LucideProps>> = {
@@ -253,6 +254,127 @@ export function Dropdown({ value, onChange, options }: {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Toast System ── */
+
+type ToastVariant = 'success' | 'info' | 'error';
+
+interface ToastItem {
+  id: number;
+  message: string;
+  variant: ToastVariant;
+  details?: string;
+  exiting?: boolean;
+}
+
+interface ToastContextType {
+  toast: (opts: { message: string; variant?: ToastVariant; details?: string; duration?: number }) => void;
+}
+
+const ToastContext = createContext<ToastContextType>({ toast: () => {} });
+
+export function useToast() {
+  return useContext(ToastContext);
+}
+
+let toastIdCounter = 0;
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const toast = useCallback(
+    ({ message, variant = 'success', details, duration = 3000 }: {
+      message: string; variant?: ToastVariant; details?: string; duration?: number;
+    }) => {
+      const id = ++toastIdCounter;
+      setToasts(prev => [...prev.slice(-2), { id, message, variant, details }]);
+
+      // Start exit animation before removal
+      setTimeout(() => {
+        setToasts(prev => prev.map(t => (t.id === id ? { ...t, exiting: true } : t)));
+      }, duration - 300);
+
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, duration);
+    },
+    [],
+  );
+
+  return (
+    <ToastContext.Provider value={{ toast }}>
+      {children}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          pointerEvents: 'none',
+        }}
+      >
+        {toasts.map(t => (
+          <Toast key={t.id} item={t} onDismiss={() => setToasts(prev => prev.filter(x => x.id !== t.id))} />
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+
+const TOAST_COLORS: Record<ToastVariant, { bg: string; border: string; icon: string }> = {
+  success: { bg: 'color-mix(in srgb, var(--green) 12%, var(--surface0))', border: 'color-mix(in srgb, var(--green) 30%, transparent)', icon: 'var(--green)' },
+  info: { bg: 'color-mix(in srgb, var(--blue) 12%, var(--surface0))', border: 'color-mix(in srgb, var(--blue) 30%, transparent)', icon: 'var(--blue)' },
+  error: { bg: 'color-mix(in srgb, var(--red) 12%, var(--surface0))', border: 'color-mix(in srgb, var(--red) 30%, transparent)', icon: 'var(--red)' },
+};
+
+const TOAST_ICONS: Record<ToastVariant, React.ComponentType<LucideProps>> = {
+  success: CheckCircle,
+  info: Zap,
+  error: AlertTriangle,
+};
+
+function Toast({ item, onDismiss }: { item: ToastItem; onDismiss: () => void }) {
+  const colors = TOAST_COLORS[item.variant];
+  const Icon = TOAST_ICONS[item.variant];
+  return (
+    <div
+      style={{
+        background: colors.bg,
+        border: `1px solid ${colors.border}`,
+        borderRadius: 10,
+        padding: '10px 14px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        minWidth: 240,
+        maxWidth: 360,
+        pointerEvents: 'auto',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+        animation: item.exiting ? 'toast-out 0.3s ease-in forwards' : 'toast-in 0.3s ease-out',
+      }}
+    >
+      <Icon size={16} color={colors.icon} style={{ marginTop: 2, flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', lineHeight: 1.4 }}>{item.message}</div>
+        {item.details && (
+          <div style={{ fontSize: 11, color: 'var(--subtext0)', marginTop: 2, lineHeight: 1.3 }}>{item.details}</div>
+        )}
+      </div>
+      <button
+        onClick={onDismiss}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: 2,
+          color: 'var(--overlay1)', flexShrink: 0, marginTop: 1,
+        }}
+      >
+        <X size={12} />
+      </button>
     </div>
   );
 }

@@ -1,12 +1,16 @@
 import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { NodesService } from './nodes.service';
+import { PropagationService } from './propagation.service';
 import { Node } from './node.entity';
 import { CreateNodeInput } from './dto/create-node.input';
 import { UpdateNodeInput } from './dto/update-node.input';
 
 @Resolver(() => Node)
 export class NodesResolver {
-  constructor(private readonly nodesService: NodesService) {}
+  constructor(
+    private readonly nodesService: NodesService,
+    private readonly propagationService: PropagationService,
+  ) {}
 
   @Mutation(() => Node)
   createNode(@Args('createNodeInput') createNodeInput: CreateNodeInput) {
@@ -40,5 +44,25 @@ export class NodesResolver {
   @Mutation(() => Node)
   deleteNode(@Args('id', { type: () => ID }) id: string) {
     return this.nodesService.remove(id);
+  }
+
+  @Mutation(() => [Node])
+  completeTask(@Args('id', { type: () => ID }) id: string) {
+    return this.propagationService.onTaskCompleted(id);
+  }
+
+  @Mutation(() => [Node])
+  checkInRoutine(@Args('id', { type: () => ID }) id: string) {
+    return this.propagationService.checkInRoutine(id);
+  }
+
+  @Mutation(() => Node)
+  startTaskTimer(@Args('id', { type: () => ID }) id: string) {
+    return this.propagationService.startTimer(id);
+  }
+
+  @Mutation(() => Node)
+  stopTaskTimer(@Args('id', { type: () => ID }) id: string) {
+    return this.propagationService.stopTimer(id);
   }
 }

@@ -66,34 +66,34 @@ async function seed() {
   const tagQuality = await Node.create({ title: 'quality', type: 'TAG', metadata: { color: '#cba6f7' } });
   const tagEmail = await Node.create({ title: 'email', type: 'TAG', metadata: { color: '#f5c2e7' } });
 
-  // ── SKILLS (from Second Brain Skills Roadmap) ──
+  // ── SKILLS (from Second Brain Skills Roadmap — hours-based mastery) ──
   const skillBackend = await Node.create({
     title: 'Backend Development', type: 'SKILL', mainParent: dev._id,
-    metadata: { level: 7, xp: 3400, xpToNext: 5000, sparkline: [40, 55, 60, 45, 70, 80, 75, 90, 85, 95], weekGain: 120, tags: ['nestjs', 'go'] },
+    metadata: { totalHours: 820, level: 'skilled', hoursToNext: 180, tags: ['nestjs', 'go'] },
   });
   const skillMongo = await Node.create({
     title: 'MongoDB & GraphQL', type: 'SKILL', mainParent: dev._id,
-    metadata: { level: 6, xp: 2800, xpToNext: 4000, sparkline: [30, 35, 50, 45, 55, 60, 70, 65, 75, 80], weekGain: 85 },
+    metadata: { totalHours: 450, level: 'skilled', hoursToNext: 550 },
   });
   const skillGoWasm = await Node.create({
     title: 'Go WASM', type: 'SKILL', mainParent: dev._id,
-    metadata: { level: 3, xp: 800, xpToNext: 2000, sparkline: [10, 15, 20, 25, 15, 30, 20, 35, 25, 40], weekGain: 40 },
+    metadata: { totalHours: 35, level: 'familiar', hoursToNext: 265 },
   });
   const skillForex = await Node.create({
     title: 'Forex Trading (XAUUSD)', type: 'SKILL', mainParent: finance._id,
-    metadata: { level: 5, xp: 2100, xpToNext: 3500, sparkline: [20, 30, 25, 40, 35, 50, 45, 55, 60, 50], weekGain: 65 },
+    metadata: { totalHours: 280, level: 'familiar', hoursToNext: 20 },
   });
   const skillEnglish = await Node.create({
     title: 'English', type: 'SKILL', mainParent: learning._id,
-    metadata: { level: 8, xp: 4200, xpToNext: 5500, sparkline: [50, 55, 60, 58, 65, 70, 68, 72, 75, 78], weekGain: 30 },
+    metadata: { totalHours: 5200, level: 'master', hoursToNext: 4800 },
   });
   const skillPublicSpeech = await Node.create({
     title: 'Public Speaking', type: 'SKILL', mainParent: learning._id,
-    metadata: { level: 2, xp: 450, xpToNext: 1500, sparkline: [5, 8, 10, 12, 15, 10, 18, 14, 20, 16], weekGain: 15 },
+    metadata: { totalHours: 12, level: 'unfamiliar', hoursToNext: 8 },
   });
   const skillPhotoshop = await Node.create({
     title: 'Photoshop & Design', type: 'SKILL', mainParent: creative._id,
-    metadata: { level: 4, xp: 1600, xpToNext: 3000, sparkline: [15, 20, 25, 30, 22, 35, 28, 40, 32, 38], weekGain: 25 },
+    metadata: { totalHours: 160, level: 'familiar', hoursToNext: 140 },
   });
 
   // Wire skill children to domains
@@ -129,18 +129,18 @@ async function seed() {
 
   // ── TASKS ──
   const tasks = [
-    { title: 'Implement Graph view Phase 6', mainParent: projXP._id, status: 'DONE', progress: 100, metadata: { priority: 'high', xpAwarded: 120, completedAt: '2 days ago', overdue: false } },
-    { title: 'Build Routine node type', mainParent: projXP._id, status: 'IN_PROGRESS', progress: 40, metadata: { priority: 'high', due: 'Today', overdue: false }, parents: [tagUI._id] },
-    { title: 'Seed database with Second Brain data', mainParent: projXP._id, status: 'IN_PROGRESS', progress: 60, metadata: { priority: 'medium', due: 'Today', overdue: false } },
-    { title: 'Design Obsidian sync service', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', due: 'Next week', overdue: false } },
-    { title: 'Progress propagation engine', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'high', due: '2026-06-15', overdue: false } },
-    { title: 'Set up Go WASM build pipeline', mainParent: projAura._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', overdue: false }, parents: [tagDevops._id] },
-    { title: 'Write Aura core logic in Go', mainParent: projAura._id, status: 'TODO', progress: 0, metadata: { priority: 'high', overdue: false } },
-    { title: 'Prepare onboarding docs', mainParent: projIntern._id, status: 'TODO', progress: 0, metadata: { priority: 'low', due: '2026-05-30', overdue: false }, parents: [tagDocs._id] },
-    { title: 'Review company tech stack', mainParent: projIntern._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', due: '2026-05-28', overdue: false } },
-    { title: 'Build NPV model spreadsheet', mainParent: projNanoki._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', overdue: false } },
-    { title: 'Deploy API to GCP', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'low', due: '2026-06-20', overdue: false }, parents: [tagDeploy._id, tagDevops._id] },
-    { title: 'Fix Kanban drag-drop edge case', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'high', due: 'Yesterday', overdue: true }, parents: [tagUrgent._id, tagUI._id] },
+    { title: 'Implement Graph view Phase 6', mainParent: projXP._id, status: 'DONE', progress: 100, metadata: { priority: 'high', estimatedHours: 12, creditedHours: 12, completedAt: '2026-05-18T18:00:00Z' } },
+    { title: 'Build Routine node type', mainParent: projXP._id, status: 'IN_PROGRESS', progress: 40, metadata: { priority: 'high', estimatedHours: 6, due: '2026-05-20' }, parents: [tagUI._id] },
+    { title: 'Seed database with Second Brain data', mainParent: projXP._id, status: 'IN_PROGRESS', progress: 60, metadata: { priority: 'medium', estimatedHours: 3, due: '2026-05-20' } },
+    { title: 'Design Obsidian sync service', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', estimatedHours: 8, due: '2026-05-27' } },
+    { title: 'Progress propagation engine', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'high', estimatedHours: 10, due: '2026-06-15' } },
+    { title: 'Set up Go WASM build pipeline', mainParent: projAura._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', estimatedHours: 4 }, parents: [tagDevops._id] },
+    { title: 'Write Aura core logic in Go', mainParent: projAura._id, status: 'TODO', progress: 0, metadata: { priority: 'high', estimatedHours: 40 } },
+    { title: 'Prepare onboarding docs', mainParent: projIntern._id, status: 'TODO', progress: 0, metadata: { priority: 'low', estimatedHours: 2, due: '2026-05-30' }, parents: [tagDocs._id] },
+    { title: 'Review company tech stack', mainParent: projIntern._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', estimatedHours: 3, due: '2026-05-28' } },
+    { title: 'Build NPV model spreadsheet', mainParent: projNanoki._id, status: 'TODO', progress: 0, metadata: { priority: 'medium', estimatedHours: 8 } },
+    { title: 'Deploy API to GCP', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'low', estimatedHours: 5, due: '2026-06-20' }, parents: [tagDeploy._id, tagDevops._id] },
+    { title: 'Fix Kanban drag-drop edge case', mainParent: projXP._id, status: 'TODO', progress: 0, metadata: { priority: 'high', estimatedHours: 1.5, due: '2026-05-19' }, parents: [tagUrgent._id, tagUI._id] },
   ];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

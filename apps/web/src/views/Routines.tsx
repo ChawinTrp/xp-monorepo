@@ -1,13 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useMutation } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
-import { Icons, RingGauge, Dropdown, Button } from '../components/ui';
+import { Icons, RingGauge, Dropdown, Button, useToast } from '../components/ui';
+import { CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES } from '../lib/graphql';
 
 interface RoutinesProps {
   onOpen: (id: string) => void;
+  onCreate?: () => void;
 }
 
-export default function Routines({ onOpen }: RoutinesProps) {
-  const { byType } = useNodes();
+export default function Routines({ onOpen, onCreate }: RoutinesProps) {
+  const { byType, byId } = useNodes();
+  const { toast } = useToast();
+  const [checkInRoutine] = useMutation(CHECK_IN_ROUTINE, { refetchQueries: [{ query: GET_NODES }] });
+  const [startTimerMut] = useMutation(START_TIMER, { refetchQueries: [{ query: GET_NODES }] });
+  const [stopTimerMut] = useMutation(STOP_TIMER, { refetchQueries: [{ query: GET_NODES }] });
   const routines = byType('ROUTINE');
 
   const [selectedGroup, setSelectedGroup] = useState('all');
@@ -30,6 +37,49 @@ export default function Routines({ onOpen }: RoutinesProps) {
 
   const longestStreak = routines.reduce((m, r) => Math.max(m, (r.metadata as any)?.streak ?? 0), 0);
 
+  const handleCheckIn = async (routineId: string) => {
+    try {
+      const { data } = await checkInRoutine({ variables: { id: routineId } });
+      const affectedNodes = data?.checkInRoutine ?? [];
+      const routine = affectedNodes.find((n: any) => n._id === routineId);
+      const streak = routine?.metadata?.streak ?? 0;
+      const skills = affectedNodes.filter((n: any) => n.type === 'SKILL');
+
+      toast({
+        message: `Day ${streak}! Keep going`,
+        variant: 'success',
+        details: skills.length > 0
+          ? skills.map((s: any) => `+${routine?.metadata?.creditedHours ?? 0}h ${s.title}`).join(', ')
+          : undefined,
+      });
+    } catch (err: any) {
+      toast({ message: 'Check-in failed', variant: 'error', details: err.message });
+    }
+  };
+
+  const handleStartTimer = async (routineId: string) => {
+    try {
+      await startTimerMut({ variables: { id: routineId } });
+      toast({ message: 'Timer started', variant: 'info' });
+    } catch (err: any) {
+      toast({ message: 'Failed to start timer', variant: 'error', details: err.message });
+    }
+  };
+
+  const handleStopTimer = async (routineId: string) => {
+    try {
+      const { data } = await stopTimerMut({ variables: { id: routineId } });
+      const actualHours = data?.stopTaskTimer?.metadata?.actualHours;
+      toast({
+        message: 'Timer stopped',
+        variant: 'success',
+        details: actualHours != null ? `${actualHours}h tracked` : undefined,
+      });
+    } catch (err: any) {
+      toast({ message: 'Failed to stop timer', variant: 'error', details: err.message });
+    }
+  };
+
   return (
     <div className="fade-in" style={{ padding: 32, maxWidth: 1280, margin: '0 auto' }}>
       <div className="flex items-end justify-between mb-6">
@@ -48,7 +98,7 @@ export default function Routines({ onOpen }: RoutinesProps) {
             { value: 'all', label: 'All groups' },
             ...groups.map((g) => ({ value: g, label: g })),
           ]} />
-          <Button icon={<Icons.Plus size={14} />}>New routine</Button>
+          <Button icon={<Icons.Plus size={14} />} onClick={onCreate}>New routine</Button>
         </div>
       </div>
 
@@ -96,6 +146,41 @@ export default function Routines({ onOpen }: RoutinesProps) {
                 </div>
                 <span className="mono text-ctp-subtext0 min-w-[30px] text-right" style={{ fontSize: 11 }}>{pct}%</span>
                 <FlameStreak n={m.streak} />
+                {/* Timer + Check-in */}
+                {(() => {
+                  const entries = (m.timeEntries ?? []) as { start: string; end?: string }[];
+                  const hasOpen = entries.some((e: any) => !e.end);
+                  const checkedToday = m.lastCheckInDate === new Date().toISOString().slice(0, 10);
+                  return (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {hasOpen ? (
+                        <button onClick={() => handleStopTimer(r._id)}
+                          className="inline-flex items-center gap-1 rounded-md border-none cursor-pointer"
+                          style={{ padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', background: 'color-mix(in srgb, var(--red) 15%, transparent)', color: 'var(--red)' }}>
+                          <Icons.Square size={10} /> Stop
+                        </button>
+                      ) : (
+                        <button onClick={() => handleStartTimer(r._id)}
+                          className="inline-flex items-center gap-1 rounded-md border-none cursor-pointer"
+                          style={{ padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', background: 'var(--surface1)', color: 'var(--subtext0)' }}>
+                          <Icons.Play size={10} />
+                        </button>
+                      )}
+                      <button onClick={() => handleCheckIn(r._id)} disabled={checkedToday}
+                        className="inline-flex items-center justify-center rounded-full border-none cursor-pointer"
+                        style={{
+                          width: 24, height: 24,
+                          background: checkedToday
+                            ? 'color-mix(in srgb, var(--green) 25%, transparent)'
+                            : 'color-mix(in srgb, var(--c-routine) 15%, transparent)',
+                          color: checkedToday ? 'var(--green)' : 'var(--c-routine)',
+                          opacity: checkedToday ? 0.6 : 1,
+                        }}>
+                        <Icons.CheckCircle size={14} />
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

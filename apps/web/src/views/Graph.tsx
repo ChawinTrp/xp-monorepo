@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import ForceGraph from 'force-graph';
 import { useNodes } from '../lib/hooks';
-import { TypeBadge, StatusDot, ProgressBar, LevelBadge, Button, Icons } from '../components/ui';
+import { TypeBadge, StatusDot, ProgressBar, Button, Icons } from '../components/ui';
 import { TypeIcon } from '../components/ui';
 import { TYPE_COLORS } from '../lib/types';
 
@@ -361,6 +361,8 @@ function GraphSidePanel({ node, onClose, onOpen }: { node: any; onClose: () => v
           <Row label="Status"><StatusDot status={node.status} /><span>{node.status}</span></Row>
           {m.priority && <Row label="Priority"><span className="capitalize">{m.priority}</span></Row>}
           {m.due && <Row label="Due"><span className="mono">{m.due}</span></Row>}
+          {m.estimatedHours != null && <Row label="Est."><span className="mono">{m.estimatedHours}h</span></Row>}
+          {m.actualHours != null && <Row label="Tracked"><span className="mono">{m.actualHours}h</span></Row>}
         </>
       )}
       {node.type === 'PROJECT' && (
@@ -374,12 +376,17 @@ function GraphSidePanel({ node, onClose, onOpen }: { node: any; onClose: () => v
       )}
       {node.type === 'SKILL' && (
         <>
-          <Row label="Level"><LevelBadge level={m.level ?? 0} /></Row>
-          <div>
-            <div className="uppercase text-ctp-subtext1 mb-1" style={{ fontSize: 10 }}>XP</div>
-            <ProgressBar value={((m.xp ?? 0) / (m.xpToNext ?? 500)) * 100} color="var(--c-skill)" />
-            <div className="mono text-ctp-subtext0 mt-1" style={{ fontSize: 11 }}>{m.xp ?? 0}/{m.xpToNext ?? 500} XP</div>
-          </div>
+          <Row label="Tier"><MasteryBadge tier={m.level ?? 'unfamiliar'} /></Row>
+          <Row label="Hours"><span className="mono font-bold">{m.totalHours ?? 0}h</span></Row>
+          {m.hoursToNext != null && (
+            <div>
+              <div className="uppercase text-ctp-subtext1 mb-1" style={{ fontSize: 10 }}>Progress to next tier</div>
+              <ProgressBar value={masteryProgress(m.totalHours ?? 0)} color="var(--c-skill)" showLabel />
+              <div className="mono text-ctp-subtext0 mt-1" style={{ fontSize: 11 }}>
+                {Math.round(m.hoursToNext)}h to next tier
+              </div>
+            </div>
+          )}
         </>
       )}
       {node.type === 'ROUTINE' && (
@@ -436,4 +443,49 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <div className="inline-flex items-center gap-1.5" style={{ fontSize: 13 }}>{children}</div>
     </div>
   );
+}
+
+const TIER_COLORS: Record<string, string> = {
+  unfamiliar: 'var(--overlay0)',
+  familiar: 'var(--blue)',
+  skilled: 'var(--green)',
+  master: 'var(--accent)',
+  world_class: 'var(--yellow)',
+};
+
+const TIER_LABELS: Record<string, string> = {
+  unfamiliar: 'Unfamiliar',
+  familiar: 'Familiar',
+  skilled: 'Skilled',
+  master: 'Master',
+  world_class: 'World Class',
+};
+
+function MasteryBadge({ tier }: { tier: string }) {
+  const color = TIER_COLORS[tier] ?? 'var(--overlay0)';
+  return (
+    <span className="inline-flex items-center rounded font-bold uppercase"
+      style={{
+        fontSize: 10, letterSpacing: 0.5, padding: '3px 8px',
+        background: `color-mix(in srgb, ${color} 18%, transparent)`,
+        color,
+        border: `1px solid color-mix(in srgb, ${color} 40%, transparent)`,
+      }}>
+      {TIER_LABELS[tier] ?? tier}
+    </span>
+  );
+}
+
+const THRESHOLDS = [0, 20, 300, 1000, 10000];
+function masteryProgress(totalHours: number): number {
+  let low = 0, high = THRESHOLDS[THRESHOLDS.length - 1];
+  for (let i = 0; i < THRESHOLDS.length - 1; i++) {
+    if (totalHours >= THRESHOLDS[i] && totalHours < THRESHOLDS[i + 1]) {
+      low = THRESHOLDS[i];
+      high = THRESHOLDS[i + 1];
+      break;
+    }
+  }
+  if (totalHours >= high) return 100;
+  return Math.round(((totalHours - low) / (high - low)) * 100);
 }

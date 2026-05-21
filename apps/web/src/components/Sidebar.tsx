@@ -14,6 +14,7 @@ interface SidebarProps {
   onOpen: (id: string) => void;
   openId: string | null;
   onSearch: () => void;
+  onCreate: () => void;
 }
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: typeof Icons.LayoutDashboard }[] = [
@@ -25,7 +26,7 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: typeof Icons.LayoutDashboard
   { id: 'graph', label: 'Graph', icon: Icons.Network },
 ];
 
-export default function Sidebar({ collapsed, setCollapsed, view, onNavigate, onOpen, openId, onSearch }: SidebarProps) {
+export default function Sidebar({ collapsed, setCollapsed, view, onNavigate, onOpen, openId, onSearch, onCreate }: SidebarProps) {
   const { byId, childrenOf } = useNodes();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -155,14 +156,14 @@ export default function Sidebar({ collapsed, setCollapsed, view, onNavigate, onO
       <div style={{ padding: collapsed ? 10 : 14, borderTop: '1px solid var(--surface0)' }}>
         {collapsed ? (
           <button
-            onClick={() => setCollapsed(false)}
+            onClick={onCreate}
             className="grid place-items-center rounded-lg border-none cursor-pointer mx-auto"
             style={{ width: 36, height: 36, background: 'var(--accent)', color: 'var(--mantle)' }}
           >
             <Icons.Plus size={16} strokeWidth={2.4} />
           </button>
         ) : (
-          <Button icon={<Icons.Plus size={14} />} style={{ width: '100%', justifyContent: 'center' }}>
+          <Button icon={<Icons.Plus size={14} />} onClick={onCreate} style={{ width: '100%', justifyContent: 'center' }}>
             New node
           </Button>
         )}

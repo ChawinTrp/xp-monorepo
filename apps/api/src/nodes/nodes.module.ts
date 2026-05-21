@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { NodesService } from './nodes.service';
 import { NodesResolver } from './nodes.resolver';
+import { PropagationService } from './propagation.service';
 import { Node, NodeSchema } from './node.entity';
 
 import { MongooseModule } from '@nestjs/mongoose';
@@ -9,6 +10,6 @@ import { MongooseModule } from '@nestjs/mongoose';
   imports: [
     MongooseModule.forFeature([{ name: Node.name, schema: NodeSchema }]),
   ],
-  providers: [NodesService, NodesResolver]
+  providers: [NodesService, NodesResolver, PropagationService],
 })
 export class NodesModule {}

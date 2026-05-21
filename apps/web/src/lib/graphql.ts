@@ -61,3 +61,39 @@ export const DELETE_NODE = gql`
     }
   }
 `;
+
+export const COMPLETE_TASK = gql`
+  ${NODE_FIELDS}
+  mutation CompleteTask($id: ID!) {
+    completeTask(id: $id) {
+      ...NodeFields
+    }
+  }
+`;
+
+export const START_TIMER = gql`
+  ${NODE_FIELDS}
+  mutation StartTaskTimer($id: ID!) {
+    startTaskTimer(id: $id) {
+      ...NodeFields
+    }
+  }
+`;
+
+export const STOP_TIMER = gql`
+  ${NODE_FIELDS}
+  mutation StopTaskTimer($id: ID!) {
+    stopTaskTimer(id: $id) {
+      ...NodeFields
+    }
+  }
+`;
+
+export const CHECK_IN_ROUTINE = gql`
+  ${NODE_FIELDS}
+  mutation CheckInRoutine($id: ID!) {
+    checkInRoutine(id: $id) {
+      ...NodeFields
+    }
+  }
+`;

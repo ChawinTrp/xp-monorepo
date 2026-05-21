@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNodes } from './lib/hooks';
+import { ToastProvider } from './components/ui';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import SearchModal from './components/SearchModal';
+import CreateNodeModal from './components/CreateNodeModal';
 import Dashboard from './views/Dashboard';
 import Kanban from './views/Kanban';
 import Routines from './views/Routines';
@@ -24,12 +26,18 @@ export default function App() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setSearchOpen(true);
+      }
+      // Ctrl+N to create
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        setCreateOpen(true);
       }
     };
     window.addEventListener('keydown', h);
@@ -73,6 +81,7 @@ export default function App() {
   }
 
   return (
+    <ToastProvider>
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--base)' }}>
       <Sidebar
         collapsed={collapsed}
@@ -82,6 +91,7 @@ export default function App() {
         onOpen={onOpen}
         openId={openId}
         onSearch={() => setSearchOpen(true)}
+        onCreate={() => setCreateOpen(true)}
       />
 
       <main className="flex-1 flex flex-col min-w-0" style={{ background: 'var(--base)' }}>
@@ -95,21 +105,34 @@ export default function App() {
           {openId ? (
             <NodeDetail id={openId} onOpen={onOpen} onClose={closeDetail} />
           ) : (
-            <ViewRenderer view={view} onOpen={onOpen} onNavigate={onNavigate} />
+            <ViewRenderer
+              view={view}
+              onOpen={onOpen}
+              onNavigate={onNavigate}
+              onCreate={() => setCreateOpen(true)}
+            />
           )}
         </div>
       </main>
 
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} onOpen={onOpen} />
+      <CreateNodeModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(id) => onOpen(id)}
+      />
     </div>
+    </ToastProvider>
   );
 }
 
-function ViewRenderer({ view, onOpen, onNavigate }: { view: ViewId; onOpen: (id: string) => void; onNavigate: (v: string) => void }) {
+function ViewRenderer({ view, onOpen, onNavigate, onCreate }: {
+  view: ViewId; onOpen: (id: string) => void; onNavigate: (v: string) => void; onCreate: () => void;
+}) {
   switch (view) {
-    case 'dashboard': return <Dashboard onOpen={onOpen} onNavigate={onNavigate} />;
-    case 'kanban': return <Kanban onOpen={onOpen} />;
-    case 'routines': return <Routines onOpen={onOpen} />;
+    case 'dashboard': return <Dashboard onOpen={onOpen} onNavigate={onNavigate} onCreate={onCreate} />;
+    case 'kanban': return <Kanban onOpen={onOpen} onCreate={onCreate} />;
+    case 'routines': return <Routines onOpen={onOpen} onCreate={onCreate} />;
     case 'skills': return <Skills onOpen={onOpen} />;
     case 'people': return <People onOpen={onOpen} />;
     case 'graph': return <Graph onOpen={onOpen} />;
