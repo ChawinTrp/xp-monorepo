@@ -1,6 +1,9 @@
-import { config } from 'dotenv';
-import { join } from 'path';
-config({ path: join(__dirname, '..', '.env') });
+// Load .env in dev; Cloud Run injects env vars directly in production
+if (process.env.NODE_ENV !== 'production') {
+  const { config } = require('dotenv');
+  const { join } = require('path');
+  config({ path: join(__dirname, '..', '.env') });
+}
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';

@@ -31,5 +31,22 @@ Gantt, Calendar, Sprint planning, Google Calendar connector.
 - Auto-creates "XP Tasks" calendar, syncs on every node create/update/delete
 - Env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
 
+## Mobile Responsive (Phase 8.5)
+All 9 views responsive. CSS `clamp()`, `auto-fit minmax()` grids, mobile sidebar overlay with hamburger toggle, horizontal-scroll tab bar. Breakpoint: 768px.
+
+## Deployment (Phase 9) — In Progress
+| Component | Target | Status |
+|-----------|--------|--------|
+| API | GCP Cloud Run (asia-southeast1) | Ready — Dockerfile created, env-var-based config |
+| Frontend | Vercel | Ready — `VITE_API_URL` env var wired |
+| Database | MongoDB Atlas (existing) | Done — no changes needed |
+
+### Files Added
+- `apps/api/Dockerfile` — multi-stage build (node:22-slim)
+- `.dockerignore` — excludes node_modules, .git, web app, .env
+- `apps/api/src/main.ts` — conditional dotenv (dev only, Cloud Run injects env vars)
+- `apps/web/src/main.tsx` — `VITE_API_URL` env var for API endpoint
+- `apps/web/src/views/Settings.tsx` — same env var pattern
+
 ## The Vault (Future)
 Obsidian sync, one-way push, index generation.

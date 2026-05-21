@@ -1,0 +1,9 @@
+node_modules
+.git
+*.md
+docs
+apps/web
+apps/api/dist
+apps/api/.env
+apps/api/test
+.claude

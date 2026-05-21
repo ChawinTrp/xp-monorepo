@@ -1,6 +1,6 @@
 # Project XP: Master Architecture & System Design Document
 
-**Version:** 7.0 (Game + Orchestra; Vault → Obsidian)
+**Version:** 8.5 (Game + Orchestra + Mobile; Deployment ready)
 **Status:** Active Development
 **Lead Architect:** CT
 
@@ -54,7 +54,7 @@
 
 - **Performance:** Fast retrieval of deep nested graph data.
 - **Availability:** Accessible across Desktop and Mobile.
-- **Data Portability:** Full graph mirrored to Obsidian Second Brain on every mutation (§11).
+- **Data Portability:** Full graph mirrored to Obsidian Second Brain on every mutation (§12).
 - **Security:** Authentication to keep personal data private.
 
 ---
@@ -243,14 +243,68 @@ npm run dev -w web
 
 - ✅ **Phase 1–5:** Foundation, CRUD — NestJS/React, MongoDB Atlas, GraphQL, full node CRUD.
 - ✅ **Phase 6:** Graph Connectivity — `parents`/`children` schema, SmartSearch UI, full frontend rewrite (multi-view Life OS UI with Catppuccin Mocha theme), ROUTINE node type added, seed data from Second Brain.
-- 🔜 **Phase 7: The Game** — Progress propagation, XP/level system on SKILLs, hierarchy visualization.
-- 🔜 **Phase 8: Orchestra Views** — Kanban, Gantt, Sprint planning UI.
-- 🔜 **Phase 9: Obsidian Sync** — `ObsidianSyncService` one-way push (§11).
-- 🔜 **Phase 10: Auth & Multi-user** — Authentication, collaborative access.
+- ✅ **Phase 7: The Game** — Hours-based mastery system (5 tiers: Unfamiliar→World Class), timer mutations (`startTimer`/`stopTimer`), `completeTask` mutation with upward propagation (TASK→PROJECT→DOMAIN + TASK→SKILLs via `parents[]`), skill-linking UI (SkillPicker), domain progress display, toast notification system.
+- ✅ **Phase 8: The Orchestra** — Gantt chart (week/month/quarter zoom, drag-resize, today line), Calendar view (monthly grid, task chips, routine dots), Sprint planning (board/sprint toggle, create sprints, assign tasks, progress bar), Google Calendar connector (OAuth2, auto-sync on mutations).
+- ✅ **Phase 8.5: Mobile Responsive** — All 9 views responsive via CSS `clamp()`, `auto-fit minmax()` grids, mobile sidebar overlay with hamburger toggle, horizontal-scroll tab bar.
+- 🔜 **Phase 9: Deployment** — API on GCP Cloud Run (asia-southeast1), frontend on Vercel. Dockerfile ready, env-var-based API URL (`VITE_API_URL`).
+- 🔜 **Phase 10: Obsidian Sync** — `ObsidianSyncService` one-way push (§12).
+- 🔜 **Phase 11: Auth & Multi-user** — Authentication, collaborative access.
 
 ---
 
-## 10. Audit Log (Known Issues)
+## 10. Deployment
+
+### 10.1 Architecture
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   Vercel (CDN)   │────▶│  Cloud Run (API)  │────▶│  MongoDB Atlas   │
+│   React + Vite   │     │  NestJS + GraphQL │     │   xp-database    │
+│   Static build   │     │  asia-southeast1  │     │   (existing)     │
+└──────────────────┘     └──────────────────┘     └──────────────────┘
+```
+
+### 10.2 API — GCP Cloud Run
+
+- **Dockerfile:** `apps/api/Dockerfile` (multi-stage: build + prod)
+- **Region:** `asia-southeast1` (Singapore — low latency from Bangkok)
+- **Port:** 8080 (Cloud Run default)
+- **Env vars (set in Cloud Run):**
+  - `MONGO_URI` — MongoDB Atlas connection string
+  - `PORT=8080`
+  - `NODE_ENV=production`
+  - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (optional, for GCal)
+- **CORS:** `app.enableCors()` in `main.ts` — configure `origin` for production Vercel domain
+- **Scales to zero** on free tier — cold start ~2-5s
+
+### 10.3 Frontend — Vercel
+
+- **Framework:** Vite (auto-detected by Vercel)
+- **Root directory:** `apps/web`
+- **Build command:** `cd ../.. && npm ci && npm run build -w web`
+- **Output directory:** `dist`
+- **Env vars (set in Vercel):**
+  - `VITE_API_URL` — Cloud Run service URL (e.g. `https://xp-api-xxxxx-as.a.run.app`)
+
+### 10.4 Deploy Commands
+
+```powershell
+# API — build and deploy to Cloud Run
+gcloud auth login
+gcloud config set project <PROJECT_ID>
+gcloud run deploy xp-api \
+  --source . \
+  --region asia-southeast1 \
+  --allow-unauthenticated \
+  --set-env-vars "MONGO_URI=<value>,PORT=8080,NODE_ENV=production"
+
+# Frontend — connect GitHub repo to Vercel, set VITE_API_URL env var
+```
+
+---
+
+## 11. Audit Log (Known Issues)
+
 
 - **Desync:** `children` array not auto-updated when a `parent` is added — needs bidirectional write in `NodesService`.
 - **Propagation:** XP/Progress calculation logic pending.
@@ -258,23 +312,23 @@ npm run dev -w web
 
 ---
 
-## 11. Obsidian Sync Layer (One-Way Push: XP → Obsidian)
+## 12. Obsidian Sync Layer (One-Way Push: XP → Obsidian)
 
-### 11.1 Design Principles
+### 12.1 Design Principles
 
 - **XP is the source of truth.** MongoDB is canonical for all structured data.
 - **Obsidian is the Vault.** Hand-written notes and ideas live in Obsidian natively. XP nodes are pushed there as a mirror — never edit the XP-pushed files in Obsidian.
 - **One-way push only.** No CouchDB, no LiveSync, no watcher. NestJS writes files; Obsidian reads them.
 - **Every mutation triggers a sync.** `create`, `update`, `delete` in `NodesService` each call `ObsidianSyncService`.
 
-### 11.2 Vault Configuration
+### 12.2 Vault Configuration
 
 | Setting | Value |
 |---------|-------|
 | **Vault root** | `C:\Projects\Obsidian\Second Brain\` |
 | **Env var** | `OBSIDIAN_VAULT_PATH` |
 
-### 11.3 Flat Folder Structure (Domain-Mirrored)
+### 12.3 Flat Folder Structure (Domain-Mirrored)
 
 XP nodes and hand-written notes coexist in the same domain-mirrored folders. The folder hierarchy is driven by XP DOMAIN nodes.
 
@@ -306,7 +360,7 @@ Second Brain/
 - TAG nodes → `_tags/` subfolder.
 - Creating a new DOMAIN in XP auto-creates the folder and `_xp_index.md`.
 
-### 11.4 Index Pages (Hybrid)
+### 12.4 Index Pages (Hybrid)
 
 | File | Author | Content | Touched by sync? |
 |------|--------|---------|-----------------|
@@ -335,7 +389,7 @@ updated: 2026-05-19T10:00:00Z
 - [[swe_683b...|SWE]] · Level 2 · 340 XP
 ```
 
-### 11.5 File Naming
+### 12.5 File Naming
 
 ```
 {slugified-title}_{_id}.md
@@ -343,7 +397,7 @@ updated: 2026-05-19T10:00:00Z
 
 Slugify: lowercase, spaces and special chars → underscores. `_id` = 24-char MongoDB ObjectId hex.
 
-### 11.6 Frontmatter Schema
+### 12.6 Frontmatter Schema
 
 Every XP-pushed file includes `aliases` (human-readable title for clean wikilinks) and `tags` (Obsidian native tags for cross-system filtering).
 
@@ -369,7 +423,7 @@ updatedAt: 2026-05-19T10:00:00.000Z
 
 Only fields with values are written. No empty/null keys.
 
-### 11.7 Tag System (Shared)
+### 12.7 Tag System (Shared)
 
 Tags are unified across XP and Obsidian via two mechanisms:
 
@@ -380,7 +434,7 @@ Tags are unified across XP and Obsidian via two mechanisms:
 
 Hand-written notes use the same tag names in their frontmatter (`tags: [dev, learning]`) to participate in the shared tag filtering system. Obsidian's tag pane and search queries (`tag:#dev`) return results from both systems.
 
-### 11.8 File Body
+### 12.8 File Body
 
 ```markdown
 # Task 1
@@ -394,7 +448,7 @@ Plain text description here.
 - Wikilinks auto-generated from `parents` array — `[[{filename}|{title}]]` — powers Obsidian graph view.
 - `description` written as plain text.
 
-### 11.9 `obsidianPath` on Node
+### 12.9 `obsidianPath` on Node
 
 Stored on the Node document for rename/delete without re-traversing the parent chain.
 
@@ -409,7 +463,7 @@ obsidianPath?: string; // e.g. "Work/Dev/task_1_683b....md"
 | Update (description / status / progress only) | Overwrite same path — `obsidianPath` unchanged. Regenerate `_xp_index.md` if status changed. |
 | Delete | Delete file at `obsidianPath` → regenerate affected `_xp_index.md`. |
 
-### 11.10 `ObsidianSyncService` Interface
+### 12.10 `ObsidianSyncService` Interface
 
 ```typescript
 class ObsidianSyncService {
@@ -426,11 +480,11 @@ Called from `NodesService` after every successful `create`, `update`, or `remove
 
 ---
 
-## 12. Use Cases
+## 13. Use Cases
 
 All use cases are organized by pillar. Each describes WHO does WHAT, the TRIGGER, the FLOW, and the OUTCOME. These drive the frontend views and backend logic.
 
-### 12.1 Core — Node Management
+### 13.1 Core — Node Management
 
 #### UC-C1: Create a Node
 **Actor:** CT
@@ -487,7 +541,7 @@ All use cases are organized by pillar. Each describes WHO does WHAT, the TRIGGER
 
 ---
 
-### 12.2 The Game — Progress & Skill Tracking
+### 13.2 The Game — Progress & Skill Tracking
 
 #### UC-G1: Complete a Task (Trigger Upward Propagation)
 **Actor:** CT
@@ -598,7 +652,7 @@ All use cases are organized by pillar. Each describes WHO does WHAT, the TRIGGER
 
 ---
 
-### 12.3 The Orchestra — Project Management
+### 13.3 The Orchestra — Project Management
 
 #### UC-O1: Kanban Board — Manage Tasks by Status
 **Actor:** CT
@@ -656,7 +710,7 @@ All use cases are organized by pillar. Each describes WHO does WHAT, the TRIGGER
 
 ---
 
-### 12.4 Cross-Pillar — Obsidian Integration
+### 13.4 Cross-Pillar — Obsidian Integration
 
 #### UC-X1: Auto-Sync on Every Mutation
 **Actor:** System (automatic)
