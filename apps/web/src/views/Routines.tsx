@@ -116,7 +116,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
           sub="daily routines done today" />
       </div>
 
-      {/* Heatmap placeholder */}
+      {/* Heatmap */}
       <div className="rounded-xl mb-5" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 20 }}>
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -124,67 +124,13 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
             <div className="text-ctp-subtext1 mt-1" style={{ fontSize: 12 }}>Each cell is a day. Green = done · gray = missed.</div>
           </div>
         </div>
-        <div className="flex flex-col gap-1">
-          {filtered.map((r) => {
-            const m = r.metadata as any ?? {};
-            const history = m.history ?? [];
-            const pct = history.length ? Math.round(history.reduce((a: number, b: number) => a + b, 0) / history.length * 100) : 0;
-            return (
-              <div key={r._id} className="flex items-center gap-3">
-                <CadenceDot cadence={m.cadence} />
-                <span onClick={() => onOpen(r._id)} className="cursor-pointer min-w-[140px] whitespace-nowrap text-ctp-subtext0" style={{ fontSize: 12 }}>
-                  {r.title}
-                </span>
-                <div className="flex gap-[3px] flex-1">
-                  {history.map((v: number, i: number) => (
-                    <div key={i} className="rounded-sm cursor-pointer transition-transform duration-100 hover:scale-110" style={{
-                      width: 18, height: 18,
-                      background: v ? 'color-mix(in srgb, var(--c-routine) 75%, var(--mantle))' : 'var(--surface1)',
-                      border: i === history.length - 1 ? '1.5px solid var(--accent)' : 'none',
-                    }} />
-                  ))}
-                </div>
-                <span className="mono text-ctp-subtext0 min-w-[30px] text-right" style={{ fontSize: 11 }}>{pct}%</span>
-                <FlameStreak n={m.streak} />
-                {/* Timer + Check-in */}
-                {(() => {
-                  const entries = (m.timeEntries ?? []) as { start: string; end?: string }[];
-                  const hasOpen = entries.some((e: any) => !e.end);
-                  const checkedToday = m.lastCheckInDate === new Date().toISOString().slice(0, 10);
-                  return (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {hasOpen ? (
-                        <button onClick={() => handleStopTimer(r._id)}
-                          className="inline-flex items-center gap-1 rounded-md border-none cursor-pointer"
-                          style={{ padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', background: 'color-mix(in srgb, var(--red) 15%, transparent)', color: 'var(--red)' }}>
-                          <Icons.Square size={10} /> Stop
-                        </button>
-                      ) : (
-                        <button onClick={() => handleStartTimer(r._id)}
-                          className="inline-flex items-center gap-1 rounded-md border-none cursor-pointer"
-                          style={{ padding: '3px 8px', fontSize: 11, fontFamily: 'inherit', background: 'var(--surface1)', color: 'var(--subtext0)' }}>
-                          <Icons.Play size={10} />
-                        </button>
-                      )}
-                      <button onClick={() => handleCheckIn(r._id)} disabled={checkedToday}
-                        className="inline-flex items-center justify-center rounded-full border-none cursor-pointer"
-                        style={{
-                          width: 24, height: 24,
-                          background: checkedToday
-                            ? 'color-mix(in srgb, var(--green) 25%, transparent)'
-                            : 'color-mix(in srgb, var(--c-routine) 15%, transparent)',
-                          color: checkedToday ? 'var(--green)' : 'var(--c-routine)',
-                          opacity: checkedToday ? 0.6 : 1,
-                        }}>
-                        <Icons.CheckCircle size={14} />
-                      </button>
-                    </div>
-                  );
-                })()}
-              </div>
-            );
-          })}
-        </div>
+        <HeatmapGrid
+          routines={filtered}
+          onOpen={onOpen}
+          onCheckIn={handleCheckIn}
+          onStartTimer={handleStartTimer}
+          onStopTimer={handleStopTimer}
+        />
       </div>
 
       {/* Cadence breakdowns */}
@@ -224,6 +170,163 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }: {
+  routines: any[];
+  onOpen: (id: string) => void;
+  onCheckIn: (id: string) => void;
+  onStartTimer: (id: string) => void;
+  onStopTimer: (id: string) => void;
+}) {
+  // Build 30 days of dates ending today
+  const days = useMemo(() => {
+    const result: Date[] = [];
+    const now = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      result.push(d);
+    }
+    return result;
+  }, []);
+
+  // Group days into weeks (Sun=0 start, split on Monday boundaries)
+  const weeks = useMemo(() => {
+    const result: Date[][] = [];
+    let current: Date[] = [];
+    for (const d of days) {
+      if (current.length > 0 && d.getDay() === 1) {
+        // Monday starts a new week
+        result.push(current);
+        current = [];
+      }
+      current.push(d);
+    }
+    if (current.length) result.push(current);
+    return result;
+  }, [days]);
+
+  const dayAbbr = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  if (routines.length === 0) {
+    return <div className="italic text-ctp-overlay1" style={{ fontSize: 12, padding: '12px 0' }}>No routines match the current filters.</div>;
+  }
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ display: 'inline-flex', minWidth: '100%' }}>
+        {/* Routine name column */}
+        <div className="flex flex-col shrink-0" style={{ width: 160 }}>
+          {/* Header spacer — two rows: day abbr + date number */}
+          <div style={{ height: 38 }} />
+          {routines.map((r) => (
+            <div key={r._id} className="flex items-center gap-1.5 truncate" style={{ height: 36, paddingRight: 8 }}>
+              <CadenceDot cadence={(r.metadata as any)?.cadence} />
+              <span className="truncate cursor-pointer hover:underline" style={{ fontSize: 12 }} onClick={() => onOpen(r._id)}>{r.title}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Week groups */}
+        <div className="flex gap-3 flex-1">
+          {weeks.map((week, wi) => (
+            <div key={wi} className="flex flex-col">
+              {/* Day abbreviations row */}
+              <div className="flex">
+                {week.map((d, di) => (
+                  <div key={di} className="text-center text-ctp-overlay1" style={{ width: 28, fontSize: 9, fontWeight: 600 }}>
+                    {dayAbbr[d.getDay()]}
+                  </div>
+                ))}
+              </div>
+              {/* Date numbers row */}
+              <div className="flex mb-1.5">
+                {week.map((d, di) => (
+                  <div key={di} className="text-center text-ctp-subtext1 mono" style={{ width: 28, fontSize: 9 }}>
+                    {d.getDate()}
+                  </div>
+                ))}
+              </div>
+              {/* Routine rows */}
+              {routines.map((r) => {
+                const m = r.metadata as any ?? {};
+                const history = m.history ?? [];
+                return (
+                  <div key={r._id} className="flex" style={{ height: 36 }}>
+                    {week.map((d, di) => {
+                      // Find index in the 30-day history array for this date
+                      const dayOffset = Math.round((d.getTime() - days[0].getTime()) / 86400000);
+                      const val = history[dayOffset];
+                      const isToday = d.toISOString().slice(0, 10) === todayStr;
+                      return (
+                        <div key={di} className="grid place-items-center" style={{ width: 28, height: 28 }}>
+                          <div
+                            style={{
+                              width: 20, height: 20, borderRadius: 4,
+                              background: val ? 'var(--green)' : 'var(--surface1)',
+                              opacity: val ? 1 : 0.5,
+                              border: isToday ? '2px solid var(--accent)' : 'none',
+                              cursor: isToday && !val ? 'pointer' : 'default',
+                            }}
+                            title={`${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${val ? ' ✓' : ''}`}
+                            onClick={() => { if (isToday && !val) onCheckIn(r._id); }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Right column: actions + stats */}
+        <div className="flex flex-col shrink-0" style={{ width: 160, paddingLeft: 12 }}>
+          {/* Header spacer */}
+          <div style={{ height: 38 }} />
+          {routines.map((r) => {
+            const m = r.metadata as any ?? {};
+            const history = m.history ?? [];
+            const pct = history.length ? Math.round(history.reduce((a: number, b: number) => a + b, 0) / history.length * 100) : 0;
+            const isTimerRunning = !!(m.timerStart);
+            return (
+              <div key={r._id} className="flex items-center gap-1.5 justify-end" style={{ height: 36 }}>
+                {/* Timer button */}
+                <button
+                  onClick={() => isTimerRunning ? onStopTimer(r._id) : onStartTimer(r._id)}
+                  className="bg-transparent border-none cursor-pointer grid place-items-center rounded"
+                  style={{ width: 22, height: 22, background: isTimerRunning ? 'color-mix(in srgb, var(--red) 20%, transparent)' : 'var(--surface1)' }}
+                  title={isTimerRunning ? 'Stop timer' : 'Start timer'}
+                >
+                  {isTimerRunning
+                    ? <Icons.Square size={10} color="var(--red)" />
+                    : <Icons.Play size={10} color="var(--subtext0)" />}
+                </button>
+                {/* Check-in button */}
+                <button
+                  onClick={() => onCheckIn(r._id)}
+                  className="bg-transparent border-none cursor-pointer grid place-items-center rounded"
+                  style={{ width: 22, height: 22, background: m.history?.[29] ? 'color-mix(in srgb, var(--green) 20%, transparent)' : 'var(--surface1)' }}
+                  title="Check in"
+                >
+                  <Icons.CheckCircle size={12} color={m.history?.[29] ? 'var(--green)' : 'var(--overlay1)'} />
+                </button>
+                {/* Percentage */}
+                <span className="mono min-w-[32px] text-right" style={{ fontSize: 10, color: pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--overlay1)' }}>
+                  {pct}%
+                </span>
+                {/* Streak */}
+                <FlameStreak n={m.streak} />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
