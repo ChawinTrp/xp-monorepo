@@ -5,8 +5,10 @@ import { ApolloProvider } from '@apollo/client/react';
 import App from './App';
 import './index.css';
 
+const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+
 const client = new ApolloClient({
-  link: new HttpLink({ uri: `${import.meta.env.VITE_API_URL ?? 'http://localhost:3000'}/graphql` }),
+  link: new HttpLink({ uri: `${API_BASE}/graphql` }),
   cache: new InMemoryCache(),
 });
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Icons } from '../components/ui';
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 interface GCalStatus {
   configured: boolean;
