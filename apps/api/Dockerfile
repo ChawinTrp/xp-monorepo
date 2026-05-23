@@ -2,13 +2,16 @@
 FROM node:22-slim AS build
 WORKDIR /app
 
-# Copy root workspace files
+# Copy root workspace files + shared package source
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/ packages/
 
 # Install all deps (workspace-aware)
-RUN npm ci --workspace=api
+RUN npm ci
+
+# Build shared package first (dist is gitignored)
+RUN npm run build --workspace=@xp/shared
 
 # Copy API source and build
 COPY apps/api/ apps/api/
@@ -22,9 +25,10 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/ packages/
 
-RUN npm ci --workspace=api --omit=dev
+RUN npm ci --omit=dev
 
-# Copy compiled output
+# Copy shared + API compiled output
+COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY --from=build /app/apps/api/dist apps/api/dist
 
 ENV NODE_ENV=production
