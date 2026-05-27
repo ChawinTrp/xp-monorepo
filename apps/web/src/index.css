@@ -69,9 +69,14 @@ button { font-family: inherit; cursor: pointer; }
 @keyframes slideRight { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes toast-in { from { transform: translateX(100%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes toast-out { from { transform: none; opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+@keyframes timerPulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 30%, transparent); }
+  50%      { box-shadow: 0 0 0 4px color-mix(in srgb, var(--red) 50%, transparent); }
+}
 
 .fade-in { animation: fadeIn 200ms ease both; }
 .slide-right { animation: slideRight 200ms ease both; }
+.timer-pulse { animation: timerPulse 1.4s ease-in-out infinite; }
 
 /* Mobile responsive utilities */
 @media (max-width: 768px) {

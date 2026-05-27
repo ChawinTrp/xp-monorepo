@@ -1,4 +1,4 @@
-import { ObjectType, Field, ID, Float } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Float, GraphQLISODateTime } from '@nestjs/graphql';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
 import GraphQLJSON from 'graphql-type-json';
@@ -62,10 +62,10 @@ export class Node {
   @Prop({ required: false })
   obsidianPath?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field(() => GraphQLISODateTime, { nullable: true })
   createdAt?: Date;
 
-  @Field(() => String, { nullable: true })
+  @Field(() => GraphQLISODateTime, { nullable: true })
   updatedAt?: Date;
 }
 

@@ -5,6 +5,20 @@ import { TypeBadge, TypeIcon, ProgressBar, TagChip, Button, Icons, LevelBadge, u
 import { TYPE_COLORS } from '../lib/types';
 import { UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
 
+type NodeType = 'DOMAIN' | 'SKILL' | 'PROJECT' | 'TASK' | 'PERSON' | 'TAG' | 'ROUTINE';
+
+// Mirrors @xp/shared ALLOWED_MAIN_PARENTS — inlined to avoid the cross-package import
+// (Vite caches the prebuilt dist and doesn't re-detect new exports without a full restart).
+const ALLOWED_MAIN_PARENTS: Record<NodeType, NodeType[] | null> = {
+  DOMAIN:  ['DOMAIN'],
+  SKILL:   ['DOMAIN'],
+  PROJECT: ['DOMAIN'],
+  TASK:    ['PROJECT', 'DOMAIN', 'TASK'],
+  PERSON:  ['DOMAIN'],
+  TAG:     null,
+  ROUTINE: ['DOMAIN'],
+};
+
 interface NodeDetailProps {
   id: string;
   onOpen: (id: string) => void;
@@ -27,6 +41,12 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const [linkedSkillIds, setLinkedSkillIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Editable metadata fields (for TASK)
+  const [due, setDue] = useState<string>('');
+  const [priority, setPriority] = useState<string>('');
+  const [estimatedHours, setEstimatedHours] = useState<string>('');
+  const [mainParentId, setMainParentId] = useState<string>('');
+
   // Sync local state when node changes
   useEffect(() => {
     if (n) {
@@ -39,6 +59,11 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         return p && p.type === 'SKILL';
       });
       setLinkedSkillIds(skillIds);
+      const meta = (n.metadata as any) ?? {};
+      setDue(meta.due ?? '');
+      setPriority(meta.priority ?? '');
+      setEstimatedHours(meta.estimatedHours != null ? String(meta.estimatedHours) : '');
+      setMainParentId(n.mainParent ?? '');
     }
   }, [n, byId]);
 
@@ -107,12 +132,31 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Rebuild parents array: keep non-SKILL parents + linked skills
-      const nonSkillParents = (n.parents ?? []).filter(pid => {
+      // Rebuild parents array: keep non-SKILL & non-(old mainParent) parents,
+      // then add: new mainParent + linked skills
+      const oldMainParent = n.mainParent;
+      const keptParents = (n.parents ?? []).filter(pid => {
         const p = byId[pid];
-        return !p || p.type !== 'SKILL';
+        if (!p) return false;
+        if (p.type === 'SKILL') return false;          // skills are managed separately below
+        if (pid === oldMainParent) return false;        // old mainParent — replace with new
+        return true;
       });
-      const newParents = [...nonSkillParents, ...linkedSkillIds];
+      const newParents = [
+        ...(mainParentId ? [mainParentId] : []),
+        ...keptParents,
+        ...linkedSkillIds,
+      ];
+
+      // Merge metadata (preserve existing fields like history, completedAt, etc.)
+      const oldMeta = (n.metadata as any) ?? {};
+      const newMeta: Record<string, unknown> = { ...oldMeta };
+      if (n.type === 'TASK') {
+        if (due) newMeta.due = due; else delete newMeta.due;
+        if (priority) newMeta.priority = priority; else delete newMeta.priority;
+        if (estimatedHours) newMeta.estimatedHours = parseFloat(estimatedHours);
+        else delete newMeta.estimatedHours;
+      }
 
       await updateNode({
         variables: {
@@ -123,7 +167,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
             description,
             status: ['TASK', 'PROJECT'].includes(n.type) ? status : undefined,
             progress,
+            mainParent: mainParentId || null,
             parents: newParents,
+            metadata: newMeta,
           },
         },
       });
@@ -304,9 +350,19 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
             <div className="flex flex-col gap-3.5">
               <div>
                 <div className="uppercase text-ctp-subtext1 mb-1.5" style={{ fontSize: 10, letterSpacing: 0.6 }}>Main parent</div>
-                <div className="mono text-ctp-subtext0" style={{ fontSize: 12 }}>
-                  {crumb.map((c) => c.title).join(' / ') || '—'}
-                </div>
+                <ParentPicker
+                  nodeType={n.type as NodeType}
+                  currentId={mainParentId}
+                  excludeId={id}
+                  byType={byType}
+                  breadcrumb={breadcrumb}
+                  onChange={setMainParentId}
+                />
+                {mainParentId && byId[mainParentId] && (
+                  <div className="mono text-ctp-subtext0 mt-1.5" style={{ fontSize: 11 }}>
+                    {breadcrumb(mainParentId).map(c => c.title).concat(byId[mainParentId].title).join(' / ')}
+                  </div>
+                )}
               </div>
               {(n.parents?.length ?? 0) > 0 && n.parents?.some(pid => pid !== n.mainParent) && (
                 <div>
@@ -371,13 +427,20 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                   <Field label="Status">
                     <SegmentedStatus value={status} onChange={setStatus} />
                   </Field>
-                  {m.estimatedHours != null && (
-                    <Field label="Estimated">
-                      <span className="mono inline-flex items-center gap-1.5">
-                        <Icons.Clock size={12} color="var(--subtext1)" /> {m.estimatedHours}h
-                      </span>
-                    </Field>
-                  )}
+                  <Field label="Estimated hours">
+                    <input
+                      type="number" step="0.5" min="0"
+                      value={estimatedHours}
+                      onChange={(e) => setEstimatedHours(e.target.value)}
+                      placeholder="e.g. 4"
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    />
+                  </Field>
                   {m.actualHours != null && (
                     <Field label="Tracked time">
                       <span className="mono inline-flex items-center gap-1.5 font-bold">
@@ -420,9 +483,40 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                       className="w-full" style={{ accentColor: 'var(--accent)' }} />
                     <div className="mono text-ctp-subtext0 text-right" style={{ fontSize: 11 }}>{progress}%</div>
                   </Field>
-                  {m.due && <Field label="Due date"><span className="mono">{m.due}</span></Field>}
+                  <Field label="Due date">
+                    <input
+                      type="date"
+                      value={due ? due.slice(0, 10) : ''}
+                      onChange={(e) => setDue(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    />
+                  </Field>
+                  <Field label="Priority">
+                    <div className="flex gap-1">
+                      {['low', 'medium', 'high'].map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setPriority(priority === p ? '' : p)}
+                          className="flex-1 border-none rounded cursor-pointer capitalize font-semibold"
+                          style={{
+                            padding: '7px 0', fontSize: 12, fontFamily: 'inherit',
+                            background: priority === p ? 'var(--surface1)' : 'var(--mantle)',
+                            color: priority === p
+                              ? p === 'high' ? 'var(--red)' : p === 'medium' ? 'var(--yellow)' : 'var(--green)'
+                              : 'var(--subtext1)',
+                          }}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
                   {m.startDate && <Field label="Start date"><span className="mono">{m.startDate}</span></Field>}
-                  {m.priority && <Field label="Priority"><span className="capitalize">{m.priority}</span></Field>}
                   {m.sprint && <Field label="Sprint"><span className="font-semibold" style={{ color: 'var(--accent)' }}>{m.sprint}</span></Field>}
                 </>
               )}
@@ -784,5 +878,60 @@ function SegmentedStatus({ value, onChange }: { value: string; onChange: (v: str
         </button>
       ))}
     </div>
+  );
+}
+
+/* ── ParentPicker ── allows changing the mainParent within the allowed type list */
+
+function ParentPicker({
+  nodeType, currentId, excludeId, byType, breadcrumb, onChange,
+}: {
+  nodeType: NodeType;
+  currentId: string;
+  excludeId: string;
+  byType: (t: string) => any[];
+  breadcrumb: (id: string) => any[];
+  onChange: (id: string) => void;
+}) {
+  const allowedTypes = ALLOWED_MAIN_PARENTS[nodeType];
+  const candidates = useMemo(() => {
+    if (!allowedTypes) return [];
+    const out: any[] = [];
+    for (const t of allowedTypes) {
+      for (const node of byType(t)) {
+        if (node._id === excludeId) continue;          // can't be its own parent
+        const crumb = breadcrumb(node._id);
+        if (crumb.some((c: any) => c._id === excludeId)) continue;  // can't pick descendant
+        out.push(node);
+      }
+    }
+    return out.sort((a, b) => a.title.localeCompare(b.title));
+  }, [allowedTypes, byType, breadcrumb, excludeId]);
+
+  if (!allowedTypes || allowedTypes.length === 0) {
+    return <div className="text-ctp-overlay1" style={{ fontSize: 12 }}>(no parent allowed)</div>;
+  }
+
+  return (
+    <select
+      value={currentId}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded-md w-full"
+      style={{
+        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+        background: 'var(--base)', border: '1px solid var(--surface1)',
+        color: 'var(--text)', outline: 'none',
+      }}
+    >
+      <option value="">— None —</option>
+      {candidates.map((c) => {
+        const path = breadcrumb(c._id).map((b: any) => b.title).join(' / ');
+        return (
+          <option key={c._id} value={c._id}>
+            {c.type} · {path ? `${path} / ` : ''}{c.title}
+          </option>
+        );
+      })}
+    </select>
   );
 }

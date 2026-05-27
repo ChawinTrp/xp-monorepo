@@ -248,10 +248,17 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
   }
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ overflowX: 'auto', position: 'relative' }}>
       <div style={{ display: 'inline-flex', minWidth: '100%' }}>
-        {/* Routine name column */}
-        <div className="flex flex-col shrink-0" style={{ width: 160 }}>
+        {/* Routine name column — sticky LEFT */}
+        <div className="flex flex-col shrink-0" style={{
+          width: 160,
+          position: 'sticky',
+          left: 0,
+          zIndex: 3,
+          background: 'var(--surface0)',
+          boxShadow: '4px 0 6px -4px rgba(0,0,0,0.25)',
+        }}>
           {/* Header spacer — two rows: day abbr + date number */}
           <div style={{ height: 38 }} />
           {routines.map((r) => (
@@ -315,8 +322,16 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
           ))}
         </div>
 
-        {/* Right column: actions + stats */}
-        <div className="flex flex-col shrink-0" style={{ width: 160, paddingLeft: 12 }}>
+        {/* Right column: actions + stats — sticky RIGHT */}
+        <div className="flex flex-col shrink-0" style={{
+          width: 160,
+          paddingLeft: 12,
+          position: 'sticky',
+          right: 0,
+          zIndex: 3,
+          background: 'var(--surface0)',
+          boxShadow: '-4px 0 6px -4px rgba(0,0,0,0.25)',
+        }}>
           {/* Header spacer */}
           <div style={{ height: 38 }} />
           {routines.map((r) => {
@@ -329,12 +344,16 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
                 {/* Timer button */}
                 <button
                   onClick={() => timerRunning ? onStopTimer(r._id) : onStartTimer(r._id)}
-                  className="bg-transparent border-none cursor-pointer grid place-items-center rounded"
-                  style={{ width: 22, height: 22, background: timerRunning ? 'color-mix(in srgb, var(--red) 20%, transparent)' : 'var(--surface1)' }}
+                  className={`bg-transparent border-none cursor-pointer grid place-items-center rounded${timerRunning ? ' timer-pulse' : ''}`}
+                  style={{
+                    width: 22, height: 22,
+                    background: timerRunning ? 'var(--red)' : 'var(--surface1)',
+                    boxShadow: timerRunning ? '0 0 0 2px color-mix(in srgb, var(--red) 30%, transparent)' : 'none',
+                  }}
                   title={timerRunning ? 'Stop timer' : 'Start timer'}
                 >
                   {timerRunning
-                    ? <Icons.Square size={10} color="var(--red)" />
+                    ? <Icons.Square size={10} color="var(--mantle)" fill="var(--mantle)" />
                     : <Icons.Play size={10} color="var(--subtext0)" />}
                 </button>
                 {/* Check-in button */}
