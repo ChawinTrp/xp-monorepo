@@ -31,6 +31,7 @@ type Mutation {
   deleteNode(id: ID!): Node!
   startTaskTimer(id: ID!): Node!
   stopTaskTimer(id: ID!): Node!
+  undoCheckInRoutine(id: ID!): [Node!]!
   updateNode(updateNodeInput: UpdateNodeInput!): Node!
 }
 

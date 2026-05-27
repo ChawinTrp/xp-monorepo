@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { Icons, RingGauge, Dropdown, Button, useToast } from '../components/ui';
-import { CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES } from '../lib/graphql';
+import { CHECK_IN_ROUTINE, UNDO_CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES } from '../lib/graphql';
 
 interface RoutinesProps {
   onOpen: (id: string) => void;
@@ -46,6 +46,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   const { byType, byId } = useNodes();
   const { toast } = useToast();
   const [checkInRoutine] = useMutation(CHECK_IN_ROUTINE, { refetchQueries: [{ query: GET_NODES }] });
+  const [undoCheckIn] = useMutation(UNDO_CHECK_IN_ROUTINE, { refetchQueries: [{ query: GET_NODES }] });
   const [startTimerMut] = useMutation(START_TIMER, { refetchQueries: [{ query: GET_NODES }] });
   const [stopTimerMut] = useMutation(STOP_TIMER, { refetchQueries: [{ query: GET_NODES }] });
   const routines = byType('ROUTINE');
@@ -68,6 +69,11 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   const longestStreak = routines.reduce((m, r) => Math.max(m, (r.metadata as any)?.streak ?? 0), 0);
 
   const handleCheckIn = async (routineId: string) => {
+    // If already checked in today, undo instead
+    const routineNode = byId[routineId];
+    if (routineNode && isCheckedToday((routineNode.metadata as any)?.checkInDates)) {
+      return handleUndo(routineId);
+    }
     try {
       const { data } = await checkInRoutine({ variables: { id: routineId } });
       const affectedNodes = data?.checkInRoutine ?? [];
@@ -84,6 +90,21 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
       });
     } catch (err: any) {
       toast({ message: 'Check-in failed', variant: 'error', details: err.message });
+    }
+  };
+
+  const handleUndo = async (routineId: string) => {
+    try {
+      const { data } = await undoCheckIn({ variables: { id: routineId } });
+      const affectedNodes = data?.undoCheckInRoutine ?? [];
+      const routine = affectedNodes.find((n: any) => n._id === routineId);
+      toast({
+        message: 'Check-in undone',
+        variant: 'info',
+        details: `Streak is now ${routine?.metadata?.streak ?? 0}`,
+      });
+    } catch (err: any) {
+      toast({ message: 'Undo failed', variant: 'error', details: err.message });
     }
   };
 
@@ -307,10 +328,12 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
                               background: val ? 'var(--green)' : 'var(--surface1)',
                               opacity: val ? 1 : 0.5,
                               border: isToday ? '2px solid var(--accent)' : 'none',
-                              cursor: isToday && !val ? 'pointer' : 'default',
+                              cursor: isToday ? 'pointer' : 'default',
                             }}
-                            title={`${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${val ? ' ✓' : ''}`}
-                            onClick={() => { if (isToday && !val) onCheckIn(r._id); }}
+                            title={isToday
+                              ? (val ? 'Click to undo today’s check-in' : 'Click to check in')
+                              : `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${val ? ' ✓' : ''}`}
+                            onClick={() => { if (isToday) onCheckIn(r._id); }}
                           />
                         </div>
                       );
@@ -356,12 +379,12 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
                     ? <Icons.Square size={10} color="var(--mantle)" fill="var(--mantle)" />
                     : <Icons.Play size={10} color="var(--subtext0)" />}
                 </button>
-                {/* Check-in button */}
+                {/* Check-in button (click again to undo today's check-in) */}
                 <button
                   onClick={() => onCheckIn(r._id)}
                   className="bg-transparent border-none cursor-pointer grid place-items-center rounded"
-                  style={{ width: 22, height: 22, background: doneToday ? 'color-mix(in srgb, var(--green) 20%, transparent)' : 'var(--surface1)' }}
-                  title={doneToday ? 'Already checked in today' : 'Check in'}
+                  style={{ width: 22, height: 22, background: doneToday ? 'color-mix(in srgb, var(--green) 25%, transparent)' : 'var(--surface1)' }}
+                  title={doneToday ? 'Undo today’s check-in' : 'Check in'}
                 >
                   <Icons.CheckCircle size={12} color={doneToday ? 'var(--green)' : 'var(--overlay1)'} />
                 </button>

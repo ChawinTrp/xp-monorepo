@@ -97,3 +97,12 @@ export const CHECK_IN_ROUTINE = gql`
     }
   }
 `;
+
+export const UNDO_CHECK_IN_ROUTINE = gql`
+  ${NODE_FIELDS}
+  mutation UndoCheckInRoutine($id: ID!) {
+    undoCheckInRoutine(id: $id) {
+      ...NodeFields
+    }
+  }
+`;
