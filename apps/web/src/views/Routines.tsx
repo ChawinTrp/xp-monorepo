@@ -9,6 +9,39 @@ interface RoutinesProps {
   onCreate?: () => void;
 }
 
+// ── Date helpers ──
+function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+const TODAY_STR = localDateStr();
+function last30Dates(): string[] {
+  const out: string[] = [];
+  const now = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    out.push(localDateStr(d));
+  }
+  return out;
+}
+function consistency30(checkInDates?: string[]): number {
+  if (!checkInDates?.length) return 0;
+  const set = new Set(checkInDates);
+  const window = last30Dates();
+  const hit = window.filter(d => set.has(d)).length;
+  return hit / window.length;
+}
+function isCheckedToday(checkInDates?: string[]): boolean {
+  return !!checkInDates?.includes(TODAY_STR);
+}
+function isTimerRunning(meta: any): boolean {
+  const entries = meta?.timeEntries as { start: string; end?: string }[] | undefined;
+  return !!entries?.some(e => !e.end);
+}
+
 export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   const { byType, byId } = useNodes();
   const { toast } = useToast();
@@ -29,10 +62,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   });
 
   const overallPct = routines.length ? Math.round(
-    routines.reduce((s, r) => {
-      const h = (r.metadata as any)?.history ?? [];
-      return s + (h.length ? h.reduce((a: number, b: number) => a + b, 0) / h.length : 0);
-    }, 0) / routines.length * 100
+    routines.reduce((s, r) => s + consistency30((r.metadata as any)?.checkInDates), 0) / routines.length * 100
   ) : 0;
 
   const longestStreak = routines.reduce((m, r) => Math.max(m, (r.metadata as any)?.streak ?? 0), 0);
@@ -110,7 +140,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
         <BigStat label="Routines tracked" value={routines.length} color="var(--c-routine)"
           icon={<Icons.Repeat size={20} color="var(--c-routine)" />}
           sub={`${routines.filter(r => (r.metadata as any)?.cadence === 'daily').length} daily · ${routines.filter(r => (r.metadata as any)?.cadence === 'weekly').length} weekly`} />
-        <BigStat label="Today" value={routines.filter(r => (r.metadata as any)?.cadence === 'daily' && (r.metadata as any)?.history?.[29]).length}
+        <BigStat label="Today" value={routines.filter(r => (r.metadata as any)?.cadence === 'daily' && isCheckedToday((r.metadata as any)?.checkInDates)).length}
           suffix={` / ${routines.filter(r => (r.metadata as any)?.cadence === 'daily').length}`}
           color="var(--accent)" icon={<Icons.CheckCircle size={20} color="var(--accent)" />}
           sub="daily routines done today" />
@@ -211,7 +241,7 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
   }, [days]);
 
   const dayAbbr = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = TODAY_STR;
 
   if (routines.length === 0) {
     return <div className="italic text-ctp-overlay1" style={{ fontSize: 12, padding: '12px 0' }}>No routines match the current filters.</div>;
@@ -255,14 +285,13 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
               {/* Routine rows */}
               {routines.map((r) => {
                 const m = r.metadata as any ?? {};
-                const history = m.history ?? [];
+                const checkInSet = new Set<string>(m.checkInDates ?? []);
                 return (
                   <div key={r._id} className="flex" style={{ height: 36 }}>
                     {week.map((d, di) => {
-                      // Find index in the 30-day history array for this date
-                      const dayOffset = Math.round((d.getTime() - days[0].getTime()) / 86400000);
-                      const val = history[dayOffset];
-                      const isToday = d.toISOString().slice(0, 10) === todayStr;
+                      const dateStr = localDateStr(d);
+                      const val = checkInSet.has(dateStr);
+                      const isToday = dateStr === todayStr;
                       return (
                         <div key={di} className="grid place-items-center" style={{ width: 28, height: 28 }}>
                           <div
@@ -292,19 +321,19 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
           <div style={{ height: 38 }} />
           {routines.map((r) => {
             const m = r.metadata as any ?? {};
-            const history = m.history ?? [];
-            const pct = history.length ? Math.round(history.reduce((a: number, b: number) => a + b, 0) / history.length * 100) : 0;
-            const isTimerRunning = !!(m.timerStart);
+            const pct = Math.round(consistency30(m.checkInDates) * 100);
+            const doneToday = isCheckedToday(m.checkInDates);
+            const timerRunning = isTimerRunning(m);
             return (
               <div key={r._id} className="flex items-center gap-1.5 justify-end" style={{ height: 36 }}>
                 {/* Timer button */}
                 <button
-                  onClick={() => isTimerRunning ? onStopTimer(r._id) : onStartTimer(r._id)}
+                  onClick={() => timerRunning ? onStopTimer(r._id) : onStartTimer(r._id)}
                   className="bg-transparent border-none cursor-pointer grid place-items-center rounded"
-                  style={{ width: 22, height: 22, background: isTimerRunning ? 'color-mix(in srgb, var(--red) 20%, transparent)' : 'var(--surface1)' }}
-                  title={isTimerRunning ? 'Stop timer' : 'Start timer'}
+                  style={{ width: 22, height: 22, background: timerRunning ? 'color-mix(in srgb, var(--red) 20%, transparent)' : 'var(--surface1)' }}
+                  title={timerRunning ? 'Stop timer' : 'Start timer'}
                 >
-                  {isTimerRunning
+                  {timerRunning
                     ? <Icons.Square size={10} color="var(--red)" />
                     : <Icons.Play size={10} color="var(--subtext0)" />}
                 </button>
@@ -312,10 +341,10 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
                 <button
                   onClick={() => onCheckIn(r._id)}
                   className="bg-transparent border-none cursor-pointer grid place-items-center rounded"
-                  style={{ width: 22, height: 22, background: m.history?.[29] ? 'color-mix(in srgb, var(--green) 20%, transparent)' : 'var(--surface1)' }}
-                  title="Check in"
+                  style={{ width: 22, height: 22, background: doneToday ? 'color-mix(in srgb, var(--green) 20%, transparent)' : 'var(--surface1)' }}
+                  title={doneToday ? 'Already checked in today' : 'Check in'}
                 >
-                  <Icons.CheckCircle size={12} color={m.history?.[29] ? 'var(--green)' : 'var(--overlay1)'} />
+                  <Icons.CheckCircle size={12} color={doneToday ? 'var(--green)' : 'var(--overlay1)'} />
                 </button>
                 {/* Percentage */}
                 <span className="mono min-w-[32px] text-right" style={{ fontSize: 10, color: pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--overlay1)' }}>

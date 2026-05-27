@@ -145,25 +145,33 @@ export class PropagationService {
       throw new Error('checkInRoutine called on non-ROUTINE node');
 
     const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
+    const today = this.localDateStr();
 
-    // Idempotent: check if already checked in today
-    const history = (meta.history as boolean[]) ?? [];
-    const today = new Date().toISOString().slice(0, 10);
-    const lastCheckIn = meta.lastCheckInDate as string | undefined;
-    if (lastCheckIn === today) {
-      // Already checked in today — return as-is
-      return [routine];
-    }
+    // Date-aligned check-in set (canonical) — replaces legacy boolean history
+    const checkInDates = ((meta.checkInDates as string[]) ?? []).slice();
 
-    // Update history + streak
-    history.push(true);
-    meta.history = history;
+    // Idempotent: already checked in today
+    if (checkInDates.includes(today)) return [routine];
+
+    checkInDates.push(today);
+    checkInDates.sort(); // ascending
+    meta.checkInDates = checkInDates;
     meta.lastCheckInDate = today;
 
-    const streak = ((meta.streak as number) ?? 0) + 1;
+    // Current streak: count consecutive days ending today
+    let streak = 0;
+    const cursor = new Date(today);
+    const dateSet = new Set(checkInDates);
+    while (dateSet.has(cursor.toISOString().slice(0, 10))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
     meta.streak = streak;
     meta.bestStreak = Math.max(streak, (meta.bestStreak as number) ?? 0);
-    meta.thisWeek = ((meta.thisWeek as number) ?? 0) + 1;
+
+    // This week (Mon-start): count check-ins from Monday of current ISO week
+    const monday = this.getMondayStart(today);
+    meta.thisWeek = checkInDates.filter(d => d >= monday).length;
 
     // Compute hours: actualHours (timer) ?? parseTarget(target) ?? 0
     const creditedHours =
@@ -173,7 +181,7 @@ export class PropagationService {
 
     // Clear timer data for next session
     meta.timeEntries = [];
-    meta.actualHours = undefined;
+    delete (meta as Record<string, unknown>).actualHours;
 
     routine.metadata = meta;
     routine.markModified('metadata');
@@ -211,6 +219,20 @@ export class PropagationService {
     }
 
     return affected;
+  }
+
+  private localDateStr(d: Date = new Date()): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  private getMondayStart(dateStr: string): string {
+    const d = new Date(dateStr);
+    const dow = d.getDay() === 0 ? 7 : d.getDay(); // Sun=0 → 7
+    d.setDate(d.getDate() - (dow - 1));
+    return d.toISOString().slice(0, 10);
   }
 
   private parseTarget(target?: string): number {

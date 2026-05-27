@@ -24,10 +24,49 @@ const NodeSchema = new mongoose.Schema(
 
 const Node = mongoose.model('Node', NodeSchema);
 
-function history30(pattern: boolean[]): boolean[] {
-  const out: boolean[] = [];
-  for (let i = 0; i < 30; i++) out.push(pattern[i % pattern.length]);
-  return out;
+function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Generate realistic check-in dates ending YESTERDAY (so the user can click "today" fresh).
+ * - `streak` consecutive days starting from yesterday (inclusive)
+ * - Plus older random check-ins within the last 60 days at ~`olderHitRate`
+ */
+function generateCheckInDates(streak: number, olderHitRate = 0.6, lookbackDays = 60): string[] {
+  const dates: string[] = [];
+  const today = new Date();
+  // Recent consecutive streak — START AT YESTERDAY so today is empty
+  for (let i = 1; i <= streak; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    dates.push(localDateStr(d));
+  }
+  // Older days, with miss days
+  for (let i = streak + 1; i <= lookbackDays; i++) {
+    if (Math.random() < olderHitRate) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      dates.push(localDateStr(d));
+    }
+  }
+  return dates.sort();
+}
+
+function mondayStart(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay() === 0 ? 7 : d.getDay();
+  d.setDate(d.getDate() - (dow - 1));
+  return localDateStr(d);
+}
+
+function thisWeekFromDates(dates: string[]): number {
+  const today = localDateStr();
+  const monday = mondayStart(today);
+  return dates.filter(d => d >= monday).length;
 }
 
 async function seed() {
@@ -171,45 +210,60 @@ async function seed() {
   }
 
   // ── ROUTINES (from Second Brain Routines.md) ──
+  // Helper to build routine metadata with date-aligned check-ins
+  const buildRoutineMeta = (opts: {
+    cadence: string; streak: number; bestStreak: number; group: string;
+    target: string; weekTarget: number; olderHitRate?: number;
+  }) => {
+    const dates = generateCheckInDates(opts.streak, opts.olderHitRate);
+    return {
+      cadence: opts.cadence, streak: opts.streak, bestStreak: opts.bestStreak,
+      group: opts.group, target: opts.target, weekTarget: opts.weekTarget,
+      thisWeek: thisWeekFromDates(dates),
+      lastCheckInDate: dates[dates.length - 1],
+      checkInDates: dates,
+    };
+  };
+
   const routines = [
     {
       title: 'Morning Read', mainParent: learning._id,
-      metadata: { cadence: 'daily', streak: 14, bestStreak: 21, group: 'Morning', target: '30 min', thisWeek: 5, weekTarget: 7, history: history30([true, true, true, true, true, false, true]) },
+      metadata: buildRoutineMeta({ cadence: 'daily', streak: 14, bestStreak: 21, group: 'Morning', target: '30 min', weekTarget: 7, olderHitRate: 0.75 }),
     },
     {
       title: 'Meditate', mainParent: health._id,
-      metadata: { cadence: 'daily', streak: 9, bestStreak: 30, group: 'Morning', target: '10 min', thisWeek: 4, weekTarget: 7, history: history30([true, true, false, true, true, true, false]) },
+      metadata: buildRoutineMeta({ cadence: 'daily', streak: 9, bestStreak: 30, group: 'Morning', target: '10 min', weekTarget: 7, olderHitRate: 0.65 }),
     },
     {
       title: 'Gym (PPL)', mainParent: health._id,
       description: 'Push/Pull/Legs split. Min 4 sessions/week. 172cm / 62kg.',
-      metadata: { cadence: 'weekly', streak: 6, bestStreak: 12, group: 'Fitness', target: '4x/week', thisWeek: 3, weekTarget: 4, history: history30([true, false, true, false, true, false, true]) },
+      metadata: buildRoutineMeta({ cadence: 'weekly', streak: 0, bestStreak: 12, group: 'Fitness', target: '4x/week', weekTarget: 4, olderHitRate: 0.55 }),
     },
     {
       title: 'Journal', mainParent: personal._id,
-      metadata: { cadence: 'daily', streak: 3, bestStreak: 14, group: 'Evening', target: '15 min', thisWeek: 3, weekTarget: 7, history: history30([false, true, false, true, false, true, true]) },
+      metadata: buildRoutineMeta({ cadence: 'daily', streak: 3, bestStreak: 14, group: 'Evening', target: '15 min', weekTarget: 7, olderHitRate: 0.5 }),
     },
     {
       title: 'Deep Work Block', mainParent: dev._id,
       description: 'Focused coding session — no notifications, no context switching.',
-      metadata: { cadence: 'daily', streak: 8, bestStreak: 18, group: 'Work', target: '2 hours', thisWeek: 5, weekTarget: 6, history: history30([true, true, true, false, true, true, true]) },
+      metadata: buildRoutineMeta({ cadence: 'daily', streak: 8, bestStreak: 18, group: 'Work', target: '2 hours', weekTarget: 6, olderHitRate: 0.7 }),
     },
     {
       title: 'Weekly Review', mainParent: personal._id,
-      metadata: { cadence: 'weekly', streak: 4, bestStreak: 10, group: 'Planning', target: '1x/week', thisWeek: 1, weekTarget: 1, history: history30([false, false, false, false, false, false, true]) },
+      metadata: buildRoutineMeta({ cadence: 'weekly', streak: 0, bestStreak: 10, group: 'Planning', target: '1x/week', weekTarget: 1, olderHitRate: 0.15 }),
     },
     {
       title: 'Call Parents', mainParent: relationships._id,
-      metadata: { cadence: 'weekly', streak: 7, bestStreak: 15, group: 'Family', target: '1x/week', thisWeek: 1, weekTarget: 1, history: history30([false, false, false, true, false, false, false]) },
+      metadata: buildRoutineMeta({ cadence: 'weekly', streak: 0, bestStreak: 15, group: 'Family', target: '1x/week', weekTarget: 1, olderHitRate: 0.15 }),
     },
     {
       title: 'Budget Review', mainParent: finance._id,
-      metadata: { cadence: 'monthly', streak: 3, bestStreak: 6, group: 'Finance', target: '1x/month', thisWeek: 0, weekTarget: 0, history: history30([false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true]) },
+      metadata: buildRoutineMeta({ cadence: 'monthly', streak: 0, bestStreak: 6, group: 'Finance', target: '1x/month', weekTarget: 0, olderHitRate: 0.05 }),
     },
     {
       title: 'Run', mainParent: health._id,
       description: '5K easy run or interval training.',
-      metadata: { cadence: 'weekly', streak: 2, bestStreak: 8, group: 'Fitness', target: '3x/week', thisWeek: 2, weekTarget: 3, history: history30([true, false, false, true, false, false, true]) },
+      metadata: buildRoutineMeta({ cadence: 'weekly', streak: 0, bestStreak: 8, group: 'Fitness', target: '3x/week', weekTarget: 3, olderHitRate: 0.4 }),
     },
   ];
 

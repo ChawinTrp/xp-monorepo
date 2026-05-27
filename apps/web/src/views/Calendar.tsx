@@ -47,18 +47,18 @@ export default function Calendar({ onOpen }: CalendarProps) {
     return map;
   }, [tasks]);
 
-  // Map routine check-ins to dates
+  // Map routine check-ins to dates (date-aligned via checkInDates)
   const routinesByDate = useMemo(() => {
     const map = new Map<string, { routine: any; done: boolean }[]>();
     const today = new Date();
     for (const r of routines) {
-      const history = (r.metadata as any)?.history ?? [];
+      const checkInSet = new Set<string>((r.metadata as any)?.checkInDates ?? []);
       for (let i = 0; i < 30; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - (29 - i));
         const key = format(d, 'yyyy-MM-dd');
         if (!map.has(key)) map.set(key, []);
-        map.get(key)!.push({ routine: r, done: !!history[i] });
+        map.get(key)!.push({ routine: r, done: checkInSet.has(key) });
       }
     }
     return map;

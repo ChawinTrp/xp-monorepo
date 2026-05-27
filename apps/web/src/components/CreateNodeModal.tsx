@@ -94,7 +94,7 @@ export default function CreateNodeModal({
     if (type === 'ROUTINE') {
       metadata.cadence = cadence;
       if (target) metadata.target = target;
-      metadata.history = [];
+      metadata.checkInDates = [];
       metadata.streak = 0;
       metadata.bestStreak = 0;
       metadata.thisWeek = 0;
