@@ -2,6 +2,20 @@ import { useNodes } from '../lib/hooks';
 import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui';
 import NodeCard from '../components/NodeCard';
 
+function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function getMondayStart(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  const dow = d.getDay(); // 0=Sun
+  const diff = (dow === 0 ? -6 : 1 - dow);
+  d.setDate(d.getDate() + diff);
+  return localDateStr(d);
+}
+
 interface DashboardProps {
   onOpen: (id: string) => void;
   onNavigate: (v: string) => void;
@@ -28,13 +42,17 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
   const longestStreak = routines.reduce((max, r) => Math.max(max, (r.metadata as any)?.streak ?? 0), 0);
 
   const dailyRoutines = routines.filter(r => (r.metadata as any)?.cadence === 'daily');
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDateStr();
   const dailyDoneToday = dailyRoutines.filter(r => (r.metadata as any)?.lastCheckInDate === todayStr).length;
 
   const totalSkillHours = allSkills.reduce((sum, s) => sum + ((s.metadata as any)?.totalHours ?? 0), 0);
 
+  const monday = getMondayStart(todayStr);
   const weekTasks = tasks.filter(t => t.status !== 'DONE');
-  const weekDone = done.length;
+  const weekDone = done.filter(t => {
+    const completedAt = (t.metadata as any)?.completedAt;
+    return completedAt && completedAt >= monday;
+  }).length;
 
   const today = new Date();
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
@@ -57,8 +75,8 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
           label="Streak" value={String(longestStreak)} suffix="days" />
         <StatCard icon={<RingGauge pct={dailyRoutines.length ? Math.round(dailyDoneToday / dailyRoutines.length * 100) : 0} color="var(--c-routine)" size={44} stroke={5} />}
           label="Routines today" value={String(dailyDoneToday)} suffix={`/ ${dailyRoutines.length}`} />
-        <StatCard icon={<RingGauge pct={tasks.length ? Math.round(weekDone / tasks.length * 100) : 0} color="var(--accent)" size={44} stroke={5} />}
-          label="Tasks done" value={String(weekDone)} suffix={`/ ${tasks.length}`} />
+        <StatCard icon={<RingGauge pct={done.length ? Math.round(weekDone / done.length * 100) : 0} color="var(--accent)" size={44} stroke={5} />}
+          label="Done this week" value={String(weekDone)} suffix={`/ ${done.length}`} />
         <StatCard icon={<Icons.Zap size={20} color="var(--c-skill)" strokeWidth={2.2} />}
           iconBg="color-mix(in srgb, var(--c-skill) 20%, transparent)"
           iconBorder="1px solid color-mix(in srgb, var(--c-skill) 30%, transparent)"

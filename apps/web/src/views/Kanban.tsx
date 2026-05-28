@@ -340,6 +340,21 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
                   </div>
                 )}
               </div>
+              {col.key === 'TODO' && (
+                <button
+                  onClick={onCreate}
+                  className="w-full flex items-center gap-2 border-none cursor-pointer transition-colors"
+                  style={{
+                    padding: '10px 14px', fontSize: 12, fontFamily: 'inherit',
+                    background: 'transparent', color: 'var(--overlay1)',
+                    borderTop: '1px solid var(--surface1)',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--overlay1)')}
+                >
+                  <span style={{ fontSize: 14, lineHeight: 1 }}>+</span> Add task
+                </button>
+              )}
             </div>
           );
         })}

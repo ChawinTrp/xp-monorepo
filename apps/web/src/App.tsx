@@ -15,6 +15,7 @@ import Gantt from './views/Gantt';
 import Calendar from './views/Calendar';
 import Settings from './views/Settings';
 import NodeDetail from './views/NodeDetail';
+import MobileShell from './mobile/MobileShell';
 
 type ViewId = 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph' | 'gantt' | 'calendar' | 'settings';
 
@@ -79,6 +80,14 @@ export default function App() {
     }
     return [VIEW_LABELS[view]];
   }, [view, openId, byId, breadcrumb]);
+
+  if (!loading && isMobile) {
+    return (
+      <ToastProvider>
+        <MobileShell />
+      </ToastProvider>
+    );
+  }
 
   if (loading) {
     return (

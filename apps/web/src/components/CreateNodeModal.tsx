@@ -36,6 +36,8 @@ export default function CreateNodeModal({
   const [due, setDue] = useState('');
   const [cadence, setCadence] = useState('daily');
   const [target, setTarget] = useState('');
+  const [timeOfDay, setTimeOfDay] = useState('morning');
+  const [group, setGroup] = useState('');
   const [linkedSkillIds, setLinkedSkillIds] = useState<string[]>([]);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -54,6 +56,8 @@ export default function CreateNodeModal({
       setDue('');
       setCadence('daily');
       setTarget('');
+      setTimeOfDay('morning');
+      setGroup('');
       setLinkedSkillIds([]);
       setTimeout(() => titleRef.current?.focus(), 100);
     }
@@ -94,6 +98,8 @@ export default function CreateNodeModal({
     if (type === 'ROUTINE') {
       metadata.cadence = cadence;
       if (target) metadata.target = target;
+      metadata.timeOfDay = timeOfDay;
+      if (group.trim()) metadata.group = group.trim();
       metadata.checkIns = [];
       metadata.streak = 0;
       metadata.bestStreak = 0;
@@ -324,6 +330,38 @@ export default function CreateNodeModal({
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
                   placeholder="e.g. 30 min, 2 hours"
+                  className="w-full rounded-lg"
+                  style={{
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                    background: 'var(--base)', border: '1px solid var(--surface1)',
+                    color: 'var(--text)',
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Time of day</Label>
+                <select
+                  value={timeOfDay}
+                  onChange={(e) => setTimeOfDay(e.target.value)}
+                  className="w-full rounded-lg"
+                  style={{
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                    background: 'var(--base)', border: '1px solid var(--surface1)',
+                    color: 'var(--text)',
+                  }}
+                >
+                  <option value="morning">☀ Morning</option>
+                  <option value="afternoon">◐ Afternoon</option>
+                  <option value="evening">◑ Evening</option>
+                  <option value="night">☾ Night</option>
+                </select>
+              </div>
+              <div>
+                <Label>Group (optional)</Label>
+                <input
+                  value={group}
+                  onChange={(e) => setGroup(e.target.value)}
+                  placeholder="e.g. Health, Work"
                   className="w-full rounded-lg"
                   style={{
                     padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
