@@ -27,15 +27,28 @@ function last30Dates(): string[] {
   }
   return out;
 }
-function consistency30(checkInDates?: string[]): number {
-  if (!checkInDates?.length) return 0;
-  const set = new Set(checkInDates);
+type CheckIn = { date: string; hours: number };
+// Canonical check-in log, with backward-compat for legacy `checkInDates: string[]`.
+function checkInsOf(meta: any): CheckIn[] {
+  if (Array.isArray(meta?.checkIns)) return meta.checkIns;
+  if (Array.isArray(meta?.checkInDates)) return meta.checkInDates.map((d: string) => ({ date: d, hours: 0 }));
+  return [];
+}
+function datesOf(meta: any): string[] {
+  return checkInsOf(meta).map(c => c.date);
+}
+function consistency30(meta: any): number {
+  const set = new Set(datesOf(meta));
+  if (set.size === 0) return 0;
   const window = last30Dates();
   const hit = window.filter(d => set.has(d)).length;
   return hit / window.length;
 }
-function isCheckedToday(checkInDates?: string[]): boolean {
-  return !!checkInDates?.includes(TODAY_STR);
+function isCheckedToday(meta: any): boolean {
+  return datesOf(meta).includes(TODAY_STR);
+}
+function hoursToday(meta: any): number {
+  return checkInsOf(meta).find(c => c.date === TODAY_STR)?.hours ?? 0;
 }
 function isTimerRunning(meta: any): boolean {
   const entries = meta?.timeEntries as { start: string; end?: string }[] | undefined;
@@ -63,7 +76,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   });
 
   const overallPct = routines.length ? Math.round(
-    routines.reduce((s, r) => s + consistency30((r.metadata as any)?.checkInDates), 0) / routines.length * 100
+    routines.reduce((s, r) => s + consistency30(r.metadata), 0) / routines.length * 100
   ) : 0;
 
   const longestStreak = routines.reduce((m, r) => Math.max(m, (r.metadata as any)?.streak ?? 0), 0);
@@ -71,7 +84,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   const handleCheckIn = async (routineId: string) => {
     // If already checked in today, undo instead
     const routineNode = byId[routineId];
-    if (routineNode && isCheckedToday((routineNode.metadata as any)?.checkInDates)) {
+    if (routineNode && isCheckedToday(routineNode.metadata)) {
       return handleUndo(routineId);
     }
     try {
@@ -80,12 +93,13 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
       const routine = affectedNodes.find((n: any) => n._id === routineId);
       const streak = routine?.metadata?.streak ?? 0;
       const skills = affectedNodes.filter((n: any) => n.type === 'SKILL');
+      const credited = hoursToday(routine?.metadata);
 
       toast({
         message: `Day ${streak}! Keep going`,
         variant: 'success',
         details: skills.length > 0
-          ? skills.map((s: any) => `+${routine?.metadata?.creditedHours ?? 0}h ${s.title}`).join(', ')
+          ? skills.map((s: any) => `+${credited}h ${s.title}`).join(', ')
           : undefined,
       });
     } catch (err: any) {
@@ -121,12 +135,12 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
     try {
       const { data } = await stopTimerMut({ variables: { id: routineId } });
       const meta = data?.stopTaskTimer?.metadata as any;
-      const credited = meta?.creditedHours;
-      const doneToday = isCheckedToday(meta?.checkInDates);
+      const doneToday = isCheckedToday(meta);
+      const credited = hoursToday(meta);
       toast({
         message: doneToday ? 'Checked in for today' : 'Timer stopped',
         variant: 'success',
-        details: credited != null && credited > 0 ? `${credited}h tracked` : undefined,
+        details: credited > 0 ? `${credited}h tracked` : undefined,
       });
     } catch (err: any) {
       toast({ message: 'Failed to stop timer', variant: 'error', details: err.message });
@@ -163,7 +177,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
         <BigStat label="Routines tracked" value={routines.length} color="var(--c-routine)"
           icon={<Icons.Repeat size={20} color="var(--c-routine)" />}
           sub={`${routines.filter(r => (r.metadata as any)?.cadence === 'daily').length} daily · ${routines.filter(r => (r.metadata as any)?.cadence === 'weekly').length} weekly`} />
-        <BigStat label="Today" value={routines.filter(r => (r.metadata as any)?.cadence === 'daily' && isCheckedToday((r.metadata as any)?.checkInDates)).length}
+        <BigStat label="Today" value={routines.filter(r => (r.metadata as any)?.cadence === 'daily' && isCheckedToday(r.metadata)).length}
           suffix={` / ${routines.filter(r => (r.metadata as any)?.cadence === 'daily').length}`}
           color="var(--accent)" icon={<Icons.CheckCircle size={20} color="var(--accent)" />}
           sub="daily routines done today" />
@@ -315,7 +329,7 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
               {/* Routine rows */}
               {routines.map((r) => {
                 const m = r.metadata as any ?? {};
-                const checkInSet = new Set<string>(m.checkInDates ?? []);
+                const checkInSet = new Set<string>(datesOf(m));
                 return (
                   <div key={r._id} className="flex" style={{ height: 36 }}>
                     {week.map((d, di) => {
@@ -361,8 +375,8 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
           <div style={{ height: 38 }} />
           {routines.map((r) => {
             const m = r.metadata as any ?? {};
-            const pct = Math.round(consistency30(m.checkInDates) * 100);
-            const doneToday = isCheckedToday(m.checkInDates);
+            const pct = Math.round(consistency30(m) * 100);
+            const doneToday = isCheckedToday(m);
             const timerRunning = isTimerRunning(m);
             return (
               <div key={r._id} className="flex items-center gap-1.5 justify-end" style={{ height: 36 }}>

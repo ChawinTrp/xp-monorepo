@@ -31,29 +31,43 @@ function localDateStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 
+type CheckIn = { date: string; hours: number };
+
 /**
- * Generate realistic check-in dates ending YESTERDAY (so the user can click "today" fresh).
+ * Generate realistic check-ins ending YESTERDAY (so the user can click "today" fresh).
+ * Each entry records the date AND the hours spent that day (jittered around `baseHours`).
  * - `streak` consecutive days starting from yesterday (inclusive)
  * - Plus older random check-ins within the last 60 days at ~`olderHitRate`
  */
-function generateCheckInDates(streak: number, olderHitRate = 0.6, lookbackDays = 60): string[] {
-  const dates: string[] = [];
+function generateCheckIns(
+  streak: number,
+  baseHours: number,
+  olderHitRate = 0.6,
+  lookbackDays = 60,
+): CheckIn[] {
+  const out: CheckIn[] = [];
   const today = new Date();
+  const hoursFor = () => {
+    if (baseHours <= 0) return 0;
+    // ±30% jitter, rounded to 0.05h
+    const jitter = baseHours * (0.7 + Math.random() * 0.6);
+    return Math.round(jitter * 20) / 20;
+  };
   // Recent consecutive streak — START AT YESTERDAY so today is empty
   for (let i = 1; i <= streak; i++) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    dates.push(localDateStr(d));
+    out.push({ date: localDateStr(d), hours: hoursFor() });
   }
   // Older days, with miss days
   for (let i = streak + 1; i <= lookbackDays; i++) {
     if (Math.random() < olderHitRate) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      dates.push(localDateStr(d));
+      out.push({ date: localDateStr(d), hours: hoursFor() });
     }
   }
-  return dates.sort();
+  return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 function mondayStart(dateStr: string): string {
@@ -63,10 +77,20 @@ function mondayStart(dateStr: string): string {
   return localDateStr(d);
 }
 
-function thisWeekFromDates(dates: string[]): number {
+function thisWeekFromCheckIns(checkIns: CheckIn[]): number {
   const today = localDateStr();
   const monday = mondayStart(today);
-  return dates.filter(d => d >= monday).length;
+  return checkIns.filter(c => c.date >= monday).length;
+}
+
+/** Parse a routine target string like "30 min" / "2 hours" into hours. */
+function parseTargetHours(target: string): number {
+  const lower = target.toLowerCase().trim();
+  const min = lower.match(/^(\d+)\s*(min|minutes?|m)$/);
+  if (min) return parseFloat(min[1]) / 60;
+  const hr = lower.match(/^([\d.]+)\s*(hours?|h|hr|hrs)$/);
+  if (hr) return parseFloat(hr[1]);
+  return 0;
 }
 
 async function seed() {
@@ -215,13 +239,14 @@ async function seed() {
     cadence: string; streak: number; bestStreak: number; group: string;
     target: string; weekTarget: number; olderHitRate?: number;
   }) => {
-    const dates = generateCheckInDates(opts.streak, opts.olderHitRate);
+    const baseHours = parseTargetHours(opts.target);
+    const checkIns = generateCheckIns(opts.streak, baseHours, opts.olderHitRate);
     return {
       cadence: opts.cadence, streak: opts.streak, bestStreak: opts.bestStreak,
       group: opts.group, target: opts.target, weekTarget: opts.weekTarget,
-      thisWeek: thisWeekFromDates(dates),
-      lastCheckInDate: dates[dates.length - 1],
-      checkInDates: dates,
+      thisWeek: thisWeekFromCheckIns(checkIns),
+      lastCheckInDate: checkIns.length ? checkIns[checkIns.length - 1].date : null,
+      checkIns,
     };
   };
 

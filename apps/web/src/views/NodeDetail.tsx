@@ -580,6 +580,8 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
             </div>
           </SectionCard>
 
+          {isRoutine && <RoutineCheckInHistory metadata={m} />}
+
           <SectionCard title="Tags">
             <div className="flex gap-1.5 flex-wrap">
               {(m.tags ?? []).map((t: string) => <TagChip key={t} label={t} />)}
@@ -616,6 +618,57 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/* ── RoutineCheckInHistory ── */
+
+function RoutineCheckInHistory({ metadata }: { metadata: any }) {
+  // Canonical checkIns [{date, hours}], with legacy checkInDates fallback.
+  const checkIns: { date: string; hours: number }[] = Array.isArray(metadata?.checkIns)
+    ? metadata.checkIns
+    : Array.isArray(metadata?.checkInDates)
+      ? metadata.checkInDates.map((d: string) => ({ date: d, hours: 0 }))
+      : [];
+
+  if (checkIns.length === 0) {
+    return (
+      <SectionCard title="Check-in history">
+        <div className="text-ctp-overlay1" style={{ fontSize: 12 }}>No check-ins yet.</div>
+      </SectionCard>
+    );
+  }
+
+  const totalHours = Math.round(checkIns.reduce((s, c) => s + (c.hours ?? 0), 0) * 100) / 100;
+  const recent = [...checkIns].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
+
+  return (
+    <SectionCard title="Check-in history">
+      <div className="flex items-baseline justify-between mb-2.5">
+        <span className="text-ctp-subtext1" style={{ fontSize: 11 }}>
+          {checkIns.length} check-in{checkIns.length === 1 ? '' : 's'}
+        </span>
+        <span className="mono font-bold" style={{ fontSize: 12, color: 'var(--accent)' }}>
+          {totalHours}h total
+        </span>
+      </div>
+      <div className="flex flex-col gap-1">
+        {recent.map((c) => (
+          <div key={c.date} className="flex items-center justify-between mono" style={{ fontSize: 11 }}>
+            <span className="inline-flex items-center gap-1.5 text-ctp-subtext0">
+              <Icons.CheckCircle size={10} color="var(--green)" />
+              {new Date(c.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </span>
+            <span className="text-ctp-subtext1">{c.hours > 0 ? `${c.hours}h` : '—'}</span>
+          </div>
+        ))}
+        {checkIns.length > recent.length && (
+          <div className="text-ctp-overlay1 mt-1" style={{ fontSize: 10 }}>
+            +{checkIns.length - recent.length} earlier
+          </div>
+        )}
+      </div>
+    </SectionCard>
   );
 }
 

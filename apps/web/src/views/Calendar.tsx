@@ -52,7 +52,8 @@ export default function Calendar({ onOpen }: CalendarProps) {
     const map = new Map<string, { routine: any; done: boolean }[]>();
     const today = new Date();
     for (const r of routines) {
-      const checkInSet = new Set<string>((r.metadata as any)?.checkInDates ?? []);
+      const cins = (r.metadata as any)?.checkIns ?? ((r.metadata as any)?.checkInDates ?? []).map((d: string) => ({ date: d }));
+      const checkInSet = new Set<string>(cins.map((c: any) => c.date));
       for (let i = 0; i < 30; i++) {
         const d = new Date(today);
         d.setDate(d.getDate() - (29 - i));

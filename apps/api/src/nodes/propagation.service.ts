@@ -158,22 +158,26 @@ export class PropagationService {
     const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
     const today = this.localDateStr();
 
-    // Date-aligned check-in set (canonical) — replaces legacy boolean history
-    const checkInDates = ((meta.checkInDates as string[]) ?? []).slice();
+    // Canonical log: one entry per completed day, with the hours spent that day.
+    const checkIns = this.readCheckIns(meta);
 
     // Idempotent: already checked in today
-    if (checkInDates.includes(today)) return [routine];
+    if (checkIns.some(c => c.date === today)) return [routine];
 
-    checkInDates.push(today);
-    checkInDates.sort(); // ascending
-    meta.checkInDates = checkInDates;
+    // Hours for today: actualHours (timer) ?? parseTarget(target) ?? 0
+    const creditedHours =
+      (meta.actualHours as number) ?? this.parseTarget(meta.target as string) ?? 0;
+
+    checkIns.push({ date: today, hours: creditedHours });
+    checkIns.sort((a, b) => a.date.localeCompare(b.date));
+    meta.checkIns = checkIns;
     meta.lastCheckInDate = today;
 
     // Current streak: count consecutive days ending today
+    const dateSet = new Set(checkIns.map(c => c.date));
     let streak = 0;
-    const cursor = new Date(today);
-    const dateSet = new Set(checkInDates);
-    while (dateSet.has(cursor.toISOString().slice(0, 10))) {
+    const cursor = new Date(today + 'T00:00:00');
+    while (dateSet.has(this.localDateStr(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
     }
@@ -182,13 +186,7 @@ export class PropagationService {
 
     // This week (Mon-start): count check-ins from Monday of current ISO week
     const monday = this.getMondayStart(today);
-    meta.thisWeek = checkInDates.filter(d => d >= monday).length;
-
-    // Compute hours: actualHours (timer) ?? parseTarget(target) ?? 0
-    const creditedHours =
-      (meta.actualHours as number) ?? this.parseTarget(meta.target as string) ?? 0;
-
-    meta.creditedHours = creditedHours;
+    meta.thisWeek = checkIns.filter(c => c.date >= monday).length;
 
     // Clear timer data for next session
     meta.timeEntries = [];
@@ -232,6 +230,20 @@ export class PropagationService {
     return affected;
   }
 
+  /**
+   * Read the canonical check-in log [{date, hours}], migrating any legacy
+   * `checkInDates: string[]` data on the fly (hours unknown → 0).
+   */
+  private readCheckIns(
+    meta: Record<string, unknown>,
+  ): { date: string; hours: number }[] {
+    const raw = meta.checkIns as { date: string; hours: number }[] | undefined;
+    if (Array.isArray(raw)) return raw.map(c => ({ date: c.date, hours: c.hours ?? 0 }));
+    const legacy = meta.checkInDates as string[] | undefined;
+    if (Array.isArray(legacy)) return legacy.map(d => ({ date: d, hours: 0 }));
+    return [];
+  }
+
   private localDateStr(d: Date = new Date()): string {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -247,21 +259,25 @@ export class PropagationService {
 
     const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
     const today = this.localDateStr();
-    const checkInDates = ((meta.checkInDates as string[]) ?? []).slice();
+    const checkIns = this.readCheckIns(meta);
 
-    if (!checkInDates.includes(today)) {
+    const todayEntry = checkIns.find(c => c.date === today);
+    if (!todayEntry) {
       // Nothing to undo
       return [routine];
     }
 
+    // Reverse exactly the hours logged for today (not a stale scalar)
+    const toReverse = todayEntry.hours ?? 0;
+
     // Remove today's check-in
-    const newDates = checkInDates.filter(d => d !== today);
-    meta.checkInDates = newDates;
+    const newCheckIns = checkIns.filter(c => c.date !== today);
+    meta.checkIns = newCheckIns;
 
     // Recompute current streak relative to today: today was just removed,
     // so count consecutive days ending YESTERDAY (0 if yesterday wasn't done).
+    const dateSet = new Set(newCheckIns.map(c => c.date));
     let streak = 0;
-    const dateSet = new Set(newDates);
     const cursor = new Date(today + 'T00:00:00');
     cursor.setDate(cursor.getDate() - 1); // start at yesterday
     while (dateSet.has(this.localDateStr(cursor))) {
@@ -269,15 +285,13 @@ export class PropagationService {
       cursor.setDate(cursor.getDate() - 1);
     }
     meta.streak = streak;
-    meta.lastCheckInDate = newDates[newDates.length - 1] ?? null;
+    meta.lastCheckInDate = newCheckIns.length
+      ? newCheckIns[newCheckIns.length - 1].date
+      : null;
 
     // Recompute thisWeek
     const monday = this.getMondayStart(today);
-    meta.thisWeek = newDates.filter(d => d >= monday).length;
-
-    // Pull the previously-credited hours from skills before clearing
-    const toReverse = (meta.creditedHours as number) ?? 0;
-    delete (meta as Record<string, unknown>).creditedHours;
+    meta.thisWeek = newCheckIns.filter(c => c.date >= monday).length;
 
     routine.metadata = meta;
     routine.markModified('metadata');
