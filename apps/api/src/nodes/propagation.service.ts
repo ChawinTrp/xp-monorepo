@@ -135,6 +135,17 @@ export class PropagationService {
     task.metadata = meta;
     task.markModified('metadata');
     await task.save();
+
+    // For ROUTINEs, stopping the timer also checks in for today,
+    // crediting the actual tracked hours (checkInRoutine reads actualHours).
+    // If already checked in today, checkInRoutine is a no-op for the date
+    // but the session still counts toward the day's record.
+    if (task.type === 'ROUTINE') {
+      await this.checkInRoutine(taskId);
+      const refreshed = await this.nodeModel.findById(taskId).exec();
+      if (refreshed) return refreshed;
+    }
+
     return task;
   }
 
@@ -247,16 +258,15 @@ export class PropagationService {
     const newDates = checkInDates.filter(d => d !== today);
     meta.checkInDates = newDates;
 
-    // Recompute streak: walk back from the most recent remaining date
+    // Recompute current streak relative to today: today was just removed,
+    // so count consecutive days ending YESTERDAY (0 if yesterday wasn't done).
     let streak = 0;
-    if (newDates.length > 0) {
-      const dateSet = new Set(newDates);
-      const lastStr = newDates[newDates.length - 1];
-      const cursor = new Date(lastStr + 'T00:00:00');
-      while (dateSet.has(this.localDateStr(cursor))) {
-        streak++;
-        cursor.setDate(cursor.getDate() - 1);
-      }
+    const dateSet = new Set(newDates);
+    const cursor = new Date(today + 'T00:00:00');
+    cursor.setDate(cursor.getDate() - 1); // start at yesterday
+    while (dateSet.has(this.localDateStr(cursor))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
     }
     meta.streak = streak;
     meta.lastCheckInDate = newDates[newDates.length - 1] ?? null;

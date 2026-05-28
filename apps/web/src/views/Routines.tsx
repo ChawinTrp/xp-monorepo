@@ -120,11 +120,13 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   const handleStopTimer = async (routineId: string) => {
     try {
       const { data } = await stopTimerMut({ variables: { id: routineId } });
-      const actualHours = data?.stopTaskTimer?.metadata?.actualHours;
+      const meta = data?.stopTaskTimer?.metadata as any;
+      const credited = meta?.creditedHours;
+      const doneToday = isCheckedToday(meta?.checkInDates);
       toast({
-        message: 'Timer stopped',
+        message: doneToday ? 'Checked in for today' : 'Timer stopped',
         variant: 'success',
-        details: actualHours != null ? `${actualHours}h tracked` : undefined,
+        details: credited != null && credited > 0 ? `${credited}h tracked` : undefined,
       });
     } catch (err: any) {
       toast({ message: 'Failed to stop timer', variant: 'error', details: err.message });
