@@ -1,6 +1,8 @@
+import { useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui';
 import NodeCard from '../components/NodeCard';
+import { WEEK_PROGRESS } from '../lib/graphql';
 
 function localDateStr(d: Date = new Date()): string {
   const y = d.getFullYear();
@@ -14,6 +16,51 @@ function getMondayStart(dateStr: string): string {
   const diff = (dow === 0 ? -6 : 1 - dow);
   d.setDate(d.getDate() + diff);
   return localDateStr(d);
+}
+
+function WinTheWeekWidget() {
+  const { data, loading } = useQuery(WEEK_PROGRESS);
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (loading || !data?.weekProgress) return null;
+
+  const { days, wonDays, weekTarget, weekWon } = data.weekProgress;
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  return (
+    <div className="flex items-center gap-3 p-4 rounded-[10px]" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
+      <div style={{ flex: 1 }}>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-semibold uppercase tracking-wide opacity-60">Win the Week</span>
+          <span className="text-sm font-bold">
+            {wonDays} / {weekTarget}
+            {weekWon && <span className="ml-2">🎉</span>}
+          </span>
+        </div>
+        <div className="flex gap-1 justify-between mb-2">
+          {days.map((day: any, i: number) => {
+            const isFuture = day.date > today;
+            const pip = isFuture ? '·' : day.won ? '●' : '○';
+            const color = isFuture ? 'opacity-30' : day.won ? 'text-green-400' : 'text-red-400';
+            return (
+              <div key={day.date} className="flex flex-col items-center gap-1" title={`${DAY_LABELS[i]} — ${day.routinesCheckedIn}/${day.routineTarget} routines, ${day.tasksCompleted} task${day.tasksCompleted !== 1 ? 's' : ''}`}>
+                <span className={`text-lg leading-none ${color}`}>{pip}</span>
+                <span className="text-xs opacity-50">{DAY_LABELS[i]}</span>
+              </div>
+            );
+          })}
+        </div>
+        {!weekWon && (
+          <p className="text-xs opacity-50 mt-1">
+            Need {weekTarget - wonDays} more · {days.filter((d: any) => d.date >= today).length} days left
+          </p>
+        )}
+        {weekWon && (
+          <p className="text-xs text-green-400 mt-1">Week won — bank the rest!</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 interface DashboardProps {
@@ -81,6 +128,11 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
           iconBg="color-mix(in srgb, var(--c-skill) 20%, transparent)"
           iconBorder="1px solid color-mix(in srgb, var(--c-skill) 30%, transparent)"
           label="Total hours" value={String(Math.round(totalSkillHours))} suffix="h" />
+      </div>
+
+      {/* Win the Week */}
+      <div className="mb-6">
+        <WinTheWeekWidget />
       </div>
 
       {/* Two columns */}

@@ -4,6 +4,8 @@ import { PropagationService } from './propagation.service';
 import { Node } from './node.entity';
 import { CreateNodeInput } from './dto/create-node.input';
 import { UpdateNodeInput } from './dto/update-node.input';
+import { CompleteTaskInput } from './dto/complete-task.input';
+import { WeekProgress } from './week-progress.types';
 
 @Resolver(() => Node)
 export class NodesResolver {
@@ -47,8 +49,8 @@ export class NodesResolver {
   }
 
   @Mutation(() => [Node])
-  completeTask(@Args('id', { type: () => ID }) id: string) {
-    return this.propagationService.onTaskCompleted(id);
+  completeTask(@Args('completeTaskInput') completeTaskInput: CompleteTaskInput) {
+    return this.propagationService.onTaskCompleted(completeTaskInput);
   }
 
   @Mutation(() => [Node])
@@ -69,5 +71,12 @@ export class NodesResolver {
   @Mutation(() => Node)
   stopTaskTimer(@Args('id', { type: () => ID }) id: string) {
     return this.propagationService.stopTimer(id);
+  }
+
+  @Query(() => WeekProgress)
+  async weekProgress(
+    @Args('weekStart', { nullable: true }) weekStart?: string,
+  ): Promise<WeekProgress> {
+    return this.propagationService.getWeekProgress(weekStart);
   }
 }

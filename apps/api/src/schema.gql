@@ -2,6 +2,11 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+input CompleteTaskInput {
+  completedDate: String
+  id: ID!
+}
+
 input CreateNodeInput {
   children: [ID]
   description: String
@@ -26,7 +31,7 @@ scalar JSON
 
 type Mutation {
   checkInRoutine(id: ID!): [Node!]!
-  completeTask(id: ID!): [Node!]!
+  completeTask(completeTaskInput: CompleteTaskInput!): [Node!]!
   createNode(createNodeInput: CreateNodeInput!): Node!
   deleteNode(id: ID!): Node!
   startTaskTimer(id: ID!): Node!

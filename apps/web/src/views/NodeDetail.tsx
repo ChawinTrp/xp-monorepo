@@ -7,6 +7,27 @@ import { UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_T
 
 type NodeType = 'DOMAIN' | 'SKILL' | 'PROJECT' | 'TASK' | 'PERSON' | 'TAG' | 'ROUTINE';
 
+// ── Streak visual helpers ──
+function _localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${day}`;
+}
+const _TODAY = _localDateStr();
+const _YESTERDAY = _localDateStr(new Date(Date.now() - 86400000));
+function _checkInDates(meta: any): string[] {
+  if (Array.isArray(meta?.checkIns)) return meta.checkIns.map((c: any) => c.date);
+  if (Array.isArray(meta?.checkInDates)) return meta.checkInDates;
+  return [];
+}
+function streakClass(streak: number, isLapsed: boolean): string {
+  if (isLapsed) return 'streak-ice';
+  if (streak >= 30) return 'streak-fire-lg';
+  if (streak >= 7) return 'streak-fire';
+  return '';
+}
+
 // Mirrors @xp/shared ALLOWED_MAIN_PARENTS — inlined to avoid the cross-package import
 // (Vite caches the prebuilt dist and doesn't re-detect new exports without a full restart).
 const ALLOWED_MAIN_PARENTS: Record<NodeType, NodeType[] | null> = {
@@ -84,7 +105,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
 
   const handleComplete = async () => {
     try {
-      const { data } = await completeTask({ variables: { id } });
+      const { data } = await completeTask({ variables: { id, completedDate: _localDateStr() } });
       const affectedNodes = data?.completeTask ?? [];
       const skills = affectedNodes.filter((node: any) => node.type === 'SKILL');
 
@@ -550,12 +571,17 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                   <Field label="Cadence"><span className="capitalize">{m.cadence}</span></Field>
                   <Field label="Target"><span>{m.target}</span></Field>
                   <Field label="Streak">
-                    <span className="inline-flex items-center gap-1 font-bold" style={{
-                      color: (m.streak ?? 0) >= 10 ? 'var(--orange)' : 'var(--green)',
-                    }}>
-                      <Icons.Flame size={13} color={(m.streak ?? 0) >= 10 ? 'var(--orange)' : 'var(--green)'} />
-                      {m.streak ?? 0} days
-                    </span>
+                    {(() => {
+                      const sc = streakClass(m.streak ?? 0, m.cadence === 'daily' && !_checkInDates(m).some((d: string) => d === _TODAY || d === _YESTERDAY));
+                      return (
+                        <span className={`inline-flex items-center gap-1 font-bold${sc ? ' ' + sc : ''}`} style={{
+                          color: (m.streak ?? 0) >= 10 ? 'var(--orange)' : 'var(--green)',
+                        }}>
+                          <Icons.Flame size={13} color={(m.streak ?? 0) >= 10 ? 'var(--orange)' : 'var(--green)'} />
+                          {m.streak ?? 0} days
+                        </span>
+                      );
+                    })()}
                   </Field>
                   <Field label="Best streak">
                     <span className="mono">{m.bestStreak ?? 0} days</span>

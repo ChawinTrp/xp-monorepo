@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { Icons, RingGauge, Dropdown, Button, useToast } from '../components/ui';
-import { CHECK_IN_ROUTINE, UNDO_CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES } from '../lib/graphql';
+import { CHECK_IN_ROUTINE, UNDO_CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES, WEEK_PROGRESS } from '../lib/graphql';
 
 interface RoutinesProps {
   onOpen: (id: string) => void;
@@ -17,6 +17,7 @@ function localDateStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 const TODAY_STR = localDateStr();
+const YESTERDAY_STR = localDateStr(new Date(Date.now() - 86400000));
 function last30Dates(): string[] {
   const out: string[] = [];
   const now = new Date();
@@ -63,6 +64,10 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
   const [startTimerMut] = useMutation(START_TIMER, { refetchQueries: [{ query: GET_NODES }] });
   const [stopTimerMut] = useMutation(STOP_TIMER, { refetchQueries: [{ query: GET_NODES }] });
   const routines = byType('ROUTINE');
+
+  const { data: wpData } = useQuery(WEEK_PROGRESS);
+  const wp = wpData?.weekProgress;
+  const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [selectedCadence, setSelectedCadence] = useState('all');
@@ -200,6 +205,26 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
         />
       </div>
 
+      {/* Win the Week banner */}
+      {wp && (
+        <div className="rounded-xl mb-5" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 20 }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold opacity-60 uppercase tracking-wide">Win the Week</span>
+            <span className="text-sm font-bold">{wp.wonDays}/{wp.weekTarget}{wp.weekWon && ' 🎉'}</span>
+          </div>
+          <div className="flex gap-2">
+            {wp.days.map((d: any, i: number) => (
+              <div key={d.date} className="flex flex-col items-center gap-0.5" title={`${DAY_LABELS[i]} — ${d.routinesCheckedIn}/${d.routineTarget} routines, ${d.tasksCompleted} tasks`}>
+                <span className={`text-base ${d.date > TODAY_STR ? 'opacity-30' : d.won ? 'text-green-400' : 'text-red-400'}`}>
+                  {d.date > TODAY_STR ? '·' : d.won ? '●' : '○'}
+                </span>
+                <span className="text-xs opacity-40">{DAY_LABELS[i]}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Cadence breakdowns */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
         {['daily', 'weekly', 'monthly'].map((cadence) => {
@@ -229,7 +254,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
                           {m.thisWeek ?? 0}/{m.weekTarget ?? 7} this wk
                         </span>
                       )}
-                      <FlameStreak n={m.streak} />
+                      <FlameStreak n={m.streak} isLapsed={cadence === 'daily' && !datesOf(m).some(d => d === TODAY_STR || d === YESTERDAY_STR)} />
                     </div>
                   );
                 })}
@@ -409,7 +434,7 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
                   {pct}%
                 </span>
                 {/* Streak */}
-                <FlameStreak n={m.streak} />
+                <FlameStreak n={m.streak} isLapsed={m.cadence === 'daily' && !datesOf(m).some(d => d === TODAY_STR || d === YESTERDAY_STR)} />
               </div>
             );
           })}
@@ -424,10 +449,17 @@ function CadenceDot({ cadence }: { cadence?: string }) {
   return <span className="rounded-full" style={{ width: 6, height: 6, background: map[cadence ?? ''] ?? 'var(--overlay0)' }} />;
 }
 
-function FlameStreak({ n }: { n?: number }) {
+function streakClass(streak: number, isLapsed: boolean): string {
+  if (isLapsed) return 'streak-ice';
+  if (streak >= 30) return 'streak-fire-lg';
+  if (streak >= 7) return 'streak-fire';
+  return '';
+}
+
+function FlameStreak({ n, isLapsed = false }: { n?: number; isLapsed?: boolean }) {
   if (!n) return <span className="text-ctp-overlay1 min-w-[36px] text-right" style={{ fontSize: 11 }}>—</span>;
   return (
-    <span className="inline-flex items-center gap-1 font-semibold min-w-[36px] justify-end" style={{
+    <span className={`inline-flex items-center gap-1 font-semibold min-w-[36px] justify-end${streakClass(n, isLapsed) ? ' ' + streakClass(n, isLapsed) : ''}`} style={{
       color: n >= 10 ? 'var(--orange)' : 'var(--subtext0)', fontSize: 11,
     }}>
       <Icons.Flame size={11} color={n >= 10 ? 'var(--orange)' : 'var(--overlay1)'} />

@@ -78,6 +78,21 @@ button { font-family: inherit; cursor: pointer; }
 .slide-right { animation: slideRight 200ms ease both; }
 .timer-pulse { animation: timerPulse 1.4s ease-in-out infinite; }
 
+/* streak-fire: hot streak glow animation */
+@keyframes streak-fire {
+  0%, 100% { filter: drop-shadow(0 0 3px #f97316); }
+  50%       { filter: drop-shadow(0 0 8px #ef4444) drop-shadow(0 0 2px #fbbf24); }
+}
+.streak-fire    { animation: streak-fire 1.5s ease-in-out infinite; }
+.streak-fire-lg { animation: streak-fire 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .streak-fire,
+  .streak-fire-lg { animation: none; filter: drop-shadow(0 0 4px #f97316); }
+}
+
+/* streak-ice: lapsed/dormant routine treatment */
+.streak-ice { filter: saturate(0.2) brightness(0.85); opacity: 0.6; }
+
 /* Mobile responsive utilities */
 @media (max-width: 768px) {
   .hide-mobile { display: none !important; }

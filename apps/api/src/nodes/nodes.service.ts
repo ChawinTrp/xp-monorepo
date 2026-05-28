@@ -96,7 +96,7 @@ export class NodesService {
       oldNode.status !== 'DONE' &&
       updatedNode.type === 'TASK'
     ) {
-      await this.propagationService.onTaskCompleted(id);
+      await this.propagationService.onTaskCompleted({ id });
     }
 
     // GCal sync (fire-and-forget)

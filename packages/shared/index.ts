@@ -64,3 +64,41 @@ export const ALLOWED_MAIN_PARENTS: Record<NodeType, NodeType[] | null> = {
   TAG: null,
   ROUTINE: ['DOMAIN'],
 };
+
+// ── Win-the-Week System ──
+
+export const WIN_RULES = {
+  routineThreshold: 3,   // daily routines checked in to win a day
+  taskThreshold: 1,      // tasks completed to win a day
+  weekTarget: 4,         // days needed to win the week (of 7)
+  weekStartsOn: 0,       // 0 = Sunday
+} as const;
+
+export type DayWinResult = {
+  date: string;           // YYYY-MM-DD local
+  won: boolean;
+  routinesCheckedIn: number;
+  routineTarget: number;
+  tasksCompleted: number;
+  taskTarget: number;
+};
+
+export function dayWon(routinesCheckedIn: number, tasksCompleted: number): boolean {
+  return (
+    routinesCheckedIn >= WIN_RULES.routineThreshold &&
+    tasksCompleted >= WIN_RULES.taskThreshold
+  );
+}
+
+export function weekWon(wonDaysCount: number): boolean {
+  return wonDaysCount >= WIN_RULES.weekTarget;
+}
+
+export function getWeekDates(weekStartSunday: string): string[] {
+  const result: string[] = [];
+  const base = new Date(weekStartSunday);
+  for (let i = 0; i < 7; i++) {
+    result.push(new Date(base.getTime() + i * 86_400_000).toISOString().slice(0, 10));
+  }
+  return result;
+}

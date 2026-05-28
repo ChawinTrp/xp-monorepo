@@ -64,8 +64,8 @@ export const DELETE_NODE = gql`
 
 export const COMPLETE_TASK = gql`
   ${NODE_FIELDS}
-  mutation CompleteTask($id: ID!) {
-    completeTask(id: $id) {
+  mutation CompleteTask($id: ID!, $completedDate: String) {
+    completeTask(completeTaskInput: { id: $id, completedDate: $completedDate }) {
       ...NodeFields
     }
   }
@@ -103,6 +103,25 @@ export const UNDO_CHECK_IN_ROUTINE = gql`
   mutation UndoCheckInRoutine($id: ID!) {
     undoCheckInRoutine(id: $id) {
       ...NodeFields
+    }
+  }
+`;
+
+export const WEEK_PROGRESS = gql`
+  query WeekProgress($weekStart: String) {
+    weekProgress(weekStart: $weekStart) {
+      weekStart
+      wonDays
+      weekTarget
+      weekWon
+      days {
+        date
+        won
+        routinesCheckedIn
+        routineTarget
+        tasksCompleted
+        taskTarget
+      }
     }
   }
 `;

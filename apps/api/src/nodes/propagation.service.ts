@@ -2,13 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
-import { getMasteryTier, getNextTierThreshold } from '@xp/shared';
+import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, getWeekDates } from '@xp/shared';
+import { CompleteTaskInput } from './dto/complete-task.input';
 
 @Injectable()
 export class PropagationService {
   constructor(@InjectModel(Node.name) private nodeModel: Model<NodeDocument>) {}
 
-  async onTaskCompleted(taskId: string): Promise<Node[]> {
+  async onTaskCompleted(input: CompleteTaskInput): Promise<Node[]> {
+    const taskId = input.id;
     const task = await this.nodeModel.findById(taskId).exec();
     if (!task) throw new NotFoundException(`Node ${taskId} not found`);
     if (task.type !== 'TASK') throw new Error('onTaskCompleted called on non-TASK node');
@@ -19,6 +21,7 @@ export class PropagationService {
       (meta.actualHours as number) ?? (meta.estimatedHours as number) ?? 0;
 
     meta.completedAt = new Date().toISOString();
+    meta.completedDate = input.completedDate ?? new Date().toISOString().slice(0, 10);
     meta.creditedHours = creditedHours;
 
     task.status = 'DONE';
@@ -185,7 +188,7 @@ export class PropagationService {
     meta.bestStreak = Math.max(streak, (meta.bestStreak as number) ?? 0);
 
     // This week (Mon-start): count check-ins from Monday of current ISO week
-    const monday = this.getMondayStart(today);
+    const monday = this.getWeekStart(today);
     meta.thisWeek = checkIns.filter(c => c.date >= monday).length;
 
     // Clear timer data for next session
@@ -290,7 +293,7 @@ export class PropagationService {
       : null;
 
     // Recompute thisWeek
-    const monday = this.getMondayStart(today);
+    const monday = this.getWeekStart(today);
     meta.thisWeek = newCheckIns.filter(c => c.date >= monday).length;
 
     routine.metadata = meta;
@@ -346,10 +349,9 @@ export class PropagationService {
     await skill.save();
   }
 
-  private getMondayStart(dateStr: string): string {
+  private getWeekStart(dateStr: string): string {
     const d = new Date(dateStr);
-    const dow = d.getDay() === 0 ? 7 : d.getDay(); // Sun=0 → 7
-    d.setDate(d.getDate() - (dow - 1));
+    d.setDate(d.getDate() - d.getDay()); // d.getDay() === 0 for Sun, so Sun stays, Mon→-1, etc.
     return d.toISOString().slice(0, 10);
   }
 
@@ -424,5 +426,45 @@ export class PropagationService {
       domain.progress = Math.round(sum / withProgress.length);
     }
     await domain.save();
+  }
+
+  async getWeekProgress(weekStart?: string): Promise<any> {
+    const today = new Date().toISOString().slice(0, 10);
+    const start = weekStart ?? this.getWeekStart(today);
+    const dates = getWeekDates(start);
+
+    const allNodes = await this.nodeModel.find({}).lean();
+    const routines = allNodes.filter((n: any) => n.type === 'ROUTINE');
+    const tasks = allNodes.filter((n: any) => n.type === 'TASK');
+
+    const days = dates.map((date) => {
+      const routinesCheckedIn = routines.filter((r: any) => {
+        const checkIns: Array<{ date: string }> = (r.metadata as any)?.checkIns ?? [];
+        return (r.metadata as any)?.cadence === 'daily' && checkIns.some((c) => c.date === date);
+      }).length;
+
+      const tasksCompleted = tasks.filter((t: any) => {
+        return (t.metadata as any)?.completedDate === date;
+      }).length;
+
+      return {
+        date,
+        won: dayWon(routinesCheckedIn, tasksCompleted),
+        routinesCheckedIn,
+        routineTarget: WIN_RULES.routineThreshold,
+        tasksCompleted,
+        taskTarget: WIN_RULES.taskThreshold,
+      };
+    });
+
+    const wonDays = days.filter((d) => d.won).length;
+
+    return {
+      weekStart: start,
+      days,
+      wonDays,
+      weekTarget: WIN_RULES.weekTarget,
+      weekWon: weekWon(wonDays),
+    };
   }
 }
