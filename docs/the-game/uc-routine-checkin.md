@@ -11,28 +11,33 @@ As a user, I check in my daily routine, optionally using a timer for actual time
 - **Result**: `metadata.actualHours` computed from timeEntries
 
 ### 2. Check In
-- **UI**: Tap check-in button (today's cell in heatmap OR dedicated button)
+- **UI**: Tap check-in button (today's cell in heatmap OR dedicated button in right panel)
 - **API**: `checkInRoutine(id)` mutation
 - **Backend**:
-  1. Set `history[last] = true`, streak++, bestStreak = max, thisWeek++
-  2. Compute hours: actualHours (timer) ?? parseTarget(metadata.target) ?? 0
-     - "30 min" -> 0.5h, "2 hours" -> 2h, "10 min" -> ~0.17h, "1x/week" -> 0h
-  3. If hours > 0 and routine has SKILLs in parents[], credit hours to each
-  4. Clear actualHours/timeEntries for next session
+  1. Idempotent — skip if `checkIns[]` already has today's date
+  2. Append `{date: YYYY-MM-DD, hours}` to `checkIns[]`
+  3. Update: streak (backward date traversal), bestStreak, thisWeek (from Monday), lastCheckInDate
+  4. Compute hours: actualHours (from timer) ?? parseTarget(metadata.target) ?? 0
+     - "30 min" → 0.5h, "2h" / "2 hours" → 2h, other strings → 0h
+  5. If hours > 0 and routine has SKILLs in parents[], credit hours to each
+  6. Clear timeEntries for next session
+- **Undo**: `undoCheckInRoutine(id)` mutation — removes today's entry, debits skill hours, recomputes streak
 - **Feedback**: Toast "Day 15! Keep going" + hours credited per skill
 
 ## Files Modified
 
 | File | Change | Status |
 |------|--------|--------|
-| `apps/api/src/nodes/propagation.service.ts` | checkInRoutine method, extend timer to ROUTINE | Done |
-| `apps/api/src/nodes/nodes.resolver.ts` | checkInRoutine mutation | Done |
-| `apps/web/src/lib/graphql.ts` | CHECK_IN_ROUTINE mutation | Done |
-| `apps/web/src/views/Routines.tsx` | Check-in button + timer per routine | Done |
+| `apps/api/src/nodes/propagation.service.ts` | checkInRoutine, undoCheckInRoutine, extend timer to ROUTINE | Done |
+| `apps/api/src/nodes/nodes.resolver.ts` | checkInRoutine + undoCheckInRoutine mutations | Done |
+| `apps/web/src/lib/graphql.ts` | CHECK_IN_ROUTINE, UNDO_CHECK_IN_ROUTINE mutations | Done |
+| `apps/web/src/views/Routines.tsx` | Check-in button (toggle with undo) + timer per routine | Done |
+| `apps/web/src/components/CreateNodeModal.tsx` | cadence, target, timeOfDay, group fields for ROUTINE | Done |
 
 ## Acceptance Criteria
-- [ ] Check-in updates streak, bestStreak, thisWeek, history
-- [ ] Timer works on routines (start/stop)
-- [ ] Hours credited to linked skills on check-in
-- [ ] Toast shows streak count
-- [ ] Idempotent: checking in twice same day doesn't double-count
+- [x] Check-in appends to `checkIns: [{date, hours}]`, updates streak, bestStreak, thisWeek, lastCheckInDate
+- [x] Timer works on routines (start/stop via startTaskTimer / stopTaskTimer)
+- [x] Hours credited to linked skills on check-in
+- [x] Toast shows streak count
+- [x] Idempotent: checking in twice same day doesn't double-count
+- [x] Undo reverses hours from skills and recomputes streak

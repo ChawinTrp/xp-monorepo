@@ -38,14 +38,14 @@ As a user, I create a task, track time with a timer, complete it, and see hours 
 | `apps/web/src/App.tsx` | ToastProvider wrapper | Done |
 | `apps/web/src/views/NodeDetail.tsx` | Complete button + timer + toasts + skill-linking | Done |
 | `apps/web/src/views/Kanban.tsx` | Drag-to-complete + toasts | Done |
-| `apps/web/src/components/CreateTaskModal.tsx` | NEW - create form | TODO |
+| `apps/web/src/components/CreateNodeModal.tsx` | Create form with estimatedHours + skill picker | Done |
 | `apps/web/src/lib/graphql.ts` | COMPLETE_TASK, START/STOP_TIMER | Done |
 
 ## Acceptance Criteria
-- [ ] Completing a task credits hours to all linked skills
-- [ ] Skill tier recalculates after hours added
-- [ ] Project progress recalculates (done/total children)
-- [ ] Domain progress recalculates
-- [ ] Toast shows hours credited per skill
-- [ ] Timer tracks actual hours with start/stop
-- [ ] Create-task form works with skill picker
+- [x] Completing a task credits hours to all linked skills
+- [x] Skill tier recalculates after hours added
+- [x] Project progress recalculates (done/total children)
+- [x] Domain progress recalculates
+- [x] Toast shows hours credited per skill
+- [x] Timer tracks actual hours with start/stop
+- [x] Create-task form works with skill picker (CreateNodeModal, not a separate CreateTaskModal)

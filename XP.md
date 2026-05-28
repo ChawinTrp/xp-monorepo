@@ -78,7 +78,7 @@
 - **Routing:** React Router v7
 - **Styling:** Tailwind CSS v3 (custom dark theme)
 - **Icons:** Lucide React
-- **Graph Visualization:** React Flow (`@xyflow/react`) — interactive node graph canvas
+- **Graph Visualization:** force-graph (canvas-based, `force-graph` package) — interactive node graph
 - **Drag & Drop:** dnd-kit (`@dnd-kit/core`, `@dnd-kit/sortable`) — Kanban board
 - **Dates:** date-fns — lightweight date formatting/comparison for due dates, sprints, Gantt
 - **No rich text editor.** Node descriptions are plain text (`<textarea>`). `@blocknote/*` removed.
@@ -167,7 +167,15 @@ export class Node {
 ### 6.2 `NodesResolver` (GraphQL)
 
 - **Queries:** `nodes`, `node(id)`, `searchNodes(term, allowedTypes)`
-- **Mutations:** `createNode`, `updateNode`, `deleteNode`
+- **Mutations:** `createNode`, `updateNode`, `deleteNode`, `completeTask`, `checkInRoutine`, `undoCheckInRoutine`, `startTaskTimer`, `stopTaskTimer`
+
+### 6.3 `PropagationService`
+
+Handles all XP logic triggered by mutations:
+- `onTaskCompleted(id)` — marks DONE, credits hours, walks mainParent chain (PROJECT → DOMAIN) and parents[] (SKILLs)
+- `checkInRoutine(id)` — appends `{date, hours}` to `checkIns[]`, updates streak, credits SKILL hours
+- `undoCheckInRoutine(id)` — reverses today's check-in and debits skill hours
+- `startTimer(id)` / `stopTimer(id)` — push/close entries in `metadata.timeEntries[]`; `stopTimer` recalculates `actualHours`
 
 ---
 
@@ -184,23 +192,30 @@ Layout.tsx        ← Sidebar (domain tree nav) + TopBar + <Outlet/>
 
 | Route | View | Purpose |
 |-------|------|---------|
-| `/` | Dashboard | Quick stats: overdue tasks, in-progress projects, XP summary |
-| `/graph` | GraphView | React Flow canvas — full node graph, filterable by type |
-| `/kanban/:projectId?` | KanbanView | Task cards by status (TODO / IN_PROGRESS / DONE) with dnd-kit drag |
-| `/gantt/:projectId?` | GanttView | Timeline of projects/tasks by startDate–dueDate (Phase 8) |
-| `/node/:id` | NodeDetail | Single-node properties panel + description |
+| `/` | Dashboard | Live stats: streak, routines today, tasks done this week, skill hours, catch-ups |
+| `/graph` | GraphView | force-graph canvas — full node graph, filterable by type |
+| `/kanban` | KanbanView | Task cards by status (TODO / IN_PROGRESS / DONE) with dnd-kit drag + sprint mode |
+| `/gantt` | GanttView | Timeline of projects/tasks by startDate–dueDate |
+| `/calendar` | CalendarView | Monthly grid with task chips and routine dots |
+| `/routines` | RoutinesView | 30-day heatmap, streak, check-in + timer per routine |
+| `/node/:id` | NodeDetail | Single-node properties panel + timer + skill linking |
 | `/people` | PeopleView | PERSON grid — contact info, catch-up tracker |
-| `/skills` | SkillsView | SKILL tree — levels, XP bars, domain grouping |
+| `/skills` | SkillsView | SKILL tree — mastery tiers, hours bars, domain grouping |
+| `/settings` | Settings | App settings |
+| *(≤768px)* | MobileShell | Swipe-card deck (TASK + ROUTINE), timer bar, Stats tab |
 
 ### 7.3 Key Components
 
 | Component | Used in | Purpose |
 |-----------|---------|---------|
-| `SmartSearchInput` | NodeDetail, KanbanView | Search nodes, link as `mainParent` or `parents` |
+| `SmartSearchInput` | NodeDetail, CreateNodeModal | Search nodes, link as `mainParent` or `parents` |
 | `NodeCard` | KanbanView, Dashboard | Compact node representation (title, type badge, status, due date) |
 | `Sidebar` | Layout | Domain tree navigation + quick-create button |
-| `TypeBadge` | Everywhere | Colored chip for DOMAIN / SKILL / PROJECT / TASK / PERSON / TAG |
-| `ProgressBar` | NodeDetail, SkillsView | XP/progress visual bar |
+| `TypeBadge` | Everywhere | Colored chip for DOMAIN / SKILL / PROJECT / TASK / PERSON / TAG / ROUTINE |
+| `ProgressBar` | NodeDetail, SkillsView | Hours/progress visual bar |
+| `RingGauge` | Dashboard | Circular progress ring for stat cards |
+| `CreateNodeModal` | App, MobileShell | Full create form — all types with type-specific fields |
+| `MobileShell` | App (≤768px) | Mobile-only: swipe deck, timer bar, stats tab, FAB quick-capture |
 
 ### 7.4 Node Detail Panel
 
@@ -208,21 +223,24 @@ Structured properties panel (no rich editor). Fields rendered conditionally by t
 
 | Type | Fields |
 |------|--------|
-| All | `title`, `description` (textarea), `parents` (SmartSearch), tags |
-| TASK | `status` dropdown, `progress` bar, `dueDate`, `priority` |
-| PROJECT | `status`, `progress` (computed), `startDate`, `dueDate` |
-| SKILL | `level`, `xp` (computed, read-only) |
-| PERSON | `email`, `phone`, `nextCatchupDate` |
+| All | `title`, `description` (textarea), `mainParent` (searchable), children list |
+| TASK | `status` dropdown, `due` date, `priority`, `estimatedHours`, timer start/stop, live elapsed, skill-linking picker, complete button |
+| PROJECT | `status`, `progress` (computed from children), `startDate`, `dueDate` |
+| SKILL | `level`, `totalHours`, `hoursToNext` (computed, read-only) |
+| PERSON | `email`, `phone`, `nextCatchup` |
 | TAG | color hex picker |
+| ROUTINE | timer start/stop, check-in button (toggle with undo), streak, 30-day heatmap |
 
 ### 7.5 GraphQL Layer
 
 ```
-graphql/
-  queries.ts      ← GET_NODES, GET_NODE, SEARCH_NODES, GET_CHILDREN
-  mutations.ts    ← CREATE_NODE, UPDATE_NODE, DELETE_NODE
-hooks/
-  useNodes.ts     ← Apollo wrapper hooks with cache updates
+src/lib/
+  graphql.ts    ← All gql documents: GET_NODES, GET_NODE, SEARCH_NODES,
+                   CREATE_NODE, UPDATE_NODE, DELETE_NODE,
+                   COMPLETE_TASK, CHECK_IN_ROUTINE, UNDO_CHECK_IN_ROUTINE,
+                   START_TIMER, STOP_TIMER
+  hooks.ts      ← useNodes() — single shared Apollo query + derived maps
+  types.ts      ← XPNode type, TYPE_COLORS
 ```
 
 ---
@@ -243,11 +261,11 @@ npm run dev -w web
 
 - ✅ **Phase 1–5:** Foundation, CRUD — NestJS/React, MongoDB Atlas, GraphQL, full node CRUD.
 - ✅ **Phase 6:** Graph Connectivity — `parents`/`children` schema, SmartSearch UI, full frontend rewrite (multi-view Life OS UI with Catppuccin Mocha theme), ROUTINE node type added, seed data from Second Brain.
-- ✅ **Phase 7: The Game** — Hours-based mastery system (5 tiers: Unfamiliar→World Class), timer mutations (`startTimer`/`stopTimer`), `completeTask` mutation with upward propagation (TASK→PROJECT→DOMAIN + TASK→SKILLs via `parents[]`), skill-linking UI (SkillPicker), domain progress display, toast notification system.
-- ✅ **Phase 8: The Orchestra** — Gantt chart (week/month/quarter zoom, drag-resize, today line), Calendar view (monthly grid, task chips, routine dots), Sprint planning (board/sprint toggle, create sprints, assign tasks, progress bar), Google Calendar connector (OAuth2, auto-sync on mutations).
-- ✅ **Phase 8.5: Mobile Responsive** — All 9 views responsive via CSS `clamp()`, `auto-fit minmax()` grids, mobile sidebar overlay with hamburger toggle, horizontal-scroll tab bar.
-- 🔜 **Phase 9: Deployment** — API on GCP Cloud Run (asia-southeast1), frontend on Vercel. Dockerfile ready, env-var-based API URL (`VITE_API_URL`).
-- 🔜 **Phase 10: Obsidian Sync** — `ObsidianSyncService` one-way push (§12).
+- ✅ **Phase 7: The Game** — Hours-based mastery system (5 tiers: Unfamiliar→World Class), `PropagationService` (`completeTask`, `checkInRoutine`, `undoCheckInRoutine`, `startTimer`, `stopTimer`), skill-linking UI (SkillPicker in CreateNodeModal + NodeDetail), `checkIns: [{date, hours}]` log, streak tracking, domain progress display, toast notification system.
+- ✅ **Phase 8: The Orchestra** — Gantt chart (week/month/quarter zoom, drag-resize, today line), Calendar view (monthly grid, task chips, routine dots), Sprint planning (board/sprint toggle, create sprints, assign tasks, burndown bar), Google Calendar connector (OAuth2, event sync).
+- ✅ **Phase 8.5: Mobile Shell** — `MobileShell` (≤768px): swipe-card focus deck for TASK + ROUTINE, time-of-day queue ordering, shared timer state with persistent timer bar, Stats tab, FAB quick-capture. Desktop views unchanged and fully responsive via CSS `clamp()` / `auto-fit`.
+- ✅ **Phase 9: Deployment** — API on Render (free tier), frontend on Vercel. Dockerfile ready, env-var-based API URL (`VITE_API_URL`). Live at xp-monorepo-web.vercel.app.
+- 🔜 **Phase 10: Obsidian Sync** — `ObsidianSyncService` one-way push (§12). `obsidianPath` field already on schema.
 - 🔜 **Phase 11: Auth & Multi-user** — Authentication, collaborative access.
 
 ---
@@ -305,10 +323,11 @@ gcloud run deploy xp-api \
 
 ## 11. Audit Log (Known Issues)
 
-
-- **Desync:** `children` array not auto-updated when a `parent` is added — needs bidirectional write in `NodesService`.
-- **Propagation:** XP/Progress calculation logic pending.
-- **Workspace Resolution:** Brittle TypeScript path resolution between `apps/web` and `packages/shared`.
+- **GCal token persistence:** OAuth tokens lost on Render restart (in-memory). Tokens must be re-authorized after cold start.
+- **Obsidian sync:** `ObsidianSyncService` is designed and documented (§12) but not yet implemented — `obsidianPath` field exists on schema for future use.
+- **Timezone edge:** Dashboard uses local date for streak/check-in display; API uses local date in `PropagationService`. These are consistent but both assume the server and client are in the same timezone. UTC+7 users: check-in cutoff is midnight Bangkok time.
+- **Graph view performance:** force-graph loads all nodes — performance degrades above ~500 nodes. No pagination or lazy loading yet.
+- **No auth:** Single-user personal OS; no authentication layer. All data is public to anyone with the API URL.
 
 ---
 

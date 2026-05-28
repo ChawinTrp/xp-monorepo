@@ -116,7 +116,7 @@ All entities stored in one MongoDB collection (`nodes`). This enables:
 |------|----------------|
 | SKILL | `totalHours`, `level`, `hoursToNext` |
 | TASK | `priority`, `estimatedHours`, `actualHours`, `due`, `creditedHours`, `completedAt`, `timeEntries[]`, `gcalEventId` |
-| ROUTINE | `cadence`, `streak`, `bestStreak`, `history[]`, `target`, `group`, `thisWeek`, `weekTarget`, `lastCheckInDate`, `creditedHours`, `timeEntries[]` |
+| ROUTINE | `cadence`, `target`, `timeOfDay`, `group`, `checkIns: [{date, hours}]`, `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate`, `creditedHours`, `timeEntries[]` |
 | PERSON | `circle`, `role`, `email`, `phone`, `initials`, `nextCatchup`, `catchupState` |
 | TAG | `color` |
 | PROJECT | `startDate`, `dueDate`, `gcalEventId` |
@@ -155,7 +155,8 @@ All entities stored in one MongoDB collection (`nodes`). This enables:
 | `deleteNode` | `id: ID` | `Node` | Delete + clean up parent/child references |
 | `completeTask` | `id: ID` | `[Node]` | Mark DONE + propagate XP upward |
 | `checkInRoutine` | `id: ID` | `[Node]` | Record check-in + credit skill hours |
-| `startTaskTimer` | `id: ID` | `Node` | Start time tracking entry |
+| `undoCheckInRoutine` | `id: ID` | `[Node]` | Reverse today's check-in + debit skill hours |
+| `startTaskTimer` | `id: ID` | `Node` | Start time tracking entry (works on TASK and ROUTINE) |
 | `stopTaskTimer` | `id: ID` | `Node` | Stop timer + calculate actualHours |
 
 ### 4.3 REST Endpoints (GCal only)
@@ -189,11 +190,21 @@ The propagation engine is the unique technical feature. It handles three flows:
 ### 5.2 Routine Check-in (`checkInRoutine`)
 ```
 1. Idempotent check: skip if already checked in today
-2. Update: history[], streak, bestStreak, thisWeek, lastCheckInDate
-3. Compute creditedHours from timer or target string
-4. Clear timer entries for next session
-5. Credit hours to linked SKILLs via parents[]
-6. Return all affected nodes
+2. Append {date, hours} to checkIns[] (replaces legacy checkInDates string[])
+3. Update: streak (backward traversal), bestStreak, thisWeek (from Monday), lastCheckInDate
+4. Compute creditedHours from timer actualHours or parseTarget(target string)
+5. Clear timer entries for next session
+6. Credit hours to linked SKILLs via parents[]
+7. Return all affected nodes
+```
+
+### 5.2a Routine Undo (`undoCheckInRoutine`)
+```
+1. Find today's entry in checkIns[] — return early if not found
+2. Remove today's entry, recompute streak from yesterday backward
+3. Recompute thisWeek, update lastCheckInDate to previous entry or null
+4. Debit the exact hours that were credited (todayEntry.hours)
+5. Return all affected nodes
 ```
 
 ### 5.3 Mastery Tiers (from `@xp/shared`)
@@ -221,7 +232,7 @@ Apollo Client
 
 All views share one Apollo query (`GET_NODES`) that fetches every node. Filtering, grouping, and tree-building happen client-side via the `useNodes()` hook.
 
-### 6.2 Views (11 total)
+### 6.2 Views (11 desktop + 1 mobile)
 
 | View | Route | Key Libraries |
 |------|-------|---------------|
@@ -236,6 +247,9 @@ All views share one Apollo query (`GET_NODES`) that fetches every node. Filterin
 | NodeDetail | `/node/:id` | — |
 | Settings | `/settings` | — |
 | SearchModal | (overlay) | — |
+| **MobileShell** | **(≤768px breakpoint)** | Replaces entire desktop layout on mobile |
+
+`MobileShell` (`src/mobile/MobileShell.tsx`) renders when `window.innerWidth < 768`. It shows a swipe-card focus deck (TASK + ROUTINE only), a persistent timer bar, and a Stats tab. Same Apollo data layer — no new API.
 
 ### 6.3 Component Library
 

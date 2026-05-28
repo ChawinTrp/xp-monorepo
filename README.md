@@ -1,76 +1,96 @@
-Project XP 🚀
+# Project XP
 
-Project XP is a comprehensive, graph-based web application designed to serve as a personal "Life OS." It combines a Markdown-based knowledge management system with advanced Todo-list, progress tracking, and collaborative project management features.
+A personal life operating system built on a graph-based data model. Two pillars:
 
-🌟 Core Modules
+- **The Game** — goal, skill, and task tracking with hours-based mastery progression
+- **The Orchestra** — project management, routine tracking, and relationship orchestration
 
-The Vault (Knowledge Management): An Obsidian-like markdown editor and renderer with bi-directional linking and interactive graph visualization.
+---
 
-The Game (Progress Tracking): A graph-based hierarchy (Life -> Skills -> Projects -> Tasks) where completing child nodes propagates XP/progress upwards.
+## What It Does
 
-The Orchestra (Project Management): Collaborative views including Kanban boards, Agile Sprints, and Gantt charts.
+- Track **Tasks** with priority, due dates, estimated hours, and time tracking
+- Track **Routines** with daily/weekly check-ins, streaks, and time-of-day scheduling
+- **Skills** accumulate hours from completed tasks and routine check-ins, progressing through mastery tiers (Unfamiliar → Familiar → Skilled → Master → World Class at 10,000h)
+- **Projects** roll up task progress automatically
+- **People** with catch-up scheduling and relationship tracking
+- **Dashboard** with live stats: streaks, routines done today, tasks done this week, total skill hours
+- **Kanban**, **Gantt**, **Calendar**, **Sprint** planning, **Graph** view, **Skills** view
+- **Mobile shell** (≤768px) — swipe-card focus deck for Tasks and Routines, timer, quick capture
 
-🏗️ Architecture & Tech Stack
+---
 
-This project is structured as a Monorepo using NPM Workspaces, ensuring seamless TypeScript interface sharing between the frontend and backend.
+## Tech Stack
 
-Frontend: React + TypeScript (Vite), Tailwind CSS, Apollo Client, react-force-graph
+| Layer | Technology |
+|-------|-----------|
+| Backend | NestJS v11, Apollo Server v5, MongoDB Atlas via Mongoose |
+| Frontend | React 19, Apollo Client v4, Vite, Tailwind CSS |
+| Graph view | force-graph (canvas) |
+| Drag & drop | dnd-kit |
+| Icons | Lucide React |
+| Shared | `@xp/shared` — mastery tiers, parent rules |
 
-Backend: NestJS + TypeScript, Apollo GraphQL (Code-First)
+---
 
-Database: MongoDB (Atlas) via Mongoose
+## Repository Structure
 
-API Paradigm: GraphQL
-
-📂 Folder Structure
-
+```
 xp-monorepo/
-├── package.json # Root workspace configuration
 ├── apps/
-│ ├── api/ # NestJS Backend (Port 3000)
-│ └── web/ # React Vite Frontend (Port 5173)
+│   ├── api/          # NestJS backend — GraphQL, PropagationService, GCal connector
+│   └── web/          # React frontend — 11 views + mobile shell
 └── packages/
-└── shared/ # Shared TypeScript interfaces (The glue!)
+    └── shared/       # Mastery tiers, ALLOWED_MAIN_PARENTS
+```
 
-🚀 Getting Started
+---
 
-Prerequisites
+## Local Development
 
-Node.js: v20+ (LTS recommended)
-
-NPM: v7+ (for Workspace support)
-
-MongoDB: A MongoDB Atlas cluster (M0 Free Tier is sufficient)
-
-1. Installation
-
-Clone the repository and install dependencies from the root directory:
-
-git clone <your-repo-url>
-cd xp-monorepo
+```bash
+# Install from repo root
 npm install
 
-2. Environment Setup
-
-(Note: Detailed .env setup will be added as the project progresses)
-Ensure your MongoDB connection string is properly configured in apps/api/src/app.module.ts or via a .env file in the apps/api directory.
-
-3. Running the Application
-
-You can run individual apps from the root directory using the -w (workspace) flag.
-
-Start the Backend (NestJS / GraphQL API):
-
+# Terminal 1 — API  http://localhost:3000/graphql
 npm run start:dev -w api
 
-API runs at: http://localhost:3000/graphql
-
-Start the Frontend (React):
-
+# Terminal 2 — Web  http://localhost:5173
 npm run dev -w web
+```
 
-Web runs at: http://localhost:5173
+**Required env var for API** (`apps/api/.env`):
+```
+MONGO_URI=mongodb+srv://...
+PORT=3000
+NODE_ENV=development
+```
 
-📜 License
+**Required env var for Web** (`apps/web/.env`):
+```
+VITE_API_URL=http://localhost:3000
+```
 
-Private / Proprietary (Update as needed)
+---
+
+## Deployed
+
+| Service | URL |
+|---------|-----|
+| Frontend | https://xp-monorepo-web.vercel.app |
+| API | https://xp-monorepo.onrender.com |
+
+---
+
+## Key Docs
+
+| Doc | What it covers |
+|-----|---------------|
+| `docs/TECHNICAL_SPEC.md` | Schema, API surface, propagation engine, tech stack versions |
+| `NODE.md` | Node type rules, parent hierarchy, full metadata field reference |
+| `XP.md` | Master architecture, use cases, roadmap |
+| `DESIGN_HANDOFF.md` | Desktop UI spec (Catppuccin Mocha theme, component patterns) |
+| `DESIGN_HANDOFF_MOBILE.md` | Mobile UI spec (card deck, swipe gestures, timer bar) |
+| `docs/ARCHITECTURE_AND_LESSONS.md` | Architectural decisions and lessons learned |
+| `docs/DEPLOYMENT.md` | Deployment configuration and known issues |
+| `docs/the-game/` | Use case specs: task completion, routine check-in, skill linking |

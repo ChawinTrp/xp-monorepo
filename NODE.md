@@ -45,17 +45,20 @@ All XP nodes share the universal schema (`title`, `type`, `description`, `parent
 
 | Node Type | Fields | Where stored |
 | :--- | :--- | :--- |
-| **TASK** | `dueDate`, `priority` — `status` dropdown, `progress` bar | MongoDB `metadata` |
-| **PROJECT** | `startDate`, `dueDate` — `status`, `progress` (computed) | MongoDB `metadata` |
-| **SKILL** | `level`, `xp` (both computed, read-only) | MongoDB `metadata` |
-| **PERSON** | `email`, `phone`, `nextCatchupDate` | MongoDB `metadata` |
-| **DOMAIN** | _(none)_ | — |
+| **TASK** | `priority` (high/medium/low), `estimatedHours`, `actualHours`, `due` (ISO date string), `creditedHours`, `completedAt` (ISO), `timeEntries: [{start: ISO, end?: ISO}]`, `gcalEventId` | MongoDB `metadata` |
+| **PROJECT** | `startDate`, `dueDate`, `gcalEventId` — `status` and `progress` on root schema | MongoDB `metadata` |
+| **SKILL** | `totalHours` (accumulated), `level` (unfamiliar/familiar/skilled/master/world_class), `hoursToNext` (hours remaining to next tier) — all computed, read-only | MongoDB `metadata` |
+| **PERSON** | `circle`, `role`, `email`, `phone`, `initials`, `nextCatchup` (ISO date), `catchupState` (upcoming/overdue), `relativeDate` (human label e.g. "in 3 days") | MongoDB `metadata` |
+| **DOMAIN** | _(none — progress computed from children)_ | — |
 | **TAG** | `color` hex — UI chip rendering | MongoDB `metadata` |
-| **ROUTINE** | `cadence` (daily/weekly/monthly), `streak`, `bestStreak`, `group`, `target`, `thisWeek`, `weekTarget`, `history` (30-day boolean array) | MongoDB `metadata` |
+| **ROUTINE** | `cadence` (daily/weekly/monthly), `target` (string e.g. "30 min"), `timeOfDay` (morning/afternoon/evening/night), `group` (optional label), `checkIns: [{date: YYYY-MM-DD, hours: number}]`, `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate` (YYYY-MM-DD), `creditedHours`, `timeEntries: [{start: ISO, end?: ISO}]` | MongoDB `metadata` |
 | **NOTE** ★ | `domain`, `source` (optional), `xp_link` (optional wikilink to related XP node) | Obsidian frontmatter |
 | **IDEA** ★ | `domain`, `idea_status` (raw / evaluating / developed / shelved), `xp_link` (optional) | Obsidian frontmatter |
 
-> `level` and `xp` on SKILL nodes are computed by the progress propagation engine (Phase 7). Never set manually.
+> `totalHours`, `level`, and `hoursToNext` on SKILL nodes are computed by the propagation engine on every `completeTask` or `checkInRoutine` mutation. Never set manually.
+>
+> ROUTINE check-ins are stored as `checkIns: [{date, hours}]` (one entry per day). The legacy `checkInDates: string[]` format is automatically migrated to this structure on read.
+>
 > ★ Obsidian-only. See `06 - Templates/Note Template.md` and `06 - Templates/Idea Template.md`.
 
 ---
