@@ -50,11 +50,12 @@ const PRIORITY_COLOR: Record<string, string> = {
 };
 
 // ── Queue: ordered list of cards for today
-function useQueue(nodes: XPNode[]) {
+function useQueue(nodes: XPNode[], snoozedIds: Set<string>) {
   return useMemo(() => {
     const routines = nodes
       .filter(n => {
         if (n.type !== 'ROUTINE') return false;
+        if (snoozedIds.has(n._id)) return false;
         return !isCheckedToday(n.metadata);
       })
       .sort((a, b) => {
@@ -67,6 +68,7 @@ function useQueue(nodes: XPNode[]) {
     const tasks = nodes
       .filter(n => {
         if (n.type !== 'TASK' || n.status === 'DONE') return false;
+        if (snoozedIds.has(n._id)) return false;
         const m = n.metadata as any;
         const over = m?.due && new Date(m.due) < new Date();
         return over || m?.priority === 'high' || m?.priority === 'medium';
@@ -99,7 +101,7 @@ function useQueue(nodes: XPNode[]) {
       ...eveningR,
       ...nightR,
     ];
-  }, [nodes]);
+  }, [nodes, snoozedIds]);
 }
 
 // ── Detect existing open timer on mount
@@ -268,34 +270,50 @@ interface FocusViewProps {
 
 function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish }: FocusViewProps) {
   const { nodes, breadcrumb } = useNodes();
-  const baseQueue = useQueue(nodes);
 
-  // Local queue with snoozed items pushed to end
+  // snoozedIds keeps the snoozed node out of baseQueue so it doesn't appear twice
+  const [snoozedIds, setSnoozedIds] = useState<Set<string>>(new Set());
   const [extra, setExtra] = useState<XPNode[]>([]);
-  const [idx, setIdx] = useState(0);
+  // ID-based tracking avoids index drift when baseQueue shrinks after a refetch
+  const [currentId, setCurrentId] = useState<string | null>(null);
   const [cleared, setCleared] = useState(0);
+  const [showDone, setShowDone] = useState(false);
   const [dragDx, setDragDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef<number | null>(null);
 
+  const baseQueue = useQueue(nodes, snoozedIds);
   const queue = useMemo(() => [...baseQueue, ...extra], [baseQueue, extra]);
-  const node = queue[idx];
+
+  const idx = queue.findIndex(n => n._id === currentId);
+  const node = idx >= 0 ? queue[idx] : undefined;
+
+  // Initialize currentId once the queue is ready; showDone prevents re-init after completion
+  useEffect(() => {
+    if (!showDone && currentId === null && queue.length > 0) {
+      setCurrentId(queue[0]._id);
+    }
+  }, [showDone, currentId, queue.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const advance = useCallback((action: 'finish' | 'snooze') => {
-    if (!node) return;
+    if (!node || idx < 0) return;
+    // Capture next ID before state changes shift the queue
+    const nextId = queue[idx + 1]?._id ?? null;
     if (action === 'finish') {
       onFinish(node);
       setCleared(c => c + 1);
     } else {
-      // Snooze: push to end of queue
+      // Remove from baseQueue via snoozedIds, append to extra
+      setSnoozedIds(s => new Set([...s, node._id]));
       setExtra(e => [...e, node]);
     }
     setDragDx(action === 'finish' ? 600 : -600);
     setTimeout(() => {
-      setIdx(i => i + 1);
+      setCurrentId(nextId);
+      if (!nextId) setShowDone(true);
       setDragDx(0);
     }, 240);
-  }, [node, onFinish]);
+  }, [node, idx, queue, onFinish]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!node) return;
@@ -327,7 +345,13 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish }:
           {cleared} card{cleared === 1 ? '' : 's'} cleared today.
         </p>
         <button
-          onClick={() => { setIdx(0); setCleared(0); setExtra([]); }}
+          onClick={() => {
+            setShowDone(false);
+            setSnoozedIds(new Set());
+            setExtra([]);
+            setCleared(0);
+            setCurrentId(null);
+          }}
           style={{
             marginTop: 28, padding: '10px 18px',
             borderRadius: 999, background: 'var(--surface0)',

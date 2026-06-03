@@ -15,5 +15,8 @@
   "description": "",
   "overrides": {
     "@apollo/server": "^5.4.0"
+  },
+  "dependencies": {
+    "date-fns": "^4.4.0"
   }
 }
