@@ -7,6 +7,17 @@ import { TYPE_COLORS } from '../lib/types';
 
 const CREATABLE_TYPES = ['TASK', 'ROUTINE', 'PROJECT', 'SKILL', 'PERSON', 'TAG'] as const;
 
+// Circles match the People view's GROUP_META grouping
+const PERSON_CIRCLES = ['Network', 'Core Team', 'Mentors', 'Close Friends', 'Family', 'Aura Team'] as const;
+
+/** "Alice Chen" -> "AC"; single word -> first two letters. */
+function deriveInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '??';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 interface CreateNodeModalProps {
   open: boolean;
   onClose: () => void;
@@ -38,6 +49,8 @@ export default function CreateNodeModal({
   const [target, setTarget] = useState('');
   const [timeOfDay, setTimeOfDay] = useState('morning');
   const [group, setGroup] = useState('');
+  const [role, setRole] = useState('');
+  const [circle, setCircle] = useState<string>('Network');
   const [linkedSkillIds, setLinkedSkillIds] = useState<string[]>([]);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -58,6 +71,8 @@ export default function CreateNodeModal({
       setTarget('');
       setTimeOfDay('morning');
       setGroup('');
+      setRole('');
+      setCircle('Network');
       setLinkedSkillIds([]);
       setTimeout(() => titleRef.current?.focus(), 100);
     }
@@ -79,7 +94,7 @@ export default function CreateNodeModal({
   // Choose parent options based on type
   const parentOptions = type === 'TASK'
     ? projects
-    : type === 'PROJECT' || type === 'SKILL' || type === 'ROUTINE'
+    : type === 'PROJECT' || type === 'SKILL' || type === 'ROUTINE' || type === 'PERSON'
       ? domains
       : [];
 
@@ -105,6 +120,12 @@ export default function CreateNodeModal({
       metadata.bestStreak = 0;
       metadata.thisWeek = 0;
       metadata.weekTarget = cadence === 'daily' ? 7 : cadence === 'weekly' ? 1 : 1;
+    }
+    if (type === 'PERSON') {
+      metadata.initials = deriveInitials(title);
+      metadata.circle = circle;
+      if (role.trim()) metadata.role = role.trim();
+      metadata.catchupState = 'none';
     }
 
     const parents = [
@@ -152,7 +173,7 @@ export default function CreateNodeModal({
         style={{
           background: 'var(--surface0)', borderRadius: 14,
           border: '1px solid var(--surface1)',
-          width: 520, maxHeight: '85vh', overflow: 'auto',
+          width: 'min(520px, calc(100vw - 24px))', maxHeight: '85vh', overflow: 'auto',
           boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
           animation: 'fadeIn 0.2s ease-out',
         }}
@@ -369,6 +390,43 @@ export default function CreateNodeModal({
                     color: 'var(--text)',
                   }}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* Person-specific */}
+          {type === 'PERSON' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Role</Label>
+                <input
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  placeholder="e.g. Backend Dev, Mentor"
+                  className="w-full rounded-lg"
+                  style={{
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                    background: 'var(--base)', border: '1px solid var(--surface1)',
+                    color: 'var(--text)',
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Circle</Label>
+                <select
+                  value={circle}
+                  onChange={(e) => setCircle(e.target.value)}
+                  className="w-full rounded-lg"
+                  style={{
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                    background: 'var(--base)', border: '1px solid var(--surface1)',
+                    color: 'var(--text)',
+                  }}
+                >
+                  {PERSON_CIRCLES.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
