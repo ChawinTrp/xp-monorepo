@@ -24,6 +24,15 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type DayWin {
+  date: String!
+  routineTarget: Int!
+  routinesCheckedIn: Int!
+  taskTarget: Int!
+  tasksCompleted: Int!
+  won: Boolean!
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -60,6 +69,7 @@ type Query {
   nodes: [Node!]!
   ping: String!
   searchNodes(allowedTypes: [String], term: String): [Node!]!
+  weekProgress(weekStart: String): WeekProgress!
 }
 
 input UpdateNodeInput {
@@ -73,4 +83,12 @@ input UpdateNodeInput {
   status: String
   title: String
   type: String
+}
+
+type WeekProgress {
+  days: [DayWin!]!
+  weekStart: String!
+  weekTarget: Int!
+  weekWon: Boolean!
+  wonDays: Int!
 }
