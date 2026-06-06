@@ -4,34 +4,41 @@ import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui'
 import NodeCard from '../components/NodeCard';
 import { WEEK_PROGRESS } from '../lib/graphql';
 
+// Date helpers mirror @xp/shared (canonical) — Sunday-start, local dates.
 function localDateStr(d: Date = new Date()): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-function getMondayStart(dateStr: string): string {
+function getWeekStart(dateStr: string): string {
   const d = new Date(dateStr + 'T00:00:00');
-  const dow = d.getDay(); // 0=Sun
-  const diff = (dow === 0 ? -6 : 1 - dow);
-  d.setDate(d.getDate() + diff);
+  d.setDate(d.getDate() - d.getDay()); // getDay() === 0 for Sunday
   return localDateStr(d);
 }
 
 function WinTheWeekWidget() {
   const { data, loading } = useQuery(WEEK_PROGRESS);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateStr();
 
   if (loading || !data?.weekProgress) return null;
 
-  const { days, wonDays, weekTarget, weekWon } = data.weekProgress;
+  const { days, wonDays, weekTarget, weekWon, weekWinStreak } = data.weekProgress;
   const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <div className="flex items-center gap-3 p-4 rounded-[10px]" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
       <div style={{ flex: 1 }}>
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold uppercase tracking-wide opacity-60">Win the Week</span>
+          <span className="flex items-center gap-2">
+            <span className="text-sm font-semibold uppercase tracking-wide opacity-60">Win the Week</span>
+            {weekWinStreak > 1 && (
+              <span className="inline-flex items-center gap-0.5 rounded-full font-bold streak-fire" style={{
+                fontSize: 10, padding: '1px 7px', color: 'var(--orange)',
+                background: 'color-mix(in srgb, var(--orange) 16%, transparent)',
+              }} title={`${weekWinStreak} weeks won in a row`}>🔥 {weekWinStreak}w</span>
+            )}
+          </span>
           <span className="text-sm font-bold">
             {wonDays} / {weekTarget}
             {weekWon && <span className="ml-2">🎉</span>}
@@ -94,11 +101,12 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
 
   const totalSkillHours = allSkills.reduce((sum, s) => sum + ((s.metadata as any)?.totalHours ?? 0), 0);
 
-  const monday = getMondayStart(todayStr);
-  const weekTasks = tasks.filter(t => t.status !== 'DONE');
+  const weekStart = getWeekStart(todayStr);
   const weekDone = done.filter(t => {
-    const completedAt = (t.metadata as any)?.completedAt;
-    return completedAt && completedAt >= monday;
+    const m = t.metadata as any;
+    // Prefer the local completedDate; fall back to legacy UTC completedAt.
+    const completedDate = m?.completedDate ?? (m?.completedAt ? m.completedAt.slice(0, 10) : null);
+    return completedDate && completedDate >= weekStart;
   }).length;
 
   const today = new Date();

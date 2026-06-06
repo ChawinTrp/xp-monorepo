@@ -1,8 +1,17 @@
 # UC: Win the Day → Win the Week
 
-> **Status:** Planned (not yet built)
-> **Author:** CT · Sonnet · 2026-05-28
-> **Depends on:** routine `checkIns: [{date, hours}]`, task `completedAt`
+> **Status:** Shipped (Phases 1–6 + `weekWinStreak`). Phase 7 Settings UI still open.
+> **Author:** CT · Sonnet · 2026-05-28 · revised 2026-06-06
+> **Depends on:** routine `checkIns: [{date, hours}]`, task `completedDate`
+
+> **2026-06-06 — Date logic centralised.** The week/date math previously lived
+> in 5 copies (propagation service, Dashboard, Routines, seed, shared) and had
+> drifted: heatmap + dashboard + seed were still Monday-start, mobile task
+> completion fell back to a UTC date, and `getWeekProgress` keyed "today" off
+> UTC. All week math now has a single source of truth in `@xp/shared`
+> (`localDateStr`, `parseLocalDate`, `getWeekStart` [Sunday, local],
+> `getWeekDates`). Web files mirror these with a pointer comment (the codebase
+> deliberately avoids importing `@xp/shared` into Vite — see `NodeDetail.tsx`).
 
 ## Philosophy
 
@@ -139,14 +148,17 @@ type WeekProgress {
   wonDays: Int!
   weekTarget: Int!         # 4
   weekWon: Boolean!
+  weekWinStreak: Int!      # consecutive won weeks ending at the current week
 }
 
 # weekStart optional → defaults to current week's Sunday
 query { weekProgress(weekStart: String): WeekProgress! }
 ```
 
-Optional follow-on: `weekWinStreak` (consecutive won weeks) for a
-"weeks won in a row" badge.
+`weekWinStreak` is computed from the **current** week regardless of the
+`weekStart` argument: it counts back through consecutive won weeks. The
+in-progress current week counts only once it is already won, so a week still
+underway shows the streak of prior completed weeks rather than zeroing it.
 
 ---
 
@@ -200,27 +212,30 @@ just a number:
 
 ## Phasing
 
-| Phase | Scope | Outcome |
-|---|---|---|
-| **1** | Sunday-start unification (`getWeekStart`, heatmap split, seed) | One week definition app-wide |
-| **2** | `completedDate` local-date on task completion | Day-wins align to the user's real day |
-| **3** | `WIN_RULES` in `@xp/shared` + `dayWon`/`weekProgress` derivation | Computation correct & tested |
-| **4** | `weekProgress` resolver + Dashboard widget | Feature visible |
-| **5** | Routines-page banner + pip tooltips | Daily ↔ weekly in one place |
-| **6** | Streak visualization — fire (hot streak) & ice (snoozed) | Routine state legible at a glance |
-| **7** (stretch) | Settings UI for thresholds, `weekWinStreak` badge | Configurable + streak-of-weeks |
+| Phase | Scope | Outcome | Status |
+|---|---|---|---|
+| **1** | Sunday-start unification (`getWeekStart`, heatmap split, seed) | One week definition app-wide | ✅ (centralised in `@xp/shared` 2026-06-06) |
+| **2** | `completedDate` local-date on task completion | Day-wins align to the user's real day | ✅ (mobile fixed 2026-06-06) |
+| **3** | `WIN_RULES` in `@xp/shared` + `dayWon`/`weekProgress` derivation | Computation correct & tested | ✅ |
+| **4** | `weekProgress` resolver + Dashboard widget | Feature visible | ✅ |
+| **5** | Routines-page banner + pip tooltips | Daily ↔ weekly in one place | ✅ |
+| **6** | Streak visualization — fire (hot streak) & ice (snoozed) | Routine state legible at a glance | ◑ Routines only; 2 tiers (7/30). NodeDetail + 14-tier still open |
+| **7a** | `weekWinStreak` (consecutive won weeks) badge | Streak-of-weeks momentum | ✅ 2026-06-06 — derived in `getWeekProgress`, 🔥 badge on Dashboard widget |
+| **7b** (stretch) | Settings UI for `WIN_RULES` thresholds | Configurable | ❌ Open (defaults fine for single user) |
 
 ---
 
 ## Acceptance Criteria
-- [ ] Weeks run Sunday→Saturday everywhere (`thisWeek`, heatmap, win tracker)
-- [ ] A day is won iff `dailyRoutinesCheckedIn ≥ routineThreshold` **and** `tasksCompleted ≥ taskThreshold`
-- [ ] A week is won iff `wonDays ≥ 4`
-- [ ] Day-wins use **local** dates for both routine check-ins and task completion
-- [ ] `weekProgress` returns 7 days Sun→Sat with per-day breakdown
-- [ ] Dashboard widget shows pips, count (`4/7`), and "week won" state
-- [ ] Wins are fully derived — no manual "won" flag, no double source of truth
-- [ ] Thresholds read from `WIN_RULES` (single config), not hardcoded at call sites
+- [x] Weeks run Sunday→Saturday everywhere (`thisWeek`, heatmap, win tracker)
+- [x] A day is won iff `dailyRoutinesCheckedIn ≥ routineThreshold` **and** `tasksCompleted ≥ taskThreshold`
+- [x] A week is won iff `wonDays ≥ 4`
+- [x] Day-wins use **local** dates for both routine check-ins and task completion (incl. mobile)
+- [x] `weekProgress` returns 7 days Sun→Sat with per-day breakdown
+- [x] Dashboard widget shows pips, count (`4/7`), and "week won" state
+- [x] Wins are fully derived — no manual "won" flag, no double source of truth
+- [x] Thresholds read from `WIN_RULES` (single config), not hardcoded at call sites
+- [x] **No date/week math is redefined outside `@xp/shared`** (web mirrors with a pointer comment)
+- [x] `weekWinStreak` = consecutive won weeks; surfaced as a 🔥 badge (≥2 weeks)
 
 ---
 

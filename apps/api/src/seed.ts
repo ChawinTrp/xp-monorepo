@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import * as dotenv from 'dotenv';
 import { join } from 'path';
+import { getWeekStart } from '@xp/shared';
 
 dotenv.config({ path: join(__dirname, '..', '.env') });
 if (!process.env.MONGO_URI) {
@@ -70,17 +71,9 @@ function generateCheckIns(
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function mondayStart(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  const dow = d.getDay() === 0 ? 7 : d.getDay();
-  d.setDate(d.getDate() - (dow - 1));
-  return localDateStr(d);
-}
-
 function thisWeekFromCheckIns(checkIns: CheckIn[]): number {
-  const today = localDateStr();
-  const monday = mondayStart(today);
-  return checkIns.filter(c => c.date >= monday).length;
+  const weekStart = getWeekStart(localDateStr());
+  return checkIns.filter(c => c.date >= weekStart).length;
 }
 
 /** Parse a routine target string like "30 min" / "2 hours" into hours. */

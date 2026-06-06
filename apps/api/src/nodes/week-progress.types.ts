@@ -17,4 +17,5 @@ export class WeekProgress {
   @Field(() => Int) wonDays: number;
   @Field(() => Int) weekTarget: number;
   @Field() weekWon: boolean;
+  @Field(() => Int) weekWinStreak: number;
 }

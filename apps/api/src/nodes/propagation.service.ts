@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
-import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, getWeekDates } from '@xp/shared';
+import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, getWeekDates, getWeekStart, localDateStr, parseLocalDate } from '@xp/shared';
 import { CompleteTaskInput } from './dto/complete-task.input';
 
 @Injectable()
@@ -187,9 +187,9 @@ export class PropagationService {
     meta.streak = streak;
     meta.bestStreak = Math.max(streak, (meta.bestStreak as number) ?? 0);
 
-    // This week (Mon-start): count check-ins from Monday of current ISO week
-    const monday = this.getWeekStart(today);
-    meta.thisWeek = checkIns.filter(c => c.date >= monday).length;
+    // This week (Sun-start): count check-ins since the week's Sunday
+    const weekStart = this.getWeekStart(today);
+    meta.thisWeek = checkIns.filter(c => c.date >= weekStart).length;
 
     // Clear timer data for next session
     meta.timeEntries = [];
@@ -248,10 +248,7 @@ export class PropagationService {
   }
 
   private localDateStr(d: Date = new Date()): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    return localDateStr(d);
   }
 
   async undoCheckInRoutine(routineId: string): Promise<Node[]> {
@@ -292,9 +289,9 @@ export class PropagationService {
       ? newCheckIns[newCheckIns.length - 1].date
       : null;
 
-    // Recompute thisWeek
-    const monday = this.getWeekStart(today);
-    meta.thisWeek = newCheckIns.filter(c => c.date >= monday).length;
+    // Recompute thisWeek (Sun-start)
+    const weekStart = this.getWeekStart(today);
+    meta.thisWeek = newCheckIns.filter(c => c.date >= weekStart).length;
 
     routine.metadata = meta;
     routine.markModified('metadata');
@@ -350,9 +347,7 @@ export class PropagationService {
   }
 
   private getWeekStart(dateStr: string): string {
-    const d = new Date(dateStr);
-    d.setDate(d.getDate() - d.getDay()); // d.getDay() === 0 for Sun, so Sun stays, Mon→-1, etc.
-    return d.toISOString().slice(0, 10);
+    return getWeekStart(dateStr);
   }
 
   private parseTarget(target?: string): number {
@@ -429,23 +424,42 @@ export class PropagationService {
   }
 
   async getWeekProgress(weekStart?: string): Promise<any> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr();
     const start = weekStart ?? this.getWeekStart(today);
-    const dates = getWeekDates(start);
 
     const allNodes = await this.nodeModel.find({}).lean();
     const routines = allNodes.filter((n: any) => n.type === 'ROUTINE');
     const tasks = allNodes.filter((n: any) => n.type === 'TASK');
 
-    const days = dates.map((date) => {
+    const week = this.computeWeek(start, routines, tasks);
+
+    // weekWinStreak: consecutive won weeks ending at the current week. The
+    // in-progress current week counts only once it is already won, so a week
+    // still underway shows the streak of prior weeks rather than zeroing it.
+    const currentStart = this.getWeekStart(today);
+    let streak = 0;
+    if (this.computeWeek(currentStart, routines, tasks).weekWon) streak++;
+    let cursor = this.prevWeekStart(currentStart);
+    for (let i = 0; i < 104; i++) {
+      if (!this.computeWeek(cursor, routines, tasks).weekWon) break;
+      streak++;
+      cursor = this.prevWeekStart(cursor);
+    }
+
+    return { ...week, weekWinStreak: streak };
+  }
+
+  /** Derive a week's day-wins + verdict from already-loaded nodes (pure). */
+  private computeWeek(start: string, routines: any[], tasks: any[]) {
+    const days = getWeekDates(start).map((date) => {
       const routinesCheckedIn = routines.filter((r: any) => {
         const checkIns: Array<{ date: string }> = (r.metadata as any)?.checkIns ?? [];
         return (r.metadata as any)?.cadence === 'daily' && checkIns.some((c) => c.date === date);
       }).length;
 
-      const tasksCompleted = tasks.filter((t: any) => {
-        return (t.metadata as any)?.completedDate === date;
-      }).length;
+      const tasksCompleted = tasks.filter(
+        (t: any) => (t.metadata as any)?.completedDate === date,
+      ).length;
 
       return {
         date,
@@ -466,5 +480,11 @@ export class PropagationService {
       weekTarget: WIN_RULES.weekTarget,
       weekWon: weekWon(wonDays),
     };
+  }
+
+  private prevWeekStart(weekStart: string): string {
+    const d = parseLocalDate(weekStart);
+    d.setDate(d.getDate() - 7);
+    return localDateStr(d);
   }
 }

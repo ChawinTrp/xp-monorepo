@@ -94,11 +94,40 @@ export function weekWon(wonDaysCount: number): boolean {
   return wonDaysCount >= WIN_RULES.weekTarget;
 }
 
+// ── Date helpers (single source of truth) ──
+// All week math is Sunday-start and operates on LOCAL calendar dates so that
+// derived wins/streaks line up with the user's real day. Single-user app:
+// server and client are assumed to share a timezone (see XP.md §11).
+
+/** Local YYYY-MM-DD for a Date (defaults to now). */
+export function localDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Parse a YYYY-MM-DD string as local midnight (avoids UTC-parse drift). */
+export function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/** Sunday that starts the week containing `dateStr` (defaults to today). Local. */
+export function getWeekStart(dateStr: string = localDateStr()): string {
+  const d = parseLocalDate(dateStr);
+  d.setDate(d.getDate() - d.getDay()); // getDay() === 0 for Sunday
+  return localDateStr(d);
+}
+
+/** 7 local date strings Sun..Sat for the week starting at `weekStartSunday`. */
 export function getWeekDates(weekStartSunday: string): string[] {
-  const result: string[] = [];
-  const base = new Date(weekStartSunday);
+  const base = parseLocalDate(weekStartSunday);
+  const out: string[] = [];
   for (let i = 0; i < 7; i++) {
-    result.push(new Date(base.getTime() + i * 86_400_000).toISOString().slice(0, 10));
+    const d = new Date(base);
+    d.setDate(d.getDate() + i);
+    out.push(localDateStr(d));
   }
-  return result;
+  return out;
 }

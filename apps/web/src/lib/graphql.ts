@@ -114,6 +114,7 @@ export const WEEK_PROGRESS = gql`
       wonDays
       weekTarget
       weekWon
+      weekWinStreak
       days {
         date
         won

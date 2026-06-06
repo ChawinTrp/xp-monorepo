@@ -89,6 +89,7 @@ type WeekProgress {
   days: [DayWin!]!
   weekStart: String!
   weekTarget: Int!
+  weekWinStreak: Int!
   weekWon: Boolean!
   wonDays: Int!
 }

@@ -286,13 +286,13 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
     return result;
   }, []);
 
-  // Group days into weeks (Sun=0 start, split on Monday boundaries)
+  // Group days into weeks (Sunday-start — matches @xp/shared getWeekStart)
   const weeks = useMemo(() => {
     const result: Date[][] = [];
     let current: Date[] = [];
     for (const d of days) {
-      if (current.length > 0 && d.getDay() === 1) {
-        // Monday starts a new week
+      if (current.length > 0 && d.getDay() === 0) {
+        // Sunday starts a new week
         result.push(current);
         current = [];
       }

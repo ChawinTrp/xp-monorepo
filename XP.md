@@ -325,7 +325,7 @@ gcloud run deploy xp-api \
 
 - **GCal token persistence:** OAuth tokens lost on Render restart (in-memory). Tokens must be re-authorized after cold start.
 - **Obsidian sync:** `ObsidianSyncService` is designed and documented (§12) but not yet implemented — `obsidianPath` field exists on schema for future use.
-- **Timezone edge:** Dashboard uses local date for streak/check-in display; API uses local date in `PropagationService`. These are consistent but both assume the server and client are in the same timezone. UTC+7 users: check-in cutoff is midnight Bangkok time.
+- **Timezone edge:** All week/date math is centralised in `@xp/shared` (`localDateStr`, `getWeekStart` [Sunday, local], `getWeekDates`) and uses **local** dates everywhere — routine check-ins, task `completedDate`, `weekProgress`, and the Win-the-Week tracker. Consistent, but still assumes the server and client share a timezone. UTC+7 users: day/week cutoff is midnight Bangkok time.
 - **Graph view performance:** force-graph loads all nodes — performance degrades above ~500 nodes. No pagination or lazy loading yet.
 - **No auth:** Single-user personal OS; no authentication layer. All data is public to anyone with the API URL.
 
