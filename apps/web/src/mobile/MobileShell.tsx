@@ -692,6 +692,14 @@ export default function MobileShell() {
   const { nodes } = useNodes();
   const [tab, setTab] = useState('today');
   const [createOpen, setCreateOpen] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+  const [captureType, setCaptureType] = useState<string>('TASK');
+
+  const openCapture = (t: string) => {
+    setCaptureType(t);
+    setCreateOpen(true);
+    setFabOpen(false);
+  };
 
   // ── Timer state (shared between FocusView and TimerBar)
   const [runningId, setRunningId] = useState<string | null>(null);
@@ -757,7 +765,7 @@ export default function MobileShell() {
       if (node.type === 'ROUTINE') {
         await checkInMut({ variables: { id: node._id } });
       } else {
-        await completeTaskMut({ variables: { id: node._id } });
+        await completeTaskMut({ variables: { id: node._id, completedDate: localDateStr() } });
       }
     } catch { /* ignore */ }
   }, [runningId, stopTimerMut, checkInMut, completeTaskMut]);
@@ -792,9 +800,30 @@ export default function MobileShell() {
       {/* safe area bottom spacer */}
       <div style={{ height: 'env(safe-area-inset-bottom, 0px)', flexShrink: 0 }} />
 
+      {/* FAB launcher backdrop */}
+      {fabOpen && (
+        <div
+          onClick={() => setFabOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+        />
+      )}
+
+      {/* FAB launcher actions */}
+      {fabOpen && (
+        <div style={{
+          position: 'fixed', right: 16,
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 140px)',
+          zIndex: 101, display: 'flex', flexDirection: 'column', gap: 10,
+          animation: 'fadeIn 0.12s ease-out',
+        }}>
+          <FabAction label="Person" icon={<Icons.Users size={16} color="var(--mantle)" />} onClick={() => openCapture('PERSON')} />
+          <FabAction label="Task" icon={<Icons.CheckSquare size={16} color="var(--mantle)" />} onClick={() => openCapture('TASK')} />
+        </div>
+      )}
+
       {/* FAB — quick capture */}
       <button
-        onClick={() => setCreateOpen(true)}
+        onClick={() => setFabOpen((v) => !v)}
         style={{
           position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)', right: 16,
           width: 56, height: 56, borderRadius: 999,
@@ -802,6 +831,8 @@ export default function MobileShell() {
           boxShadow: '0 4px 16px rgba(203,166,247,0.35)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: 'none', cursor: 'pointer', zIndex: 100,
+          transition: 'transform 0.15s ease',
+          transform: fabOpen ? 'rotate(45deg)' : 'none',
         }}
       >
         <Icons.Plus size={24} color="var(--mantle)" strokeWidth={2.5} />
@@ -810,8 +841,27 @@ export default function MobileShell() {
       <CreateNodeModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+        defaultType={captureType}
       />
     </div>
+  );
+}
+
+function FabAction({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '10px 16px', borderRadius: 999, border: 'none', cursor: 'pointer',
+        background: 'var(--accent)', color: 'var(--mantle)',
+        fontFamily: 'inherit', fontSize: 14, fontWeight: 600,
+        boxShadow: '0 4px 14px rgba(203,166,247,0.3)',
+      }}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
