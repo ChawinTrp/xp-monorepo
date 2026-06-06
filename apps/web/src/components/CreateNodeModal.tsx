@@ -143,7 +143,7 @@ export default function CreateNodeModal({
       ? domains
       : [];
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (keepOpen = false) => {
     if (!title.trim()) {
       toast({ message: 'Title is required', variant: 'error' });
       return;
@@ -198,9 +198,20 @@ export default function CreateNodeModal({
       toast({ message: `${type} created`, variant: 'success', details: title.trim() });
       if (type === 'TASK' && parentId) writeCapturePref(CAPTURE_KEYS.project, parentId);
       if (type === 'PERSON') writeCapturePref(CAPTURE_KEYS.circle, circle);
-      onClose();
-      if (onCreated && data?.createNode?._id) {
-        onCreated(data.createNode._id);
+
+      if (keepOpen) {
+        // Keep type / project / circle / linked skills; clear only the per-item fields.
+        setTitle('');
+        setDescription('');
+        setRole('');
+        setEmail('');
+        setPhone('');
+        setTimeout(() => titleRef.current?.focus(), 50);
+      } else {
+        onClose();
+        if (onCreated && data?.createNode?._id) {
+          onCreated(data.createNode._id);
+        }
       }
     } catch (err: any) {
       toast({ message: 'Failed to create', variant: 'error', details: err.message });
@@ -568,7 +579,10 @@ export default function CreateNodeModal({
         {/* Footer */}
         <div className="flex justify-end gap-2.5" style={{ padding: '14px 20px', borderTop: '1px solid var(--surface1)' }}>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={loading || !title.trim()}>
+          <Button variant="secondary" onClick={() => handleSubmit(true)} disabled={loading || !title.trim()}>
+            Save &amp; add another
+          </Button>
+          <Button onClick={() => handleSubmit(false)} disabled={loading || !title.trim()}>
             {loading ? 'Creating...' : 'Create'}
           </Button>
         </div>
