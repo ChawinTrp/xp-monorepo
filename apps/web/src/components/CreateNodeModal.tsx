@@ -18,6 +18,21 @@ function deriveInitials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Remembered capture defaults — pick the internship project/circle once and it
+// sticks. localStorage access is guarded so private mode / SSR degrades to the
+// hardcoded defaults rather than breaking capture.
+const CAPTURE_KEYS = {
+  project: 'xp.capture.lastProjectId',
+  circle: 'xp.capture.lastCircle',
+} as const;
+
+function readCapturePref(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function writeCapturePref(key: string, value: string): void {
+  try { localStorage.setItem(key, value); } catch { /* ignore */ }
+}
+
 interface CreateNodeModalProps {
   open: boolean;
   onClose: () => void;
@@ -66,7 +81,15 @@ export default function CreateNodeModal({
       setType(defaultType ?? 'TASK');
       setTitle('');
       setDescription('');
-      setParentId(defaultParentId ?? '');
+      const initialType = defaultType ?? 'TASK';
+      const rememberedProject = readCapturePref(CAPTURE_KEYS.project);
+      // Remembered project only applies to TASK capture, and only if it still exists.
+      setParentId(
+        defaultParentId
+        ?? (initialType === 'TASK' && rememberedProject && byId[rememberedProject]
+              ? rememberedProject
+              : ''),
+      );
       setStatus(defaultStatus ?? 'TODO');
       setEstimatedHours('');
       setPriority('medium');
@@ -76,12 +99,14 @@ export default function CreateNodeModal({
       setTimeOfDay('morning');
       setGroup('');
       setRole('');
-      setCircle(defaultCircle ?? 'Network');
+      setCircle(defaultCircle ?? readCapturePref(CAPTURE_KEYS.circle) ?? 'Network');
       setEmail('');
       setPhone('');
       setLinkedSkillIds([]);
       setTimeout(() => titleRef.current?.focus(), 100);
     }
+    // byId intentionally omitted: only read on open; including it would reset the form on cache updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultType, defaultStatus, defaultParentId, defaultCircle]);
 
   // ESC to close
@@ -171,6 +196,8 @@ export default function CreateNodeModal({
       });
 
       toast({ message: `${type} created`, variant: 'success', details: title.trim() });
+      if (type === 'TASK' && parentId) writeCapturePref(CAPTURE_KEYS.project, parentId);
+      if (type === 'PERSON') writeCapturePref(CAPTURE_KEYS.circle, circle);
       onClose();
       if (onCreated && data?.createNode?._id) {
         onCreated(data.createNode._id);
