@@ -28,10 +28,12 @@ interface CreateNodeModalProps {
   defaultStatus?: string;
   /** Pre-fill mainParent */
   defaultParentId?: string;
+  /** Pre-fill the circle for a PERSON (may be a brand-new circle name) */
+  defaultCircle?: string;
 }
 
 export default function CreateNodeModal({
-  open, onClose, onCreated, defaultType, defaultStatus, defaultParentId,
+  open, onClose, onCreated, defaultType, defaultStatus, defaultParentId, defaultCircle,
 }: CreateNodeModalProps) {
   const { byType, byId, breadcrumb } = useNodes();
   const { toast } = useToast();
@@ -51,6 +53,8 @@ export default function CreateNodeModal({
   const [group, setGroup] = useState('');
   const [role, setRole] = useState('');
   const [circle, setCircle] = useState<string>('Network');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [linkedSkillIds, setLinkedSkillIds] = useState<string[]>([]);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -72,11 +76,13 @@ export default function CreateNodeModal({
       setTimeOfDay('morning');
       setGroup('');
       setRole('');
-      setCircle('Network');
+      setCircle(defaultCircle ?? 'Network');
+      setEmail('');
+      setPhone('');
       setLinkedSkillIds([]);
       setTimeout(() => titleRef.current?.focus(), 100);
     }
-  }, [open, defaultType, defaultStatus, defaultParentId]);
+  }, [open, defaultType, defaultStatus, defaultParentId, defaultCircle]);
 
   // ESC to close
   useEffect(() => {
@@ -90,6 +96,20 @@ export default function CreateNodeModal({
 
   const projects = byType('PROJECT');
   const domains = byType('DOMAIN');
+
+  // Circle options = defaults + circles already in use + any new one passed in (de-duped, ordered)
+  const circleOptions = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    const add = (c?: string) => {
+      const v = c?.trim();
+      if (v && !seen.has(v)) { seen.add(v); out.push(v); }
+    };
+    PERSON_CIRCLES.forEach(add);
+    for (const p of byType('PERSON')) add((p.metadata as any)?.circle);
+    add(defaultCircle);
+    return out;
+  })();
 
   // Choose parent options based on type
   const parentOptions = type === 'TASK'
@@ -125,6 +145,8 @@ export default function CreateNodeModal({
       metadata.initials = deriveInitials(title);
       metadata.circle = circle;
       if (role.trim()) metadata.role = role.trim();
+      if (email.trim()) metadata.email = email.trim();
+      if (phone.trim()) metadata.phone = phone.trim();
       metadata.catchupState = 'none';
     }
 
@@ -423,10 +445,40 @@ export default function CreateNodeModal({
                     color: 'var(--text)',
                   }}
                 >
-                  {PERSON_CIRCLES.map(c => (
+                  {circleOptions.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <Label>Email</Label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  className="w-full rounded-lg"
+                  style={{
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                    background: 'var(--base)', border: '1px solid var(--surface1)',
+                    color: 'var(--text)',
+                  }}
+                />
+              </div>
+              <div>
+                <Label>Phone</Label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="optional"
+                  className="w-full rounded-lg"
+                  style={{
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                    background: 'var(--base)', border: '1px solid var(--surface1)',
+                    color: 'var(--text)',
+                  }}
+                />
               </div>
             </div>
           )}
