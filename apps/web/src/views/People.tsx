@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useNodes } from '../lib/hooks';
 import { Icons, Avatar, Button } from '../components/ui';
+import CreateNodeModal from '../components/CreateNodeModal';
 
 interface PeopleProps {
   onOpen: (id: string) => void;
@@ -14,9 +16,23 @@ const GROUP_META = [
   { name: 'Network', color: 'var(--c-routine)', Icon: Icons.Network },
 ];
 
+// Style for a circle not in GROUP_META (user-created via "New circle")
+function metaFor(name: string) {
+  return GROUP_META.find((g) => g.name === name) ?? { name, color: 'var(--c-routine)', Icon: Icons.Network };
+}
+
 export default function People({ onOpen }: PeopleProps) {
   const { byType } = useNodes();
   const people = byType('PERSON');
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createCircle, setCreateCircle] = useState<string | undefined>(undefined);
+
+  const addPerson = () => { setCreateCircle(undefined); setCreateOpen(true); };
+  const newCircle = () => {
+    const name = window.prompt('Name the new circle')?.trim();
+    if (name) { setCreateCircle(name); setCreateOpen(true); }
+  };
 
   const byGroup: Record<string, typeof people> = {};
   for (const meta of GROUP_META) byGroup[meta.name] = [];
@@ -24,6 +40,13 @@ export default function People({ onOpen }: PeopleProps) {
     const circle = (p.metadata as any)?.circle ?? 'Network';
     (byGroup[circle] ??= []).push(p);
   }
+
+  // Default circles first, then any extra circles people are actually assigned to (de-duped, ordered)
+  const circleNames = [
+    ...GROUP_META.map((g) => g.name),
+    ...people.map((p) => (p.metadata as any)?.circle).filter((c: unknown): c is string =>
+      typeof c === 'string' && c.trim().length > 0 && !GROUP_META.some((g) => g.name === c)),
+  ].filter((name, i, arr) => arr.indexOf(name) === i);
 
   const overdue = people.filter((p) => (p.metadata as any)?.catchupState === 'overdue');
 
@@ -35,7 +58,7 @@ export default function People({ onOpen }: PeopleProps) {
           <div className="flex gap-3.5 mt-2.5 flex-wrap" style={{ fontSize: 12 }}>
             <span className="text-ctp-subtext1">{people.length} contacts</span>
             <span className="text-ctp-subtext1">·</span>
-            <span className="text-ctp-subtext1">{GROUP_META.filter(g => byGroup[g.name]?.length).length} circles</span>
+            <span className="text-ctp-subtext1">{circleNames.filter(n => byGroup[n]?.length).length} circles</span>
             {overdue.length > 0 && <>
               <span className="text-ctp-subtext1">·</span>
               <span className="text-ctp-red">⚠ {overdue.length} overdue catch-up{overdue.length === 1 ? '' : 's'}</span>
@@ -43,8 +66,8 @@ export default function People({ onOpen }: PeopleProps) {
           </div>
         </div>
         <div className="flex gap-2.5">
-          <Button variant="secondary" icon={<Icons.Plus size={14} />}>New circle</Button>
-          <Button icon={<Icons.Plus size={14} />}>Add person</Button>
+          <Button variant="secondary" icon={<Icons.Plus size={14} />} onClick={newCircle}>New circle</Button>
+          <Button icon={<Icons.Plus size={14} />} onClick={addPerson}>Add person</Button>
         </div>
       </div>
 
@@ -81,11 +104,12 @@ export default function People({ onOpen }: PeopleProps) {
       )}
 
       <div className="flex flex-col gap-7">
-        {GROUP_META.map((meta) => {
-          const members = byGroup[meta.name] ?? [];
+        {circleNames.map((name) => {
+          const meta = metaFor(name);
+          const members = byGroup[name] ?? [];
           if (members.length === 0) return null;
           return (
-            <section key={meta.name}>
+            <section key={name}>
               <header className="flex items-center gap-3 mb-3.5">
                 <div className="grid place-items-center" style={{
                   width: 36, height: 36, borderRadius: 10,
@@ -108,6 +132,14 @@ export default function People({ onOpen }: PeopleProps) {
           );
         })}
       </div>
+
+      <CreateNodeModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(id) => onOpen(id)}
+        defaultType="PERSON"
+        defaultCircle={createCircle}
+      />
     </div>
   );
 }

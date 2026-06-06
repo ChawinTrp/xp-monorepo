@@ -43,6 +43,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createType, setCreateType] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -132,6 +133,7 @@ export default function App() {
             openId={openId}
             onSearch={() => { setSearchOpen(true); setMobileMenuOpen(false); }}
             onCreate={() => { setCreateOpen(true); setMobileMenuOpen(false); }}
+            onCreateDomain={() => { setCreateType('DOMAIN'); setCreateOpen(true); setMobileMenuOpen(false); }}
           />
         </div>
       ) : (
@@ -144,6 +146,7 @@ export default function App() {
           openId={openId}
           onSearch={() => setSearchOpen(true)}
           onCreate={() => setCreateOpen(true)}
+          onCreateDomain={() => { setCreateType('DOMAIN'); setCreateOpen(true); }}
         />
       )}
 
@@ -173,8 +176,9 @@ export default function App() {
       <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} onOpen={onOpen} />
       <CreateNodeModal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => { setCreateOpen(false); setCreateType(undefined); }}
         onCreated={(id) => onOpen(id)}
+        defaultType={createType}
       />
     </div>
     </ToastProvider>

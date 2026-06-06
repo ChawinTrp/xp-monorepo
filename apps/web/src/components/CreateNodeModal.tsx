@@ -5,7 +5,7 @@ import { Icons, TypeBadge, Button, useToast } from './ui';
 import { CREATE_NODE, GET_NODES } from '../lib/graphql';
 import { TYPE_COLORS } from '../lib/types';
 
-const CREATABLE_TYPES = ['TASK', 'ROUTINE', 'PROJECT', 'SKILL', 'PERSON', 'TAG'] as const;
+const CREATABLE_TYPES = ['TASK', 'ROUTINE', 'PROJECT', 'SKILL', 'PERSON', 'DOMAIN', 'TAG'] as const;
 
 // Circles match the People view's GROUP_META grouping
 const PERSON_CIRCLES = ['Network', 'Core Team', 'Mentors', 'Close Friends', 'Family', 'Aura Team'] as const;
@@ -139,7 +139,7 @@ export default function CreateNodeModal({
   // Choose parent options based on type
   const parentOptions = type === 'TASK'
     ? projects
-    : type === 'PROJECT' || type === 'SKILL' || type === 'ROUTINE' || type === 'PERSON'
+    : type === 'PROJECT' || type === 'SKILL' || type === 'ROUTINE' || type === 'PERSON' || type === 'DOMAIN'
       ? domains
       : [];
 
@@ -294,7 +294,7 @@ export default function CreateNodeModal({
           {/* Parent */}
           {parentOptions.length > 0 && (
             <div>
-              <Label>{type === 'TASK' ? 'Project' : 'Domain'}</Label>
+              <Label>{type === 'TASK' ? 'Project' : type === 'DOMAIN' ? 'Parent domain' : 'Domain'}</Label>
               <select
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}

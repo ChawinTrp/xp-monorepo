@@ -15,6 +15,7 @@ interface SidebarProps {
   openId: string | null;
   onSearch: () => void;
   onCreate: () => void;
+  onCreateDomain: () => void;
 }
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: typeof Icons.LayoutDashboard }[] = [
@@ -28,7 +29,7 @@ const NAV_ITEMS: { id: ViewId; label: string; icon: typeof Icons.LayoutDashboard
   { id: 'graph', label: 'Graph', icon: Icons.Network },
 ];
 
-export default function Sidebar({ collapsed, setCollapsed, view, onNavigate, onOpen, openId, onSearch, onCreate }: SidebarProps) {
+export default function Sidebar({ collapsed, setCollapsed, view, onNavigate, onOpen, openId, onSearch, onCreate, onCreateDomain }: SidebarProps) {
   const { byId, childrenOf } = useNodes();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -130,10 +131,20 @@ export default function Sidebar({ collapsed, setCollapsed, view, onNavigate, onO
       {!collapsed && (
         <>
           <div
-            className="font-semibold uppercase"
+            className="flex items-center justify-between font-semibold uppercase"
             style={{ margin: '16px 18px 8px', fontSize: 10, color: 'var(--overlay1)', letterSpacing: 0.8 }}
           >
-            Domain tree
+            <span>Domain tree</span>
+            <button
+              onClick={onCreateDomain}
+              title="Add domain"
+              className="bg-transparent border-none p-0.5 cursor-pointer grid place-items-center rounded"
+              style={{ color: 'var(--overlay1)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--overlay1)'; }}
+            >
+              <Icons.Plus size={13} strokeWidth={2.4} />
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto" style={{ padding: '0 8px 8px' }}>
             {rootDomains.map((root) => (
