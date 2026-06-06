@@ -21,7 +21,7 @@ export class PropagationService {
       (meta.actualHours as number) ?? (meta.estimatedHours as number) ?? 0;
 
     meta.completedAt = new Date().toISOString();
-    meta.completedDate = input.completedDate ?? new Date().toISOString().slice(0, 10);
+    meta.completedDate = input.completedDate ?? localDateStr();
     meta.creditedHours = creditedHours;
 
     task.status = 'DONE';
@@ -159,7 +159,7 @@ export class PropagationService {
       throw new Error('checkInRoutine called on non-ROUTINE node');
 
     const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
-    const today = this.localDateStr();
+    const today = localDateStr();
 
     // Canonical log: one entry per completed day, with the hours spent that day.
     const checkIns = this.readCheckIns(meta);
@@ -180,7 +180,7 @@ export class PropagationService {
     const dateSet = new Set(checkIns.map(c => c.date));
     let streak = 0;
     const cursor = new Date(today + 'T00:00:00');
-    while (dateSet.has(this.localDateStr(cursor))) {
+    while (dateSet.has(localDateStr(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
     }
@@ -188,7 +188,7 @@ export class PropagationService {
     meta.bestStreak = Math.max(streak, (meta.bestStreak as number) ?? 0);
 
     // This week (Sun-start): count check-ins since the week's Sunday
-    const weekStart = this.getWeekStart(today);
+    const weekStart = getWeekStart(today);
     meta.thisWeek = checkIns.filter(c => c.date >= weekStart).length;
 
     // Clear timer data for next session
@@ -247,10 +247,6 @@ export class PropagationService {
     return [];
   }
 
-  private localDateStr(d: Date = new Date()): string {
-    return localDateStr(d);
-  }
-
   async undoCheckInRoutine(routineId: string): Promise<Node[]> {
     const routine = await this.nodeModel.findById(routineId).exec();
     if (!routine) throw new NotFoundException(`Node ${routineId} not found`);
@@ -258,7 +254,7 @@ export class PropagationService {
       throw new Error('undoCheckInRoutine called on non-ROUTINE node');
 
     const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
-    const today = this.localDateStr();
+    const today = localDateStr();
     const checkIns = this.readCheckIns(meta);
 
     const todayEntry = checkIns.find(c => c.date === today);
@@ -280,7 +276,7 @@ export class PropagationService {
     let streak = 0;
     const cursor = new Date(today + 'T00:00:00');
     cursor.setDate(cursor.getDate() - 1); // start at yesterday
-    while (dateSet.has(this.localDateStr(cursor))) {
+    while (dateSet.has(localDateStr(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
     }
@@ -290,7 +286,7 @@ export class PropagationService {
       : null;
 
     // Recompute thisWeek (Sun-start)
-    const weekStart = this.getWeekStart(today);
+    const weekStart = getWeekStart(today);
     meta.thisWeek = newCheckIns.filter(c => c.date >= weekStart).length;
 
     routine.metadata = meta;
@@ -344,10 +340,6 @@ export class PropagationService {
     skill.metadata = meta;
     skill.markModified('metadata');
     await skill.save();
-  }
-
-  private getWeekStart(dateStr: string): string {
-    return getWeekStart(dateStr);
   }
 
   private parseTarget(target?: string): number {
@@ -425,7 +417,7 @@ export class PropagationService {
 
   async getWeekProgress(weekStart?: string): Promise<any> {
     const today = localDateStr();
-    const start = weekStart ?? this.getWeekStart(today);
+    const start = weekStart ?? getWeekStart(today);
 
     const allNodes = await this.nodeModel.find({}).lean();
     const routines = allNodes.filter((n: any) => n.type === 'ROUTINE');
@@ -436,7 +428,7 @@ export class PropagationService {
     // weekWinStreak: consecutive won weeks ending at the current week. The
     // in-progress current week counts only once it is already won, so a week
     // still underway shows the streak of prior weeks rather than zeroing it.
-    const currentStart = this.getWeekStart(today);
+    const currentStart = getWeekStart(today);
     let streak = 0;
     if (this.computeWeek(currentStart, routines, tasks).weekWon) streak++;
     let cursor = this.prevWeekStart(currentStart);
