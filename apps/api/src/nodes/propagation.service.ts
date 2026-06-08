@@ -111,7 +111,9 @@ export class PropagationService {
     task.status = 'TODO';
     task.metadata = meta;
     task.markModified('metadata');
-    // Leaf tasks go back to 0%; parent tasks recompute from children below.
+    // Reset progress to 0, the symmetric inverse of onTaskCompleted's hard-set to 100.
+    // (Like the forward op, this does not recompute a parent-task's progress from its
+    // own children — only ancestors are recalculated in the walk below.)
     task.progress = 0;
     await task.save();
 
