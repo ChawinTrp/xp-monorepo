@@ -4,7 +4,7 @@ import { useNodes } from '../lib/hooks';
 import { Icons } from '../components/ui';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES,
-  UPDATE_NODE, REOPEN_TASK,
+  UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
 import CreateNodeModal from '../components/CreateNodeModal';
@@ -281,9 +281,11 @@ interface FocusViewProps {
   onPauseTimer: () => void;
   onFinish: (node: XPNode) => void;
   onDismiss: (node: XPNode) => void;
+  onUndoFinish: (node: XPNode) => void;
+  onUndoDismiss: (node: XPNode, prevDue?: string) => void;
 }
 
-function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss }: FocusViewProps) {
+function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss }: FocusViewProps) {
   const { nodes, breadcrumb } = useNodes();
 
   // Cards snoozed THIS SESSION are pushed to the back of the queue (session-only).
@@ -295,6 +297,11 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   const [showDone, setShowDone] = useState(false);
   const [dragDx, setDragDx] = useState(0);
   const [dragging, setDragging] = useState(false);
+  // Single-level undo of the most recent action this session.
+  const [lastAction, setLastAction] = useState<
+    | { kind: 'finish' | 'snooze' | 'dismiss'; node: XPNode; prevDue?: string }
+    | null
+  >(null);
   const startX = useRef<number | null>(null);
 
   const queue = useQueue(nodes, snoozedToBack);
@@ -318,6 +325,12 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
     if (!node || idx < 0) return;
     // The next card to show, computed before state changes reshuffle the queue.
     const nextId = queue.find((n, i) => i > idx && n._id !== node._id)?._id ?? null;
+
+    setLastAction({
+      kind: action,
+      node,
+      prevDue: (node.metadata as any)?.due,
+    });
 
     if (action === 'finish') {
       onFinish(node);
@@ -347,6 +360,28 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       setDragDx(0);
     }, 240);
   }, [node, idx, queue, onFinish, onDismiss]);
+
+  const handleUndo = useCallback(() => {
+    if (!lastAction) return;
+    const { kind, node: an, prevDue } = lastAction;
+
+    if (kind === 'snooze') {
+      // Pull the card back out of the snoozed-to-back list and make it current.
+      setSnoozedToBack(s => s.filter(id => id !== an._id));
+      setCurrentId(an._id);
+    } else if (kind === 'finish') {
+      onUndoFinish(an);
+      setClearedIds(s => { const n = new Set(s); n.delete(an._id); return n; });
+      setShowDone(false);
+      setCurrentId(an._id);
+    } else {
+      onUndoDismiss(an, prevDue);
+      setClearedIds(s => { const n = new Set(s); n.delete(an._id); return n; });
+      setShowDone(false);
+      setCurrentId(an._id);
+    }
+    setLastAction(null);
+  }, [lastAction, onUndoFinish, onUndoDismiss]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!node) return;
@@ -763,6 +798,7 @@ export default function MobileShell() {
   const [checkInMut]      = useMutation(CHECK_IN_ROUTINE,   refetchOpts);
   const [updateNodeMut]   = useMutation(UPDATE_NODE,         refetchOpts);
   const [reopenTaskMut]    = useMutation(REOPEN_TASK,         refetchOpts);
+  const [undoCheckInMut]  = useMutation(UNDO_CHECK_IN_ROUTINE, refetchOpts);
 
   const handleStartTimer = useCallback(async (id: string) => {
     try {
@@ -812,6 +848,23 @@ export default function MobileShell() {
     } catch { /* ignore */ }
   }, [updateNodeMut]);
 
+  const handleUndoFinish = useCallback(async (node: XPNode) => {
+    try {
+      if (node.type === 'ROUTINE') {
+        await undoCheckInMut({ variables: { id: node._id } });
+      } else {
+        await reopenTaskMut({ variables: { id: node._id } });
+      }
+    } catch { /* ignore */ }
+  }, [reopenTaskMut, undoCheckInMut]);
+
+  const handleUndoDismiss = useCallback(async (node: XPNode, prevDue?: string) => {
+    const meta = { ...(node.metadata as any), due: prevDue ?? null };
+    try {
+      await updateNodeMut({ variables: { input: { _id: node._id, metadata: meta } } });
+    } catch { /* ignore */ }
+  }, [updateNodeMut]);
+
   return (
     <div style={S.shell}>
       {/* safe area top spacer */}
@@ -827,6 +880,8 @@ export default function MobileShell() {
             onPauseTimer={handlePauseTimer}
             onFinish={handleFinish}
             onDismiss={handleDismiss}
+            onUndoFinish={handleUndoFinish}
+            onUndoDismiss={handleUndoDismiss}
           />
         )}
         {tab === 'stats' && <StatsView />}
