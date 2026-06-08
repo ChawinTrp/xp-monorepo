@@ -107,6 +107,15 @@ export const UNDO_CHECK_IN_ROUTINE = gql`
   }
 `;
 
+export const REOPEN_TASK = gql`
+  ${NODE_FIELDS}
+  mutation ReopenTask($id: ID!) {
+    reopenTask(id: $id) {
+      ...NodeFields
+    }
+  }
+`;
+
 export const WEEK_PROGRESS = gql`
   query WeekProgress($weekStart: String) {
     weekProgress(weekStart: $weekStart) {
