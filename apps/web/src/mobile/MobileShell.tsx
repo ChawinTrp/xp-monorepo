@@ -296,8 +296,9 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   const idx = queue.findIndex(n => n._id === currentId);
   const node = idx >= 0 ? queue[idx] : undefined;
 
-  // Stable denominator: distinct cards seen today = current queue length + cleared.
-  const total = queue.length + clearedIds.size;
+  // Distinct cards seen this session. A finished/dismissed card lingers in `queue`
+  // until the refetch resolves; the union dedupes it so the denominator never flickers.
+  const total = new Set([...queue.map(n => n._id), ...clearedIds]).size;
   const cleared = clearedIds.size;
 
   // Initialize currentId once the queue is ready; showDone prevents re-init after completion.
@@ -327,7 +328,14 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
     }
 
     setTimeout(() => {
-      // For snooze, the card moved to the back; advance to whatever is now first-unseen.
+      if (action === 'snooze') {
+        // A snoozed card stays in the queue (moved to the back), so snooze must
+        // never end the session: go to the next card, wrapping to the front if
+        // this was the last one (a lone card simply re-presents).
+        setCurrentId(nextId ?? queue.find(n => n._id !== node._id)?._id ?? node._id);
+        setDragDx(0);
+        return;
+      }
       setCurrentId(nextId);
       if (!nextId) setShowDone(true);
       setDragDx(0);
@@ -398,7 +406,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
             {cleared + 1}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
           </div>
           <div style={{ fontSize: 10.5, letterSpacing: 1, color: 'var(--subtext1)', textTransform: 'uppercase' }}>
-            {queue.length} left
+            {total - cleared} left
           </div>
         </div>
       </div>
