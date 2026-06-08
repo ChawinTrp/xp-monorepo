@@ -49,59 +49,67 @@ const PRIORITY_COLOR: Record<string, string> = {
   high: '#f38ba8', medium: '#f9e2af', low: '#a6e3a1',
 };
 
-// ── Queue: ordered list of cards for today
-function useQueue(nodes: XPNode[], snoozedIds: Set<string>) {
-  return useMemo(() => {
-    const routines = nodes
-      .filter(n => {
-        if (n.type !== 'ROUTINE') return false;
-        if (snoozedIds.has(n._id)) return false;
-        return !isCheckedToday(n.metadata);
-      })
-      .sort((a, b) => {
-        const todA = (a.metadata as any)?.timeOfDay ?? 'anytime';
-        const todB = (b.metadata as any)?.timeOfDay ?? 'anytime';
-        const da = (TOD_ORDER[todA] ?? 99) - (TOD_ORDER[todB] ?? 99);
-        return da !== 0 ? da : ((b.metadata as any)?.streak ?? 0) - ((a.metadata as any)?.streak ?? 0);
-      });
+// ── A task counts for "today" when it has a due date that is today or earlier.
+//    Date-string compare avoids the UTC drift of `new Date(due) < new Date()`.
+function isDueToday(node: XPNode): boolean {
+  const due = (node.metadata as any)?.due as string | undefined;
+  if (!due) return false;
+  // due may be 'YYYY-MM-DD' or an ISO timestamp; compare on the date portion.
+  return due.slice(0, 10) <= TODAY;
+}
 
-    const tasks = nodes
-      .filter(n => {
-        if (n.type !== 'TASK' || n.status === 'DONE') return false;
-        if (snoozedIds.has(n._id)) return false;
-        const m = n.metadata as any;
-        const over = m?.due && new Date(m.due) < new Date();
-        return over || m?.priority === 'high' || m?.priority === 'medium';
-      })
-      .sort((a, b) => {
-        const ovA = isOverdue(a);
-        const ovB = isOverdue(b);
-        if (ovA !== ovB) return ovA ? -1 : 1;
-        const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
-        const ma = a.metadata as any;
-        const mb = b.metadata as any;
-        return (order[ma?.priority] ?? 9) - (order[mb?.priority] ?? 9);
-      });
+// ── Pure queue builder: which cards show today and in what order.
+//    Exported for isolated reasoning/inspection.
+export function buildQueue(nodes: XPNode[], snoozedToBack: string[] = []): XPNode[] {
+  const routines = nodes
+    .filter(n => n.type === 'ROUTINE' && !isCheckedToday(n.metadata))
+    .sort((a, b) => {
+      const todA = (a.metadata as any)?.timeOfDay ?? 'anytime';
+      const todB = (b.metadata as any)?.timeOfDay ?? 'anytime';
+      const da = (TOD_ORDER[todA] ?? 99) - (TOD_ORDER[todB] ?? 99);
+      return da !== 0 ? da : ((b.metadata as any)?.streak ?? 0) - ((a.metadata as any)?.streak ?? 0);
+    });
 
-    const morningR    = routines.filter(r => (r.metadata as any)?.timeOfDay === 'morning');
-    const afternoonR  = routines.filter(r => (r.metadata as any)?.timeOfDay === 'afternoon');
-    const eveningR    = routines.filter(r => (r.metadata as any)?.timeOfDay === 'evening');
-    const nightR      = routines.filter(r => (r.metadata as any)?.timeOfDay === 'night');
-    const anytimeR    = routines.filter(r => !TOD_ORDER[(r.metadata as any)?.timeOfDay]);
+  // Membership is due-date driven; priority only affects order.
+  const tasks = nodes.filter(n => n.type === 'TASK' && n.status !== 'DONE' && isDueToday(n));
+  const prio: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const byPriority = (a: XPNode, b: XPNode) =>
+    (prio[(a.metadata as any)?.priority] ?? 9) - (prio[(b.metadata as any)?.priority] ?? 9);
 
-    const overdueTasks = tasks.filter(t => isOverdue(t));
-    const highTasks    = tasks.filter(t => !isOverdue(t) && (t.metadata as any)?.priority === 'high');
-    const midTasks     = tasks.filter(t => !isOverdue(t) && (t.metadata as any)?.priority === 'medium');
+  const morningR   = routines.filter(r => (r.metadata as any)?.timeOfDay === 'morning');
+  const afternoonR = routines.filter(r => (r.metadata as any)?.timeOfDay === 'afternoon');
+  const eveningR   = routines.filter(r => (r.metadata as any)?.timeOfDay === 'evening');
+  const nightR     = routines.filter(r => (r.metadata as any)?.timeOfDay === 'night');
+  const anytimeR   = routines.filter(r => !TOD_ORDER[(r.metadata as any)?.timeOfDay]);
 
-    return [
-      ...morningR, ...anytimeR,
-      ...overdueTasks, ...highTasks,
-      ...afternoonR,
-      ...midTasks,
-      ...eveningR,
-      ...nightR,
-    ];
-  }, [nodes, snoozedIds]);
+  const overdueTasks = tasks.filter(t => isOverdue(t)).sort(byPriority);
+  const todayTasks   = tasks.filter(t => !isOverdue(t)).sort(byPriority);
+  const highToday    = todayTasks.filter(t => (t.metadata as any)?.priority === 'high');
+  const medToday     = todayTasks.filter(t => (t.metadata as any)?.priority === 'medium');
+  const lowToday     = todayTasks.filter(t =>
+    (t.metadata as any)?.priority !== 'high' && (t.metadata as any)?.priority !== 'medium');
+
+  const ordered = [
+    ...morningR, ...anytimeR,
+    ...overdueTasks,
+    ...highToday,
+    ...afternoonR,
+    ...medToday,
+    ...eveningR,
+    ...lowToday,
+    ...nightR,
+  ];
+
+  // Snoozed-this-session cards are moved to the back, preserving relative order.
+  if (snoozedToBack.length === 0) return ordered;
+  const back = new Set(snoozedToBack);
+  const front = ordered.filter(n => !back.has(n._id));
+  const tail = ordered.filter(n => back.has(n._id));
+  return [...front, ...tail];
+}
+
+function useQueue(nodes: XPNode[], snoozedToBack: string[]) {
+  return useMemo(() => buildQueue(nodes, snoozedToBack), [nodes, snoozedToBack]);
 }
 
 // ── Detect existing open timer on mount
