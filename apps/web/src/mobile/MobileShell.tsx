@@ -274,54 +274,65 @@ interface FocusViewProps {
   onStartTimer: (id: string) => void;
   onPauseTimer: () => void;
   onFinish: (node: XPNode) => void;
+  onDismiss: (node: XPNode) => void;
 }
 
-function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish }: FocusViewProps) {
+function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss }: FocusViewProps) {
   const { nodes, breadcrumb } = useNodes();
 
-  // snoozedIds keeps the snoozed node out of baseQueue so it doesn't appear twice
-  const [snoozedIds, setSnoozedIds] = useState<Set<string>>(new Set());
-  const [extra, setExtra] = useState<XPNode[]>([]);
-  // ID-based tracking avoids index drift when baseQueue shrinks after a refetch
+  // Cards snoozed THIS SESSION are pushed to the back of the queue (session-only).
+  const [snoozedToBack, setSnoozedToBack] = useState<string[]>([]);
+  // Ids finished or dismissed this session — drives the stable counter denominator.
+  const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
+  // ID-based tracking avoids index drift when the queue shrinks after a refetch.
   const [currentId, setCurrentId] = useState<string | null>(null);
-  const [cleared, setCleared] = useState(0);
   const [showDone, setShowDone] = useState(false);
   const [dragDx, setDragDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef<number | null>(null);
 
-  const baseQueue = useQueue(nodes, snoozedIds);
-  const queue = useMemo(() => [...baseQueue, ...extra], [baseQueue, extra]);
+  const queue = useQueue(nodes, snoozedToBack);
 
   const idx = queue.findIndex(n => n._id === currentId);
   const node = idx >= 0 ? queue[idx] : undefined;
 
-  // Initialize currentId once the queue is ready; showDone prevents re-init after completion
+  // Stable denominator: distinct cards seen today = current queue length + cleared.
+  const total = queue.length + clearedIds.size;
+  const cleared = clearedIds.size;
+
+  // Initialize currentId once the queue is ready; showDone prevents re-init after completion.
   useEffect(() => {
     if (!showDone && currentId === null && queue.length > 0) {
       setCurrentId(queue[0]._id);
     }
   }, [showDone, currentId, queue.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const advance = useCallback((action: 'finish' | 'snooze') => {
+  const advance = useCallback((action: 'finish' | 'snooze' | 'dismiss') => {
     if (!node || idx < 0) return;
-    // Capture next ID before state changes shift the queue
-    const nextId = queue[idx + 1]?._id ?? null;
+    // The next card to show, computed before state changes reshuffle the queue.
+    const nextId = queue.find((n, i) => i > idx && n._id !== node._id)?._id ?? null;
+
     if (action === 'finish') {
       onFinish(node);
-      setCleared(c => c + 1);
+      setClearedIds(s => new Set([...s, node._id]));
+      setDragDx(600);
+    } else if (action === 'dismiss') {
+      onDismiss(node);
+      setClearedIds(s => new Set([...s, node._id]));
+      setDragDx(-600);
     } else {
-      // Remove from baseQueue via snoozedIds, append to extra
-      setSnoozedIds(s => new Set([...s, node._id]));
-      setExtra(e => [...e, node]);
+      // Snooze: push to back of the remaining queue, do NOT count as cleared.
+      setSnoozedToBack(s => (s.includes(node._id) ? s : [...s, node._id]));
+      setDragDx(-600);
     }
-    setDragDx(action === 'finish' ? 600 : -600);
+
     setTimeout(() => {
+      // For snooze, the card moved to the back; advance to whatever is now first-unseen.
       setCurrentId(nextId);
       if (!nextId) setShowDone(true);
       setDragDx(0);
     }, 240);
-  }, [node, idx, queue, onFinish]);
+  }, [node, idx, queue, onFinish, onDismiss]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!node) return;
@@ -355,9 +366,8 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish }:
         <button
           onClick={() => {
             setShowDone(false);
-            setSnoozedIds(new Set());
-            setExtra([]);
-            setCleared(0);
+            setSnoozedToBack([]);
+            setClearedIds(new Set());
             setCurrentId(null);
           }}
           style={{
@@ -385,10 +395,10 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish }:
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 22, fontWeight: 600, letterSpacing: -0.5 }}>
-            {idx + 1}<span style={{ color: 'var(--overlay0)' }}>/{queue.length}</span>
+            {cleared + 1}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
           </div>
           <div style={{ fontSize: 10.5, letterSpacing: 1, color: 'var(--subtext1)', textTransform: 'uppercase' }}>
-            {queue.length - idx} left
+            {queue.length} left
           </div>
         </div>
       </div>
@@ -437,7 +447,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish }:
             </svg>
           }
         />
-        <ProgressDots total={queue.length} index={idx} />
+        <ProgressDots total={total} index={cleared} />
         <ActionBtn
           tone="finish"
           label={node.type === 'ROUTINE' ? 'Check in' : 'Finish'}
@@ -792,6 +802,7 @@ export default function MobileShell() {
             onStartTimer={handleStartTimer}
             onPauseTimer={handlePauseTimer}
             onFinish={handleFinish}
+            onDismiss={() => { /* implemented in Task 5 */ }}
           />
         )}
         {tab === 'stats' && <StatsView />}
