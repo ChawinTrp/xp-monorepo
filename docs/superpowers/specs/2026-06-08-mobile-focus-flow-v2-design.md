@@ -101,15 +101,25 @@ Mirror of `undoCheckInRoutine`, reversing `onTaskCompleted`:
 Resolver: `@Mutation(() => [Node]) reopenTask(@Args('id', { type: () => ID }) id)`.
 Web: add `REOPEN_TASK` gql + wire into the undo handler.
 
-### 7. Action row layout
+### 7. Layout
 
 ```
 ┌─────────────────────────────────────┐
-│  [Snooze]   • • ● • •   [Finish]     │  ← primary swipe pair + progress dots
-│         [ Dismiss → tmr ]            │  ← secondary button (task cards only)
+│ Tue Jun 8            3/10  [↺ Undo]  │  ← header: date L; counter + Undo R
+│              • • ● • •               │  ← progress dots moved to top
+│                                      │
+│            ┌──────────┐              │
+│            │   CARD   │              │
+│            └──────────┘              │
+│                                      │
+│   [Snooze]  [Dismiss]  [Finish]      │  ← single row of 3 buttons
 └─────────────────────────────────────┘
-   Undo in header (top-left), disabled when nothing to undo
 ```
+
+- **Progress dots** move to the top, directly under the header.
+- **Undo** sits in the header top-right, immediately next to the `X/Y` counter number; disabled (dimmed) when nothing to undo.
+- **Action row** is a single horizontal row of three equal buttons: `Snooze · Dismiss · Finish`. On routine cards, Dismiss is hidden/disabled (routines have no `due`), leaving Snooze · Finish.
+- Swipe still maps: right = Finish, left = Snooze. Dismiss remains button-only.
 
 ## Out of scope (this iteration)
 
