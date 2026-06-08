@@ -442,14 +442,39 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 700, margin: '2px 0 0', letterSpacing: -0.5 }}>Focus</h1>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 22, fontWeight: 600, letterSpacing: -0.5 }}>
-            {cleared + 1}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 22, fontWeight: 600, letterSpacing: -0.5 }}>
+              {cleared + 1}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
+            </div>
+            <div style={{ fontSize: 10.5, letterSpacing: 1, color: 'var(--subtext1)', textTransform: 'uppercase' }}>
+              {total - cleared} left
+            </div>
           </div>
-          <div style={{ fontSize: 10.5, letterSpacing: 1, color: 'var(--subtext1)', textTransform: 'uppercase' }}>
-            {total - cleared} left
-          </div>
+          <button
+            onClick={handleUndo}
+            disabled={!lastAction}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '7px 11px', borderRadius: 999,
+              background: lastAction ? 'var(--surface0)' : 'transparent',
+              color: lastAction ? 'var(--subtext0)' : 'var(--overlay0)',
+              border: 'none', cursor: lastAction ? 'pointer' : 'default',
+              fontFamily: 'inherit', fontSize: 12, fontWeight: 600,
+              opacity: lastAction ? 1 : 0.4,
+            }}
+          >
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+            </svg>
+            Undo
+          </button>
         </div>
+      </div>
+
+      {/* progress dots — top */}
+      <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 10 }}>
+        <ProgressDots total={total} index={cleared} />
       </div>
 
       {/* swipe stage */}
@@ -483,7 +508,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
         />
       </div>
 
-      {/* action buttons + progress dots */}
+      {/* action buttons — single row of three */}
       <div style={S.actions}>
         <ActionBtn
           tone="snooze"
@@ -496,7 +521,19 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
             </svg>
           }
         />
-        <ProgressDots total={total} index={cleared} />
+        {node.type === 'TASK' && (
+          <ActionBtn
+            tone="dismiss"
+            label="Tomorrow"
+            hint="dismiss"
+            onClick={() => advance('dismiss')}
+            icon={
+              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+              </svg>
+            }
+          />
+        )}
         <ActionBtn
           tone="finish"
           label={node.type === 'ROUTINE' ? 'Check in' : 'Finish'}
@@ -514,14 +551,14 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
 }
 
 function ActionBtn({ tone, label, hint, onClick, icon }: {
-  tone: 'snooze' | 'finish';
+  tone: 'snooze' | 'finish' | 'dismiss';
   label: string;
   hint: string;
   onClick: () => void;
   icon: React.ReactNode;
 }) {
-  const fg = tone === 'finish' ? 'var(--green)' : 'var(--subtext1)';
-  const bg = tone === 'finish' ? 'rgba(166,227,161,0.10)' : 'rgba(166,173,200,0.08)';
+  const fg = tone === 'finish' ? 'var(--green)' : tone === 'dismiss' ? 'var(--blue)' : 'var(--subtext1)';
+  const bg = tone === 'finish' ? 'rgba(166,227,161,0.10)' : tone === 'dismiss' ? 'rgba(137,180,250,0.10)' : 'rgba(166,173,200,0.08)';
   return (
     <button onClick={onClick} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
@@ -1073,7 +1110,8 @@ const S = {
   actions: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    gap: 8,
     padding: '14px 4px 4px',
   },
   empty: {
