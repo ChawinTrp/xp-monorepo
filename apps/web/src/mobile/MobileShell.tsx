@@ -4,6 +4,7 @@ import { useNodes } from '../lib/hooks';
 import { Icons } from '../components/ui';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES,
+  UPDATE_NODE, REOPEN_TASK,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
 import CreateNodeModal from '../components/CreateNodeModal';
@@ -16,6 +17,11 @@ function localDateStr(d: Date = new Date()): string {
   return `${y}-${m}-${day}`;
 }
 const TODAY = localDateStr();
+function tomorrowStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return localDateStr(d);
+}
 
 type CheckIn = { date: string; hours: number };
 function checkInsOf(meta: any): CheckIn[] {
@@ -755,6 +761,8 @@ export default function MobileShell() {
   const [stopTimerMut]    = useMutation(STOP_TIMER,         refetchOpts);
   const [completeTaskMut] = useMutation(COMPLETE_TASK,      refetchOpts);
   const [checkInMut]      = useMutation(CHECK_IN_ROUTINE,   refetchOpts);
+  const [updateNodeMut]   = useMutation(UPDATE_NODE,         refetchOpts);
+  const [reopenTaskMut]    = useMutation(REOPEN_TASK,         refetchOpts);
 
   const handleStartTimer = useCallback(async (id: string) => {
     try {
@@ -796,6 +804,14 @@ export default function MobileShell() {
     } catch { /* ignore */ }
   }, [runningId, stopTimerMut, checkInMut, completeTaskMut]);
 
+  const handleDismiss = useCallback(async (node: XPNode) => {
+    if (node.type !== 'TASK') return; // routines have no due date
+    const meta = { ...(node.metadata as any), due: tomorrowStr() };
+    try {
+      await updateNodeMut({ variables: { input: { _id: node._id, metadata: meta } } });
+    } catch { /* ignore */ }
+  }, [updateNodeMut]);
+
   return (
     <div style={S.shell}>
       {/* safe area top spacer */}
@@ -810,7 +826,7 @@ export default function MobileShell() {
             onStartTimer={handleStartTimer}
             onPauseTimer={handlePauseTimer}
             onFinish={handleFinish}
-            onDismiss={() => { /* implemented in Task 5 */ }}
+            onDismiss={handleDismiss}
           />
         )}
         {tab === 'stats' && <StatsView />}
