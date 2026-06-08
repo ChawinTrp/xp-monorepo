@@ -31,8 +31,11 @@ function checkInsOf(meta: any): CheckIn[] {
 }
 function isCheckedToday(meta: any) { return checkInsOf(meta).some(c => c.date === TODAY); }
 function isOverdue(node: XPNode) {
-  const m = node.metadata as any;
-  return m?.due && new Date(m.due) < new Date();
+  const due = (node.metadata as any)?.due as string | undefined;
+  // Date-string compare (consistent with isDueToday): overdue = strictly before
+  // today. `new Date(due) < new Date()` would mis-flag a due-today task as
+  // overdue for most of the day in non-UTC locales (UTC-midnight drift).
+  return !!due && due.slice(0, 10) < TODAY;
 }
 
 // ── Timer helpers
