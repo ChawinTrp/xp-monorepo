@@ -302,6 +302,10 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
     | { kind: 'finish' | 'snooze' | 'dismiss'; node: XPNode; prevDue?: string }
     | null
   >(null);
+  // True while an undo of a finish/dismiss is waiting for the un-done card to
+  // reappear in the queue (after the refetch). Prevents the terminal "all caught
+  // up" screen — and its destructive Replay button — from flashing mid-undo.
+  const [undoing, setUndoing] = useState(false);
   const startX = useRef<number | null>(null);
 
   const queue = useQueue(nodes, snoozedToBack);
@@ -320,6 +324,18 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       setCurrentId(queue[0]._id);
     }
   }, [showDone, currentId, queue.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear the undo placeholder once the un-done card reappears as the current node.
+  useEffect(() => {
+    if (node && undoing) setUndoing(false);
+  }, [node, undoing]);
+
+  // Safety net: never stay stuck on the placeholder if the refetch/mutation fails.
+  useEffect(() => {
+    if (!undoing) return;
+    const t = setTimeout(() => setUndoing(false), 5000);
+    return () => clearTimeout(t);
+  }, [undoing]);
 
   const advance = useCallback((action: 'finish' | 'snooze' | 'dismiss') => {
     if (!node || idx < 0) return;
@@ -370,11 +386,13 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       setSnoozedToBack(s => s.filter(id => id !== an._id));
       setCurrentId(an._id);
     } else if (kind === 'finish') {
+      setUndoing(true);
       onUndoFinish(an);
       setClearedIds(s => { const n = new Set(s); n.delete(an._id); return n; });
       setShowDone(false);
       setCurrentId(an._id);
     } else {
+      setUndoing(true);
       onUndoDismiss(an, prevDue);
       setClearedIds(s => { const n = new Set(s); n.delete(an._id); return n; });
       setShowDone(false);
@@ -403,6 +421,14 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   };
 
   if (!node) {
+    if (undoing) {
+      return (
+        <div style={S.empty}>
+          <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.7 }}>↺</div>
+          <p style={{ color: 'var(--subtext1)', fontSize: 14 }}>Restoring…</p>
+        </div>
+      );
+    }
     return (
       <div style={S.empty}>
         <div style={{ fontSize: 64, marginBottom: 16 }}>✦</div>
@@ -896,7 +922,9 @@ export default function MobileShell() {
   }, [reopenTaskMut, undoCheckInMut]);
 
   const handleUndoDismiss = useCallback(async (node: XPNode, prevDue?: string) => {
-    const meta = { ...(node.metadata as any), due: prevDue ?? null };
+    const meta = { ...(node.metadata as any) };
+    if (prevDue == null) delete meta.due;
+    else meta.due = prevDue;
     try {
       await updateNodeMut({ variables: { input: { _id: node._id, metadata: meta } } });
     } catch { /* ignore */ }
