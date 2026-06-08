@@ -63,6 +63,11 @@ export class NodesResolver {
     return this.propagationService.undoCheckInRoutine(id);
   }
 
+  @Mutation(() => [Node])
+  reopenTask(@Args('id', { type: () => ID }) id: string) {
+    return this.propagationService.reopenTask(id);
+  }
+
   @Mutation(() => Node)
   startTaskTimer(@Args('id', { type: () => ID }) id: string) {
     return this.propagationService.startTimer(id);

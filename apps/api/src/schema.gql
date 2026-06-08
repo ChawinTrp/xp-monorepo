@@ -43,6 +43,7 @@ type Mutation {
   completeTask(completeTaskInput: CompleteTaskInput!): [Node!]!
   createNode(createNodeInput: CreateNodeInput!): Node!
   deleteNode(id: ID!): Node!
+  reopenTask(id: ID!): [Node!]!
   startTaskTimer(id: ID!): Node!
   stopTaskTimer(id: ID!): Node!
   undoCheckInRoutine(id: ID!): [Node!]!

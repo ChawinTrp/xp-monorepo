@@ -93,6 +93,91 @@ export class PropagationService {
     return affected;
   }
 
+  async reopenTask(taskId: string): Promise<Node[]> {
+    const task = await this.nodeModel.findById(taskId).exec();
+    if (!task) throw new NotFoundException(`Node ${taskId} not found`);
+    if (task.type !== 'TASK')
+      throw new Error('reopenTask called on non-TASK node');
+    if (task.status !== 'DONE') return [task]; // nothing to reopen
+
+    const meta = { ...(task.metadata ?? {}) } as Record<string, unknown>;
+    // The exact hours credited at completion time (stored by onTaskCompleted).
+    const creditedHours = (meta.creditedHours as number) ?? 0;
+
+    // Reset the task itself.
+    delete meta.completedAt;
+    delete meta.completedDate;
+    delete meta.creditedHours;
+    task.status = 'TODO';
+    task.metadata = meta;
+    task.markModified('metadata');
+    // Leaf tasks go back to 0%; parent tasks recompute from children below.
+    task.progress = 0;
+    await task.save();
+
+    const affected: Node[] = [task];
+    const visited = new Set<string>([taskId]);
+
+    // Phase 1: walk mainParent chain, reversing each effect onTaskCompleted applied.
+    let currentId = task.mainParent?.toString();
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const parent = await this.nodeModel.findById(currentId).exec();
+      if (!parent) break;
+
+      switch (parent.type) {
+        case 'TASK':
+          await this.recalcTaskProgress(parent);
+          break;
+        case 'PROJECT':
+          await this.recalcProjectProgress(parent);
+          break;
+        case 'SKILL':
+          await this.subtractHoursFromSkill(parent, creditedHours);
+          break;
+        case 'DOMAIN':
+          await this.recalcDomainProgress(parent);
+          break;
+        default:
+          // PERSON, TAG, ROUTINE — stop walking
+          affected.push(parent);
+          return affected;
+      }
+
+      affected.push(parent);
+      currentId = parent.mainParent?.toString();
+    }
+
+    // Phase 2: reverse hours credited to SKILLs linked via parents[].
+    if (creditedHours > 0) {
+      const parentIds = (task.parents ?? [])
+        .map(p => p.toString())
+        .filter(pid => !visited.has(pid));
+
+      for (const pid of parentIds) {
+        const parentNode = await this.nodeModel.findById(pid).exec();
+        if (!parentNode || parentNode.type !== 'SKILL') continue;
+        visited.add(pid);
+        await this.subtractHoursFromSkill(parentNode, creditedHours);
+        affected.push(parentNode);
+
+        let ancestorId = parentNode.mainParent?.toString();
+        while (ancestorId && !visited.has(ancestorId)) {
+          visited.add(ancestorId);
+          const ancestor = await this.nodeModel.findById(ancestorId).exec();
+          if (!ancestor) break;
+          if (ancestor.type === 'DOMAIN') {
+            await this.recalcDomainProgress(ancestor);
+            affected.push(ancestor);
+          }
+          ancestorId = ancestor.mainParent?.toString();
+        }
+      }
+    }
+
+    return affected;
+  }
+
   async startTimer(taskId: string): Promise<Node> {
     const task = await this.nodeModel.findById(taskId).exec();
     if (!task) throw new NotFoundException(`Node ${taskId} not found`);
