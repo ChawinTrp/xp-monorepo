@@ -8,34 +8,15 @@ import {
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
 import CreateNodeModal from '../components/CreateNodeModal';
+import {
+  buildQueue, isOverdue, isCheckedOn, localDateStr, addDaysStr,
+  type QueueEntry,
+} from '../lib/queue';
 
-// ── Date helpers (mirrors Routines.tsx)
-function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+// ── Today / tomorrow (date helpers now live in ../lib/queue)
 const TODAY = localDateStr();
 function tomorrowStr(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  return localDateStr(d);
-}
-
-type CheckIn = { date: string; hours: number };
-function checkInsOf(meta: any): CheckIn[] {
-  if (Array.isArray(meta?.checkIns)) return meta.checkIns;
-  if (Array.isArray(meta?.checkInDates)) return (meta.checkInDates as string[]).map(d => ({ date: d, hours: 0 }));
-  return [];
-}
-function isCheckedToday(meta: any) { return checkInsOf(meta).some(c => c.date === TODAY); }
-function isOverdue(node: XPNode) {
-  const due = (node.metadata as any)?.due as string | undefined;
-  // Date-string compare (consistent with isDueToday): overdue = strictly before
-  // today. `new Date(due) < new Date()` would mis-flag a due-today task as
-  // overdue for most of the day in non-UTC locales (UTC-midnight drift).
-  return !!due && due.slice(0, 10) < TODAY;
+  return addDaysStr(new Date(), 1);
 }
 
 // ── Timer helpers
@@ -44,7 +25,6 @@ const fmtElapsed = (s: number) =>
   `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 
 // ── Time-of-day config
-const TOD_ORDER: Record<string, number> = { morning: 0, afternoon: 1, evening: 2, night: 3 };
 const TOD_GLYPH: Record<string, string> = { morning: '☀', afternoon: '◐', evening: '◑', night: '☾' };
 const TOD_LABEL: Record<string, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night' };
 
@@ -58,67 +38,11 @@ const PRIORITY_COLOR: Record<string, string> = {
   high: '#f38ba8', medium: '#f9e2af', low: '#a6e3a1',
 };
 
-// ── A task counts for "today" when it has a due date that is today or earlier.
-//    Date-string compare avoids the UTC drift of `new Date(due) < new Date()`.
-function isDueToday(node: XPNode): boolean {
-  const due = (node.metadata as any)?.due as string | undefined;
-  if (!due) return false;
-  // due may be 'YYYY-MM-DD' or an ISO timestamp; compare on the date portion.
-  return due.slice(0, 10) <= TODAY;
-}
-
-// ── Pure queue builder: which cards show today and in what order.
-//    Exported for isolated reasoning/inspection.
-export function buildQueue(nodes: XPNode[], snoozedToBack: string[] = []): XPNode[] {
-  const routines = nodes
-    .filter(n => n.type === 'ROUTINE' && !isCheckedToday(n.metadata))
-    .sort((a, b) => {
-      const todA = (a.metadata as any)?.timeOfDay ?? 'anytime';
-      const todB = (b.metadata as any)?.timeOfDay ?? 'anytime';
-      const da = (TOD_ORDER[todA] ?? 99) - (TOD_ORDER[todB] ?? 99);
-      return da !== 0 ? da : ((b.metadata as any)?.streak ?? 0) - ((a.metadata as any)?.streak ?? 0);
-    });
-
-  // Membership is due-date driven; priority only affects order.
-  const tasks = nodes.filter(n => n.type === 'TASK' && n.status !== 'DONE' && isDueToday(n));
-  const prio: Record<string, number> = { high: 0, medium: 1, low: 2 };
-  const byPriority = (a: XPNode, b: XPNode) =>
-    (prio[(a.metadata as any)?.priority] ?? 9) - (prio[(b.metadata as any)?.priority] ?? 9);
-
-  const morningR   = routines.filter(r => (r.metadata as any)?.timeOfDay === 'morning');
-  const afternoonR = routines.filter(r => (r.metadata as any)?.timeOfDay === 'afternoon');
-  const eveningR   = routines.filter(r => (r.metadata as any)?.timeOfDay === 'evening');
-  const nightR     = routines.filter(r => (r.metadata as any)?.timeOfDay === 'night');
-  const anytimeR   = routines.filter(r => !TOD_ORDER[(r.metadata as any)?.timeOfDay]);
-
-  const overdueTasks = tasks.filter(t => isOverdue(t)).sort(byPriority);
-  const todayTasks   = tasks.filter(t => !isOverdue(t)).sort(byPriority);
-  const highToday    = todayTasks.filter(t => (t.metadata as any)?.priority === 'high');
-  const medToday     = todayTasks.filter(t => (t.metadata as any)?.priority === 'medium');
-  const lowToday     = todayTasks.filter(t =>
-    (t.metadata as any)?.priority !== 'high' && (t.metadata as any)?.priority !== 'medium');
-
-  const ordered = [
-    ...morningR, ...anytimeR,
-    ...overdueTasks,
-    ...highToday,
-    ...afternoonR,
-    ...medToday,
-    ...eveningR,
-    ...lowToday,
-    ...nightR,
-  ];
-
-  // Snoozed-this-session cards are moved to the back, preserving relative order.
-  if (snoozedToBack.length === 0) return ordered;
-  const back = new Set(snoozedToBack);
-  const front = ordered.filter(n => !back.has(n._id));
-  const tail = ordered.filter(n => back.has(n._id));
-  return [...front, ...tail];
-}
-
-function useQueue(nodes: XPNode[], snoozedToBack: string[]) {
-  return useMemo(() => buildQueue(nodes, snoozedToBack), [nodes, snoozedToBack]);
+function useQueue(nodes: XPNode[], snoozedToBack: string[]): QueueEntry[] {
+  return useMemo(
+    () => buildQueue(nodes, { today: TODAY, snoozedToBack }),
+    [nodes, snoozedToBack],
+  );
 }
 
 // ── Detect existing open timer on mount
@@ -211,7 +135,7 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
                 background: PRIORITY_COLOR[m.priority] ?? ink,
               }} />
             )}
-            {isOverdue(node) ? 'OVERDUE' : (m.due ? `Due ${m.due}` : '—')}
+            {isOverdue(node, TODAY) ? 'OVERDUE' : (m.due ? `Due ${m.due}` : '—')}
           </span>
         )}
       </div>
@@ -311,7 +235,8 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   const [undoing, setUndoing] = useState(false);
   const startX = useRef<number | null>(null);
 
-  const queue = useQueue(nodes, snoozedToBack);
+  const entries = useQueue(nodes, snoozedToBack);
+  const queue = useMemo(() => entries.map((e) => e.node), [entries]);
 
   const idx = queue.findIndex(n => n._id === currentId);
   const node = idx >= 0 ? queue[idx] : undefined;
@@ -703,7 +628,7 @@ function StatsView() {
 
   const longestStreak   = routines.reduce((m, r) => Math.max(m, (r.metadata as any)?.streak ?? 0), 0);
   const dailyRoutines   = routines.filter(r => (r.metadata as any)?.cadence === 'daily');
-  const doneToday       = dailyRoutines.filter(r => isCheckedToday(r.metadata)).length;
+  const doneToday       = dailyRoutines.filter(r => isCheckedOn(r.metadata, TODAY)).length;
   const totalHours      = Math.round(skills.reduce((s, k) => s + ((k.metadata as any)?.totalHours ?? 0), 0));
 
   const monday = (() => {
