@@ -8,6 +8,7 @@ import { join } from 'path';
 import { PingResolver } from './ping.resolver';
 import { NodesModule } from './nodes/nodes.module';
 import { GCalModule } from './gcal/gcal.module';
+import { DayPlanModule } from './dayplan/dayplan.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { GCalModule } from './gcal/gcal.module';
     }),
     NodesModule,
     GCalModule,
+    DayPlanModule,
   ],
   controllers: [AppController],
   providers: [AppService, PingResolver],
