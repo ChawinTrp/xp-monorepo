@@ -51,21 +51,17 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
   };
 
   const placeInPlan = (id: string, at: number) => {
-    setOrderedIds((prev) => {
-      const without = prev.filter((x) => x !== id);
-      const clamped = Math.max(0, Math.min(at, without.length));
-      const next = [...without.slice(0, clamped), id, ...without.slice(clamped)];
-      persist(next);
-      return next;
-    });
+    const without = orderedIds.filter((x) => x !== id);
+    const clamped = Math.max(0, Math.min(at, without.length));
+    const next = [...without.slice(0, clamped), id, ...without.slice(clamped)];
+    setOrderedIds(next);
+    persist(next);
   };
   const removeFromPlan = (id: string) => {
-    setOrderedIds((prev) => {
-      if (!prev.includes(id)) return prev;
-      const next = prev.filter((x) => x !== id);
-      persist(next);
-      return next;
-    });
+    if (!orderedIds.includes(id)) return;
+    const next = orderedIds.filter((x) => x !== id);
+    setOrderedIds(next);
+    persist(next);
   };
 
   // Live, ordered plan items (drop completed tasks / deleted ids).
@@ -100,12 +96,11 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
     if (drag) placeInPlan(drag.id, overIdx ?? planItems.length);
     setDrag(null); setOverIdx(null); setOverCol(null);
   };
-  const dropOnStatusCol = (col: 'TODO' | 'IN_PROGRESS') => {
+  const dropOnStatusCol = () => {
     // Per spec: dragging a plan item back to a status column removes it from the
     // plan and does NOT change the node's status.
     if (drag && drag.from === 'plan') removeFromPlan(drag.id);
     setDrag(null); setOverIdx(null); setOverCol(null);
-    void col;
   };
 
   const colShell = (isOver: boolean): React.CSSProperties => ({
@@ -122,7 +117,7 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
     <div
       onDragOver={(e) => { e.preventDefault(); setOverCol(key); }}
       onDragLeave={() => setOverCol((c) => (c === key ? null : c))}
-      onDrop={() => dropOnStatusCol(key)}
+      onDrop={() => dropOnStatusCol()}
       className="flex flex-col overflow-hidden rounded-[10px] transition-all duration-200"
       style={colShell(overCol === key)}
     >
@@ -155,10 +150,11 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
     </div>
   );
 
-  const RoutineChip = ({ r, from }: { r: XPNode; from: DragFrom }) => {
+  const renderRoutineChip = (r: XPNode, from: DragFrom) => {
     const tod = (r.metadata as any)?.timeOfDay as string | undefined;
     return (
       <div
+        key={r._id}
         draggable
         onDragStart={() => setDrag({ id: r._id, from })}
         onDragEnd={() => { setDrag(null); setOverIdx(null); setOverCol(null); }}
@@ -206,7 +202,7 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
                 <div style={{ height: 2, background: 'var(--accent)', borderRadius: 2, marginBottom: 6 }} />
               )}
               {n.type === 'ROUTINE' ? (
-                <RoutineChip r={n} from="plan" />
+                renderRoutineChip(n, 'plan')
               ) : (
                 <NodeCard
                   node={n}
@@ -239,7 +235,7 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
               Not planned
             </div>
             <div className="flex flex-col gap-2">
-              {trayRoutines.map((r) => <RoutineChip key={r._id} r={r} from="tray" />)}
+              {trayRoutines.map((r) => renderRoutineChip(r, 'tray'))}
             </div>
           </div>
         )}
