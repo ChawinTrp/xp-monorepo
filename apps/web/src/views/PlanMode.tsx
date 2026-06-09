@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import NodeCard from '../components/NodeCard';
-import { Icons } from '../components/ui';
+import { Icons, useToast } from '../components/ui';
 import { DAY_PLAN, UPSERT_DAY_PLAN } from '../lib/graphql';
 import { buildQueue, isCheckedOn, addDaysStr } from '../lib/queue';
 import type { XPNode } from '../lib/types';
@@ -18,12 +18,14 @@ const TOD_GLYPH: Record<string, string> = {
 };
 
 export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
-  const { nodes, byId, byType, breadcrumb } = useNodes();
+  const { nodes, byId, byType, breadcrumb, loading: nodesLoading } = useNodes();
   const tomorrow = useMemo(() => addDaysStr(new Date(), 1), []);
+  const { toast } = useToast();
 
   const { data, loading } = useQuery<DayPlanData>(DAY_PLAN, { variables: { date: tomorrow } });
   const [upsertDayPlan] = useMutation(UPSERT_DAY_PLAN, {
     refetchQueries: [{ query: DAY_PLAN, variables: { date: tomorrow } }],
+    onError: (err) => toast({ message: 'Failed to save plan', variant: 'error', details: err.message }),
   });
 
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
@@ -34,7 +36,7 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
 
   // Seed once on entry: load existing plan, else generate from buildQueue + persist.
   useEffect(() => {
-    if (loading || seeded.current) return;
+    if (loading || nodesLoading || seeded.current) return;
     seeded.current = true;
     const existing = data?.dayPlan?.orderedIds;
     if (existing && existing.length > 0) {
@@ -44,7 +46,7 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
       setOrderedIds(seed);
       upsertDayPlan({ variables: { input: { date: tomorrow, orderedIds: seed } } });
     }
-  }, [loading, data, nodes, tomorrow, upsertDayPlan]);
+  }, [loading, nodesLoading, data, nodes, tomorrow, upsertDayPlan]);
 
   const persist = (ids: string[]) => {
     upsertDayPlan({ variables: { input: { date: tomorrow, orderedIds: ids } } });
