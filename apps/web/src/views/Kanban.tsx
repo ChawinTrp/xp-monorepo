@@ -5,6 +5,7 @@ import { Icons, Dropdown, useToast } from '../components/ui';
 import NodeCard from '../components/NodeCard';
 import { UPDATE_NODE, COMPLETE_TASK, GET_NODES } from '../lib/graphql';
 import { differenceInDays, format } from 'date-fns';
+import PlanMode from './PlanMode';
 
 function localDateStr(d: Date = new Date()): string {
   const y = d.getFullYear();
@@ -32,7 +33,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
   const [filter, setFilter] = useState('all');
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
-  const [mode, setMode] = useState<'board' | 'sprint'>('board');
+  const [mode, setMode] = useState<'board' | 'sprint' | 'plan'>('board');
   const [selectedSprint, setSelectedSprint] = useState('all');
   const [showCreateSprint, setShowCreateSprint] = useState(false);
   const [newSprint, setNewSprint] = useState({ name: '', startDate: '', endDate: '' });
@@ -175,7 +176,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
       <div className="flex items-center gap-3 mb-5 pb-4 flex-wrap" style={{ borderBottom: '1px solid var(--surface1)' }}>
         {/* Mode toggle */}
         <div className="flex gap-0.5 p-0.5 rounded-md" style={{ background: 'var(--mantle)', border: '1px solid var(--surface1)' }}>
-          {(['board', 'sprint'] as const).map(m => (
+          {(['board', 'sprint', 'plan'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)}
               className="border-none cursor-pointer rounded px-2.5 py-1 capitalize font-semibold"
               style={{
@@ -280,6 +281,9 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
         </div>
       )}
 
+      {mode === 'plan' ? (
+        <PlanMode onOpen={onOpen} />
+      ) : (
       <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(260px, 1fr))', gap: 16 }}>
         {COLUMNS.map((col) => {
           const colTasks = filtered.filter((t) => (t.status ?? 'TODO') === col.key);
@@ -366,6 +370,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
           );
         })}
       </div>
+      )}
     </div>
   );
 }
