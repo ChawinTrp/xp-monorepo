@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { Icons } from '../components/ui';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES,
-  UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE,
+  UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE, DAY_PLAN,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
 import CreateNodeModal from '../components/CreateNodeModal';
@@ -38,10 +38,10 @@ const PRIORITY_COLOR: Record<string, string> = {
   high: '#f38ba8', medium: '#f9e2af', low: '#a6e3a1',
 };
 
-function useQueue(nodes: XPNode[], snoozedToBack: string[]): QueueEntry[] {
+function useQueue(nodes: XPNode[], snoozedToBack: string[], dayPlan: { orderedIds: string[] } | null): QueueEntry[] {
   return useMemo(
-    () => buildQueue(nodes, { today: TODAY, snoozedToBack }),
-    [nodes, snoozedToBack],
+    () => buildQueue(nodes, { today: TODAY, snoozedToBack, dayPlan }),
+    [nodes, snoozedToBack, dayPlan],
   );
 }
 
@@ -71,9 +71,10 @@ interface FocusCardProps {
   onStartTimer: () => void;
   onPauseTimer: () => void;
   breadcrumbStr: string;
+  unplanned: boolean;
 }
 
-function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, onPauseTimer, breadcrumbStr }: FocusCardProps) {
+function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, onPauseTimer, breadcrumbStr, unplanned }: FocusCardProps) {
   const isRoutine = node.type === 'ROUTINE';
   const running   = runningId === node._id;
   const m = (node.metadata as any) ?? {};
@@ -119,9 +120,19 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
 
       {/* top meta row */}
       <div style={S.topMeta}>
-        <span style={{ ...S.kindChip, background: chipBg, color: cardFg }}>
-          <span style={{ width: 6, height: 6, borderRadius: 999, background: cardFg }} />
-          {isRoutine ? 'ROUTINE' : 'TASK'}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ ...S.kindChip, background: chipBg, color: cardFg }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: cardFg }} />
+            {isRoutine ? 'ROUTINE' : 'TASK'}
+          </span>
+          {unplanned && (
+            <span style={{
+              fontSize: 9.5, fontWeight: 700, letterSpacing: 0.8,
+              padding: '3px 7px', borderRadius: 999,
+              background: 'rgba(255,255,255,0.28)', color: ink,
+              textTransform: 'uppercase',
+            }}>+ Unplanned</span>
+          )}
         </span>
         {isRoutine ? (
           <span style={{ ...S.metaRight, color: ink }}>
@@ -210,9 +221,10 @@ interface FocusViewProps {
   onDismiss: (node: XPNode) => void;
   onUndoFinish: (node: XPNode) => void;
   onUndoDismiss: (node: XPNode, prevDue?: string) => void;
+  dayPlan: { orderedIds: string[] } | null;
 }
 
-function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss }: FocusViewProps) {
+function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss, dayPlan }: FocusViewProps) {
   const { nodes, breadcrumb } = useNodes();
 
   // Cards snoozed THIS SESSION are pushed to the back of the queue (session-only).
@@ -235,8 +247,12 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   const [undoing, setUndoing] = useState(false);
   const startX = useRef<number | null>(null);
 
-  const entries = useQueue(nodes, snoozedToBack);
+  const entries = useQueue(nodes, snoozedToBack, dayPlan);
   const queue = useMemo(() => entries.map((e) => e.node), [entries]);
+  const unplannedIds = useMemo(
+    () => new Set(entries.filter((e) => !e.planned).map((e) => e.node._id)),
+    [entries],
+  );
 
   const idx = queue.findIndex(n => n._id === currentId);
   const node = idx >= 0 ? queue[idx] : undefined;
@@ -459,6 +475,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
           onStartTimer={() => onStartTimer(node._id)}
           onPauseTimer={onPauseTimer}
           breadcrumbStr={crumbStr}
+          unplanned={unplannedIds.has(node._id)}
         />
       </div>
 
@@ -748,6 +765,11 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 // ══════════════════════════════════════════════════════
 export default function MobileShell() {
   const { nodes } = useNodes();
+  const { data: dayPlanData } = useQuery<{ dayPlan: { orderedIds: string[] } | null }>(
+    DAY_PLAN,
+    { variables: { date: TODAY } },
+  );
+  const dayPlan = dayPlanData?.dayPlan ?? null;
   const [tab, setTab] = useState('today');
   const [createOpen, setCreateOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
@@ -875,6 +897,7 @@ export default function MobileShell() {
             onDismiss={handleDismiss}
             onUndoFinish={handleUndoFinish}
             onUndoDismiss={handleUndoDismiss}
+            dayPlan={dayPlan}
           />
         )}
         {tab === 'stats' && <StatsView />}
