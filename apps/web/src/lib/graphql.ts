@@ -116,6 +116,26 @@ export const REOPEN_TASK = gql`
   }
 `;
 
+export const DAY_PLAN = gql`
+  query DayPlan($date: String!) {
+    dayPlan(date: $date) {
+      _id
+      date
+      orderedIds
+    }
+  }
+`;
+
+export const UPSERT_DAY_PLAN = gql`
+  mutation UpsertDayPlan($input: UpsertDayPlanInput!) {
+    upsertDayPlan(input: $input) {
+      _id
+      date
+      orderedIds
+    }
+  }
+`;
+
 export const WEEK_PROGRESS = gql`
   query WeekProgress($weekStart: String) {
     weekProgress(weekStart: $weekStart) {
