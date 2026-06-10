@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNodes } from '../lib/hooks';
 import { Icons, Avatar, Button } from '../components/ui';
 import CreateNodeModal from '../components/CreateNodeModal';
@@ -29,11 +29,25 @@ export default function People({ onOpen }: PeopleProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createCircle, setCreateCircle] = useState<string | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'circle' | 'nextCatchup' | 'lastCatchup'>('circle');
+  const [emptyCircles, setEmptyCircles] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('xp-empty-circles');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const addPerson = () => { setCreateCircle(undefined); setCreateOpen(true); };
   const newCircle = () => {
     const name = window.prompt('Name the new circle')?.trim();
-    if (name) { setCreateCircle(name); setCreateOpen(true); }
+    if (name) {
+      setEmptyCircles(prev => {
+        const next = prev.includes(name) ? prev : [...prev, name];
+        localStorage.setItem('xp-empty-circles', JSON.stringify(next));
+        return next;
+      });
+    }
   };
 
   const peopleWithCatchup = people.map(p => {
@@ -47,6 +61,15 @@ export default function People({ onOpen }: PeopleProps) {
     };
   });
 
+  // Automatically prune emptyCircles from state and localStorage if they now have members
+  useEffect(() => {
+    const nextEmpty = emptyCircles.filter(c => !peopleWithCatchup.some(p => (p.metadata as any)?.circle === c));
+    if (nextEmpty.length !== emptyCircles.length) {
+      setEmptyCircles(nextEmpty);
+      localStorage.setItem('xp-empty-circles', JSON.stringify(nextEmpty));
+    }
+  }, [peopleWithCatchup, emptyCircles]);
+
   const byGroup: Record<string, typeof peopleWithCatchup> = {};
   for (const meta of GROUP_META) byGroup[meta.name] = [];
   for (const p of peopleWithCatchup) {
@@ -54,11 +77,12 @@ export default function People({ onOpen }: PeopleProps) {
     (byGroup[circle] ??= []).push(p);
   }
 
-  // Default circles first, then any extra circles people are actually assigned to (de-duped, ordered)
+  // Default circles first, then any extra circles people are actually assigned to, then empty circles (de-duped, ordered)
   const circleNames = [
     ...GROUP_META.map((g) => g.name),
     ...peopleWithCatchup.map((p) => (p.metadata as any)?.circle).filter((c: unknown): c is string =>
       typeof c === 'string' && c.trim().length > 0 && !GROUP_META.some((g) => g.name === c)),
+    ...emptyCircles,
   ].filter((name, i, arr) => arr.indexOf(name) === i);
 
   const overdue = peopleWithCatchup.filter((p) => p.metadata.catchupState === 'overdue');
@@ -148,7 +172,7 @@ export default function People({ onOpen }: PeopleProps) {
           {circleNames.map((name) => {
             const meta = metaFor(name);
             const members = byGroup[name] ?? [];
-            if (members.length === 0) return null;
+            if (members.length === 0 && !emptyCircles.includes(name)) return null;
             return (
               <section key={name}>
                 <header className="flex items-center gap-3 mb-3.5">
@@ -168,6 +192,24 @@ export default function People({ onOpen }: PeopleProps) {
                 </header>
                 <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', paddingLeft: 'clamp(0px, 5vw, 48px)' }}>
                   {members.map((p) => <PersonChip key={p._id} person={p} circleColor={meta.color} onOpen={onOpen} />)}
+                  {members.length === 0 && (
+                    <button
+                      onClick={() => {
+                        setCreateCircle(name);
+                        setCreateOpen(true);
+                      }}
+                      className="flex items-center justify-center gap-2 border-dashed rounded-[10px] cursor-pointer text-ctp-overlay1 hover:text-ctp-text hover:border-ctp-text transition-colors duration-200"
+                      style={{
+                        padding: '12px 14px',
+                        background: 'transparent',
+                        border: '1px dashed var(--surface2)',
+                        fontSize: 13,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      <Icons.Plus size={14} /> Add contact
+                    </button>
+                  )}
                 </div>
               </section>
             );
