@@ -475,17 +475,26 @@ export default function CreateNodeModal({
                 <Label>Circle</Label>
                 <select
                   value={circle}
-                  onChange={(e) => setCircle(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__new_circle__') {
+                      const name = window.prompt('Name the new circle')?.trim();
+                      if (name) setCircle(name);
+                    } else {
+                      setCircle(val);
+                    }
+                  }}
                   className="w-full rounded-lg"
                   style={{
                     padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
                     background: 'var(--base)', border: '1px solid var(--surface1)',
-                    color: 'var(--text)',
+                    color: 'var(--text)', cursor: 'pointer',
                   }}
                 >
                   {circleOptions.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
+                  <option value="__new_circle__">+ New circle...</option>
                 </select>
               </div>
               <div>

@@ -61,6 +61,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const [description, setDescription] = useState(n?.description ?? '');
   const [progress, setProgress] = useState(n?.progress ?? 0);
   const [linkedSkillIds, setLinkedSkillIds] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Editable metadata fields (for TASK)
@@ -94,6 +95,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       setPriority(meta.priority ?? '');
       setEstimatedHours(meta.estimatedHours != null ? String(meta.estimatedHours) : '');
       setMainParentId(n.mainParent ?? '');
+      setTags(meta.tags ?? []);
 
       // Person fields
       setEmail(meta.email ?? '');
@@ -188,7 +190,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
 
       // Merge metadata (preserve existing fields like history, completedAt, etc.)
       const oldMeta = (n.metadata as any) ?? {};
-      const newMeta: Record<string, unknown> = { ...oldMeta };
+      const newMeta: Record<string, unknown> = { ...oldMeta, tags };
       if (n.type === 'TASK') {
         if (due) newMeta.due = due; else delete newMeta.due;
         if (priority) newMeta.priority = priority; else delete newMeta.priority;
@@ -624,6 +626,16 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                 const catchup = getPersonCatchup(n);
                 const isOverdue = catchup.catchupState === 'overdue';
 
+                const circleOptions = (() => {
+                  const s = new Set<string>();
+                  const add = (c?: string) => { if (c?.trim()) s.add(c.trim()); };
+                  ['Network', 'Core Team', 'Mentors', 'Close Friends', 'Family', 'Aura Team'].forEach(add);
+                  for (const p of byType('PERSON')) {
+                    add((p.metadata as any)?.circle);
+                  }
+                  return [...s];
+                })();
+
                 return (
                   <>
                     {isOverdue && (
@@ -664,7 +676,15 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                     <Field label="Circle">
                       <select
                         value={circle}
-                        onChange={(e) => setCircle(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__new_circle__') {
+                            const name = window.prompt('Name the new circle')?.trim();
+                            if (name) setCircle(name);
+                          } else {
+                            setCircle(val);
+                          }
+                        }}
                         className="rounded-md w-full"
                         style={{
                           padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
@@ -672,15 +692,10 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                           color: 'var(--text)', outline: 'none', cursor: 'pointer',
                         }}
                       >
-                        <option value="Family">Family</option>
-                        <option value="Close Friends">Close Friends</option>
-                        <option value="Core Team">Core Team</option>
-                        <option value="Aura Team">Aura Team</option>
-                        <option value="Mentors">Mentors</option>
-                        <option value="Network">Network</option>
-                        {circle && !['Family', 'Close Friends', 'Core Team', 'Aura Team', 'Mentors', 'Network'].includes(circle) && (
-                          <option value={circle}>{circle}</option>
-                        )}
+                        {circleOptions.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                        <option value="__new_circle__">+ New circle...</option>
                       </select>
                     </Field>
                     <Field label="Role">
@@ -751,10 +766,37 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
           {isRoutine && <RoutineCheckInHistory metadata={m} />}
 
           <SectionCard title="Tags">
-            <div className="flex gap-1.5 flex-wrap">
-              {(m.tags ?? []).map((t: string) => <TagChip key={t} label={t} />)}
-              <button className="inline-flex items-center gap-1 bg-transparent text-ctp-overlay1 cursor-pointer rounded"
-                style={{ padding: '2px 8px', border: '1px dashed var(--surface2)', fontSize: 11, fontFamily: 'inherit' }}>
+            <div className="flex gap-1.5 flex-wrap items-center">
+              {tags.map((t: string) => (
+                <span
+                  key={t}
+                  className="inline-flex items-center gap-1 rounded"
+                  style={{
+                    padding: '3px 8px',
+                    background: 'var(--surface0)',
+                    border: '1px solid var(--surface1)',
+                  }}
+                >
+                  <TagChip label={t} />
+                  <button
+                    onClick={() => setTags(prev => prev.filter(x => x !== t))}
+                    className="bg-transparent border-none cursor-pointer p-0 hover:text-ctp-red inline-flex items-center"
+                    style={{ color: 'var(--overlay1)' }}
+                  >
+                    <Icons.X size={10} />
+                  </button>
+                </span>
+              ))}
+              <button
+                onClick={() => {
+                  const t = window.prompt("Enter new tag:")?.trim();
+                  if (t) {
+                    setTags(prev => prev.includes(t) ? prev : [...prev, t]);
+                  }
+                }}
+                className="inline-flex items-center gap-1 bg-transparent text-ctp-overlay1 cursor-pointer rounded"
+                style={{ padding: '2px 8px', border: '1px dashed var(--surface2)', fontSize: 11, fontFamily: 'inherit' }}
+              >
                 <Icons.Plus size={10} /> Add tag
               </button>
             </div>
