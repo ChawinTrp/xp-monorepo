@@ -3,7 +3,7 @@ import {
   Layers, Zap, FolderKanban, CheckSquare, User, Tag, Circle, Repeat,
   ChevronRight, ChevronDown, ChevronLeft, Plus, Search, Flame, AlertTriangle,
   CheckCircle, CalendarDays, GripVertical, X, Filter, Network, LayoutDashboard,
-  Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, CalendarRange,
+  Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, Moon, CalendarRange,
   TrendingUp, TrendingDown, Award, Sparkles, Play, Square, Clock, Timer,
   GanttChart, Calendar, Settings,
   type LucideProps,
@@ -14,7 +14,7 @@ export const Icons = {
   Layers, Zap, FolderKanban, CheckSquare, User, Tag, Circle, Repeat,
   ChevronRight, ChevronDown, ChevronLeft, Plus, Search, Flame, AlertTriangle,
   CheckCircle, CalendarDays, GripVertical, X, Filter, Network, LayoutDashboard,
-  Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, CalendarRange,
+  Users, ArrowRight, ArrowUp, Trash2, Save, Target, Sun, Moon, CalendarRange,
   TrendingUp, TrendingDown, Award, Sparkles, Play, Square, Clock, Timer,
   GanttChart, Calendar, Settings,
 };

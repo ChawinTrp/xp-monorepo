@@ -29,6 +29,20 @@ export default function NodeCard({ node, breadcrumb, onOpen, onComplete, draggab
 
   const overdue = !done && due ? new Date(due) < new Date() : false;
 
+  const isTask = node.type === 'TASK';
+  const isRoutine = node.type === 'ROUTINE';
+  const baseBg = isTask
+    ? 'color-mix(in srgb, var(--c-task) 10%, var(--surface0))'
+    : isRoutine
+    ? 'color-mix(in srgb, var(--c-routine) 10%, var(--surface0))'
+    : 'var(--surface0)';
+
+  const hoverBg = isTask
+    ? 'color-mix(in srgb, var(--c-task) 10%, var(--surface1))'
+    : isRoutine
+    ? 'color-mix(in srgb, var(--c-routine) 10%, var(--surface1))'
+    : 'var(--surface1)';
+
   return (
     <div
       draggable={draggable}
@@ -37,14 +51,14 @@ export default function NodeCard({ node, breadcrumb, onOpen, onComplete, draggab
       onClick={() => onOpen?.(node._id)}
       className="rounded-lg cursor-pointer transition-all duration-200 relative group"
       style={{
-        background: 'var(--surface0)',
+        background: baseBg,
         border: '1px solid transparent',
         padding: 12,
         opacity: done ? 0.78 : dragging ? 0.35 : 1,
         boxShadow: dragging ? '0 8px 24px rgba(0,0,0,0.35)' : 'none',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface1)'; e.currentTarget.style.borderColor = 'var(--surface2)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface0)'; e.currentTarget.style.borderColor = 'transparent'; }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = hoverBg; e.currentTarget.style.borderColor = 'var(--surface2)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = baseBg; e.currentTarget.style.borderColor = 'transparent'; }}
     >
       <div className="flex items-start gap-2">
         {done ? (

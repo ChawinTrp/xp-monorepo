@@ -46,7 +46,7 @@ export default function SearchModal({ open, onClose, onOpen }: SearchModalProps)
     <div
       onClick={onClose}
       className="fixed inset-0 z-[1000] flex items-start justify-center fade-in"
-      style={{ background: 'rgba(17, 17, 27, 0.7)', backdropFilter: 'blur(4px)', paddingTop: '12vh' }}
+      style={{ background: 'color-mix(in srgb, var(--crust) 70%, transparent)', backdropFilter: 'blur(4px)', paddingTop: '12vh' }}
     >
       <div
         onClick={(e) => e.stopPropagation()}

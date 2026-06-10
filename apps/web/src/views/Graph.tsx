@@ -4,6 +4,7 @@ import { useNodes } from '../lib/hooks';
 import { TypeBadge, StatusDot, ProgressBar, Button, Icons } from '../components/ui';
 import { TypeIcon } from '../components/ui';
 import { TYPE_COLORS } from '../lib/types';
+import { getTheme } from '../lib/theme';
 
 interface GraphProps {
   onOpen: (id: string) => void;
@@ -13,15 +14,21 @@ const NODE_RADIUS: Record<string, number> = {
   DOMAIN: 12, SKILL: 8, PROJECT: 8, TASK: 5, PERSON: 7, TAG: 4, ROUTINE: 6,
 };
 
-// Canvas can't resolve CSS variables — use the resolved Catppuccin Mocha hex values
+const getCssVar = (name: string, fallback: string) => {
+  if (typeof window === 'undefined') return fallback;
+  const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return val || fallback;
+};
+
+// Canvas can't resolve CSS variables — map to CSS variable names resolved dynamically
 const CANVAS_COLORS: Record<string, string> = {
-  DOMAIN:  '#89b4fa', // blue
-  SKILL:   '#a6e3a1', // green
-  PROJECT: '#fab387', // peach
-  TASK:    '#9399b2', // overlay2
-  PERSON:  '#f5c2e7', // pink
-  TAG:     '#f9e2af', // yellow
-  ROUTINE: '#94e2d5', // teal
+  DOMAIN:  '--c-domain',
+  SKILL:   '--c-skill',
+  PROJECT: '--c-project',
+  TASK:    '--c-task',
+  PERSON:  '--c-person',
+  TAG:     '--c-tag',
+  ROUTINE: '--c-routine',
 };
 
 const FILTER_DEFAULTS: Record<string, boolean> = {
@@ -38,6 +45,15 @@ export default function Graph({ onOpen }: GraphProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, boolean>>(FILTER_DEFAULTS);
   const [focusMode, setFocusMode] = useState(false);
+  const [theme, setThemeState] = useState(getTheme());
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setThemeState((e as CustomEvent).detail);
+    };
+    window.addEventListener('xp-theme-change', handler);
+    return () => window.removeEventListener('xp-theme-change', handler);
+  }, []);
 
   // Build graph data
   const graphData = useMemo(() => {
@@ -85,13 +101,15 @@ export default function Graph({ onOpen }: GraphProps) {
     const el = containerRef.current;
     if (!el) return;
 
+    const mantleColor = getCssVar('--mantle', '#181825');
     const fg = new ForceGraph(el)
-      .backgroundColor('#181825')
+      .backgroundColor(mantleColor)
       .nodeRelSize(1)
       .nodeVal((n: any) => (NODE_RADIUS[n.type] ?? 6) ** 2)
       .nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
         const r = NODE_RADIUS[node.type] ?? 6;
-        const color = CANVAS_COLORS[node.type] ?? '#cdd6f4';
+        const colorVar = CANVAS_COLORS[node.type];
+        const color = colorVar ? getCssVar(colorVar, '#cdd6f4') : '#cdd6f4';
         const isSel = node.id === node.__selected;
         const isDimmed = node.__focusMode && node.__selected && !node.__neighbours?.has(node.id);
 
@@ -128,13 +146,13 @@ export default function Graph({ onOpen }: GraphProps) {
           const ty = node.y + r + 4;
 
           // Pill background
-          ctx.fillStyle = 'rgba(17,17,27,0.82)';
+          ctx.fillStyle = getTheme() === 'light' ? 'rgba(220, 224, 232, 0.85)' : 'rgba(17,17,27,0.82)';
           ctx.beginPath();
           ctx.roundRect(tx - textW / 2 - padX, ty - padY, textW + padX * 2, fontSize + padY * 2, 3);
           ctx.fill();
 
           // Text
-          ctx.fillStyle = isSel ? color : '#bac2de';
+          ctx.fillStyle = isSel ? color : getCssVar('--subtext0', '#bac2de');
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
           ctx.fillText(label, tx, ty);
@@ -152,7 +170,7 @@ export default function Graph({ onOpen }: GraphProps) {
         const isDimmed = link.__focusMode && selId && !isSel;
 
         ctx.globalAlpha = isDimmed ? 0.04 : isSel ? 0.85 : 0.3;
-        ctx.strokeStyle = isSel ? '#cba6f7' : '#585b70';
+        ctx.strokeStyle = isSel ? getCssVar('--accent', '#cba6f7') : getCssVar('--surface2', '#585b70');
         ctx.lineWidth = isSel ? 2 : link.dashed ? 0.8 : 1.2;
         ctx.setLineDash(link.dashed ? [4, 4] : []);
         ctx.beginPath();
@@ -165,7 +183,7 @@ export default function Graph({ onOpen }: GraphProps) {
       .linkCanvasObjectMode(() => 'replace')
       .linkDirectionalArrowLength(4)
       .linkDirectionalArrowRelPos(1)
-      .linkDirectionalArrowColor(() => '#6c7086')
+      .linkDirectionalArrowColor(() => getCssVar('--overlay0', '#6c7086'))
       .onNodeClick((node: any) => {
         setSelected((prev) => {
           const next = prev === node.id ? null : node.id;
@@ -197,11 +215,13 @@ export default function Graph({ onOpen }: GraphProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // mount once — data updates handled below
 
-  // Update graph data when nodes/filters change
+  // Update graph data and background color when nodes/filters or theme changes
   useEffect(() => {
     if (!graphRef.current) return;
-    graphRef.current.graphData(graphData);
-  }, [graphData]);
+    const mantleColor = getCssVar('--mantle', '#181825');
+    graphRef.current.backgroundColor(mantleColor);
+    graphRef.current.graphData({ ...graphData });
+  }, [graphData, theme]);
 
   // Inject selection + focus state into node/link objects for canvas painter
   useEffect(() => {

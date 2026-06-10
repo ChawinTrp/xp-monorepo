@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { Icons } from '../components/ui';
+import { getTheme, toggleTheme } from '../lib/theme';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES,
   UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE, DAY_PLAN, WEEK_PROGRESS,
@@ -29,13 +30,13 @@ const TOD_GLYPH: Record<string, string> = { morning: '☀', afternoon: '◐', ev
 const TOD_LABEL: Record<string, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night' };
 
 // ── Card gradient by type
-const ROUTINE_BG = 'linear-gradient(160deg, #2bb3a0 0%, #4f86d6 100%)';
-const TASK_BG    = 'linear-gradient(160deg, #f59f5d 0%, #e87a52 100%)';
-const ROUTINE_SHADOW = 'rgba(43,179,160,0.35)';
-const TASK_SHADOW    = 'rgba(245,159,93,0.35)';
+const ROUTINE_BG = 'var(--grad-routine)';
+const TASK_BG    = 'var(--grad-task)';
+const ROUTINE_SHADOW = 'var(--shadow-routine)';
+const TASK_SHADOW    = 'var(--shadow-task)';
 
 const PRIORITY_COLOR: Record<string, string> = {
-  high: '#f38ba8', medium: '#f9e2af', low: '#a6e3a1',
+  high: 'var(--red)', medium: 'var(--yellow)', low: 'var(--green)',
 };
 
 function useQueue(nodes: XPNode[], snoozedToBack: string[], dayPlan: { orderedIds: string[] } | null): QueueEntry[] {
@@ -226,6 +227,14 @@ interface FocusViewProps {
 
 function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss, dayPlan }: FocusViewProps) {
   const { nodes, breadcrumb } = useNodes();
+  const [theme, setThemeState] = useState(getTheme());
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setThemeState((e as CustomEvent).detail);
+    };
+    window.addEventListener('xp-theme-change', handler);
+    return () => window.removeEventListener('xp-theme-change', handler);
+  }, []);
 
   // Cards snoozed THIS SESSION are pushed to the back of the queue (session-only).
   const [snoozedToBack, setSnoozedToBack] = useState<string[]>([]);
@@ -413,6 +422,19 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
           <h1 style={{ fontSize: 26, fontWeight: 700, margin: '2px 0 0', letterSpacing: -0.5 }}>Focus</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={toggleTheme}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 32, height: 32, borderRadius: 999,
+              background: 'var(--surface0)', color: 'var(--subtext0)',
+              border: 'none', cursor: 'pointer',
+              padding: 0,
+            }}
+            title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+          >
+            {theme === 'light' ? <Icons.Moon size={16} /> : <Icons.Sun size={16} />}
+          </button>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 22, fontWeight: 600, letterSpacing: -0.5 }}>
               {cleared + 1}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
@@ -459,9 +481,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
         {nextNode && (
           <div style={{
             ...S.peek,
-            background: nextNode.type === 'ROUTINE'
-              ? 'linear-gradient(160deg, rgba(43,179,160,0.4), rgba(79,134,214,0.4))'
-              : 'linear-gradient(160deg, rgba(245,159,93,0.4), rgba(232,122,82,0.4))',
+            background: nextNode.type === 'ROUTINE' ? 'var(--grad-routine-peek)' : 'var(--grad-task-peek)',
             transform: `scale(${0.94 + Math.abs(dragDx) / 4000}) translateY(${10 - Math.abs(dragDx) / 60}px)`,
             opacity: 0.65 + Math.abs(dragDx) / 600,
           }} />
@@ -529,7 +549,11 @@ function ActionBtn({ tone, label, hint, onClick, icon }: {
   icon: React.ReactNode;
 }) {
   const fg = tone === 'finish' ? 'var(--green)' : tone === 'dismiss' ? 'var(--blue)' : 'var(--subtext1)';
-  const bg = tone === 'finish' ? 'rgba(166,227,161,0.10)' : tone === 'dismiss' ? 'rgba(137,180,250,0.10)' : 'rgba(166,173,200,0.08)';
+  const bg = tone === 'finish'
+    ? 'color-mix(in srgb, var(--green) 10%, transparent)'
+    : tone === 'dismiss'
+    ? 'color-mix(in srgb, var(--blue) 10%, transparent)'
+    : 'color-mix(in srgb, var(--subtext1) 8%, transparent)';
   return (
     <button onClick={onClick} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
@@ -772,7 +796,7 @@ function StatsView() {
           const initials = m?.initials ?? p.title.slice(0, 2).toUpperCase();
           return (
             <div key={p._id} style={S.catchupRow}>
-              <div style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--pink)', color: '#1e1e2e', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--pink)', color: 'var(--base)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12 }}>
                 {initials}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>

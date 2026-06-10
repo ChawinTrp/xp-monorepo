@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import { Icons } from './ui';
+import { getTheme, toggleTheme } from '../lib/theme';
 
 const VIEWS = ['dashboard', 'kanban', 'gantt', 'calendar', 'routines', 'graph', 'skills', 'people'] as const;
 const VIEW_LABELS: Record<string, string> = {
@@ -16,6 +18,15 @@ interface TopBarProps {
 }
 
 export default function TopBar({ breadcrumb, view, onNavigate, inDetail, isMobile, onMenuToggle }: TopBarProps) {
+  const [theme, setThemeState] = useState(getTheme());
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setThemeState((e as CustomEvent).detail);
+    };
+    window.addEventListener('xp-theme-change', handler);
+    return () => window.removeEventListener('xp-theme-change', handler);
+  }, []);
+
   return (
     <header
       className="flex items-center shrink-0"
@@ -73,6 +84,17 @@ export default function TopBar({ breadcrumb, view, onNavigate, inDetail, isMobil
             </button>
           ))}
         </div>
+      )}
+
+      {!isMobile && (
+        <button
+          onClick={toggleTheme}
+          className="ml-4 border-none bg-transparent cursor-pointer p-1.5 rounded transition-colors duration-200"
+          style={{ color: 'var(--subtext1)', display: 'grid', placeItems: 'center' }}
+          title={theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme'}
+        >
+          {theme === 'light' ? <Icons.Moon size={18} /> : <Icons.Sun size={18} />}
+        </button>
       )}
     </header>
   );
