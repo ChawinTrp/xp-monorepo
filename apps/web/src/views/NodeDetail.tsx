@@ -4,6 +4,7 @@ import { useNodes } from '../lib/hooks';
 import { TypeBadge, TypeIcon, ProgressBar, TagChip, Button, Icons, LevelBadge, useToast } from '../components/ui';
 import { TYPE_COLORS } from '../lib/types';
 import { UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
+import { getPersonCatchup } from '../lib/queue';
 
 type NodeType = 'DOMAIN' | 'SKILL' | 'PROJECT' | 'TASK' | 'PERSON' | 'TAG' | 'ROUTINE';
 
@@ -68,6 +69,14 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const [estimatedHours, setEstimatedHours] = useState<string>('');
   const [mainParentId, setMainParentId] = useState<string>('');
 
+  // Editable metadata fields (for PERSON)
+  const [email, setEmail] = useState<string>('');
+  const [phone, setPhone] = useState<string>('');
+  const [circle, setCircle] = useState<string>('');
+  const [role, setRole] = useState<string>('');
+  const [nextCatchup, setNextCatchup] = useState<string>('');
+  const [lastCatchup, setLastCatchup] = useState<string>('');
+
   // Sync local state when node changes
   useEffect(() => {
     if (n) {
@@ -85,6 +94,14 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       setPriority(meta.priority ?? '');
       setEstimatedHours(meta.estimatedHours != null ? String(meta.estimatedHours) : '');
       setMainParentId(n.mainParent ?? '');
+
+      // Person fields
+      setEmail(meta.email ?? '');
+      setPhone(meta.phone ?? '');
+      setCircle(meta.circle ?? 'Network');
+      setRole(meta.role ?? '');
+      setNextCatchup(meta.nextCatchup ?? '');
+      setLastCatchup(meta.lastCatchup ?? '');
     }
   }, [n, byId]);
 
@@ -177,6 +194,17 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         if (priority) newMeta.priority = priority; else delete newMeta.priority;
         if (estimatedHours) newMeta.estimatedHours = parseFloat(estimatedHours);
         else delete newMeta.estimatedHours;
+      }
+      if (n.type === 'PERSON') {
+        if (email.trim()) newMeta.email = email.trim(); else delete newMeta.email;
+        if (phone.trim()) newMeta.phone = phone.trim(); else delete newMeta.phone;
+        if (circle.trim()) newMeta.circle = circle.trim(); else delete newMeta.circle;
+        if (role.trim()) newMeta.role = role.trim(); else delete newMeta.role;
+        if (nextCatchup) newMeta.nextCatchup = nextCatchup; else delete newMeta.nextCatchup;
+        if (lastCatchup) newMeta.lastCatchup = lastCatchup; else delete newMeta.lastCatchup;
+
+        const initials = n.title.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+        newMeta.initials = initials || '??';
       }
 
       await updateNode({
@@ -592,14 +620,128 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                   {m.group && <Field label="Group"><span>{m.group}</span></Field>}
                 </>
               )}
-              {n.type === 'PERSON' && (
-                <>
-                  {m.email && <Field label="Email"><span>{m.email}</span></Field>}
-                  {m.phone && <Field label="Phone"><span>{m.phone}</span></Field>}
-                  {m.circle && <Field label="Circle"><span>{m.circle}</span></Field>}
-                  {m.role && <Field label="Role"><span>{m.role}</span></Field>}
-                </>
-              )}
+              {n.type === 'PERSON' && (() => {
+                const catchup = getPersonCatchup(n);
+                const isOverdue = catchup.catchupState === 'overdue';
+
+                return (
+                  <>
+                    {isOverdue && (
+                      <div className="rounded-md flex items-center gap-2 mb-2 font-semibold text-ctp-red"
+                        style={{ fontSize: 12, padding: '6px 10px', background: 'color-mix(in srgb, var(--red) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--red) 25%, transparent)' }}>
+                        <Icons.AlertTriangle size={12} color="var(--red)" />
+                        Overdue Catch-Up ({catchup.relativeDate})
+                      </div>
+                    )}
+                    <Field label="Email">
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="e.g. alice@example.com"
+                        className="rounded-md w-full"
+                        style={{
+                          padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                          background: 'var(--base)', border: '1px solid var(--surface1)',
+                          color: 'var(--text)', outline: 'none',
+                        }}
+                      />
+                    </Field>
+                    <Field label="Phone">
+                      <input
+                        type="text"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="e.g. +1-555-0199"
+                        className="rounded-md w-full"
+                        style={{
+                          padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                          background: 'var(--base)', border: '1px solid var(--surface1)',
+                          color: 'var(--text)', outline: 'none',
+                        }}
+                      />
+                    </Field>
+                    <Field label="Circle">
+                      <select
+                        value={circle}
+                        onChange={(e) => setCircle(e.target.value)}
+                        className="rounded-md w-full"
+                        style={{
+                          padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                          background: 'var(--base)', border: '1px solid var(--surface1)',
+                          color: 'var(--text)', outline: 'none', cursor: 'pointer',
+                        }}
+                      >
+                        <option value="Family">Family</option>
+                        <option value="Close Friends">Close Friends</option>
+                        <option value="Core Team">Core Team</option>
+                        <option value="Aura Team">Aura Team</option>
+                        <option value="Mentors">Mentors</option>
+                        <option value="Network">Network</option>
+                        {circle && !['Family', 'Close Friends', 'Core Team', 'Aura Team', 'Mentors', 'Network'].includes(circle) && (
+                          <option value={circle}>{circle}</option>
+                        )}
+                      </select>
+                    </Field>
+                    <Field label="Role">
+                      <input
+                        type="text"
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                        placeholder="e.g. Mentor, Sister, PM"
+                        className="rounded-md w-full"
+                        style={{
+                          padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                          background: 'var(--base)', border: '1px solid var(--surface1)',
+                          color: 'var(--text)', outline: 'none',
+                        }}
+                      />
+                    </Field>
+                    <Field label="Last catch-up">
+                      <input
+                        type="date"
+                        value={lastCatchup ? lastCatchup.slice(0, 10) : ''}
+                        onChange={(e) => setLastCatchup(e.target.value)}
+                        className="rounded-md w-full"
+                        style={{
+                          padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                          background: 'var(--base)', border: '1px solid var(--surface1)',
+                          color: 'var(--text)', outline: 'none',
+                        }}
+                      />
+                    </Field>
+                    <Field label="Next catch-up">
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="date"
+                          value={nextCatchup ? nextCatchup.slice(0, 10) : ''}
+                          onChange={(e) => setNextCatchup(e.target.value)}
+                          className="rounded-md flex-1"
+                          style={{
+                            padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                            background: 'var(--base)', border: '1px solid var(--surface1)',
+                            color: 'var(--text)', outline: 'none',
+                          }}
+                        />
+                        <Button
+                          variant="secondary"
+                          style={{ padding: '7px 12px', fontSize: 12, height: 36, whiteSpace: 'nowrap' }}
+                          onClick={() => {
+                            const inAWeek = new Date();
+                            inAWeek.setDate(inAWeek.getDate() + 7);
+                            const y = inAWeek.getFullYear();
+                            const mo = String(inAWeek.getMonth() + 1).padStart(2, '0');
+                            const d = String(inAWeek.getDate()).padStart(2, '0');
+                            setNextCatchup(`${y}-${mo}-${d}`);
+                          }}
+                        >
+                          Schedule (1w)
+                        </Button>
+                      </div>
+                    </Field>
+                  </>
+                );
+              })()}
               {n.type === 'DOMAIN' && (
                 <DomainProgress nodeId={id} childrenOf={childrenOf} byId={byId} />
               )}

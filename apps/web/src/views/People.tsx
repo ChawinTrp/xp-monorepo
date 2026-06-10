@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNodes } from '../lib/hooks';
 import { Icons, Avatar, Button } from '../components/ui';
 import CreateNodeModal from '../components/CreateNodeModal';
+import { getPersonCatchup } from '../lib/queue';
 
 interface PeopleProps {
   onOpen: (id: string) => void;
@@ -27,6 +28,7 @@ export default function People({ onOpen }: PeopleProps) {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createCircle, setCreateCircle] = useState<string | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<'circle' | 'nextCatchup' | 'lastCatchup'>('circle');
 
   const addPerson = () => { setCreateCircle(undefined); setCreateOpen(true); };
   const newCircle = () => {
@@ -34,9 +36,20 @@ export default function People({ onOpen }: PeopleProps) {
     if (name) { setCreateCircle(name); setCreateOpen(true); }
   };
 
-  const byGroup: Record<string, typeof people> = {};
+  const peopleWithCatchup = people.map(p => {
+    const catchup = getPersonCatchup(p);
+    return {
+      ...p,
+      metadata: {
+        ...(p.metadata as any),
+        ...catchup
+      }
+    };
+  });
+
+  const byGroup: Record<string, typeof peopleWithCatchup> = {};
   for (const meta of GROUP_META) byGroup[meta.name] = [];
-  for (const p of people) {
+  for (const p of peopleWithCatchup) {
     const circle = (p.metadata as any)?.circle ?? 'Network';
     (byGroup[circle] ??= []).push(p);
   }
@@ -44,11 +57,23 @@ export default function People({ onOpen }: PeopleProps) {
   // Default circles first, then any extra circles people are actually assigned to (de-duped, ordered)
   const circleNames = [
     ...GROUP_META.map((g) => g.name),
-    ...people.map((p) => (p.metadata as any)?.circle).filter((c: unknown): c is string =>
+    ...peopleWithCatchup.map((p) => (p.metadata as any)?.circle).filter((c: unknown): c is string =>
       typeof c === 'string' && c.trim().length > 0 && !GROUP_META.some((g) => g.name === c)),
   ].filter((name, i, arr) => arr.indexOf(name) === i);
 
-  const overdue = people.filter((p) => (p.metadata as any)?.catchupState === 'overdue');
+  const overdue = peopleWithCatchup.filter((p) => p.metadata.catchupState === 'overdue');
+
+  const sortedPeople = [...peopleWithCatchup].sort((a, b) => {
+    if (sortBy === 'nextCatchup') {
+      const da = (a.metadata as any).nextCatchup ?? '9999-12-31';
+      const db = (b.metadata as any).nextCatchup ?? '9999-12-31';
+      return da.localeCompare(db);
+    } else {
+      const da = (a.metadata as any).lastCatchup ?? '1970-01-01';
+      const db = (b.metadata as any).lastCatchup ?? '1970-01-01';
+      return da.localeCompare(db);
+    }
+  });
 
   return (
     <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1280, margin: '0 auto' }}>
@@ -65,7 +90,22 @@ export default function People({ onOpen }: PeopleProps) {
             </>}
           </div>
         </div>
-        <div className="flex gap-2.5">
+        <div className="flex gap-2.5 items-center flex-wrap">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="rounded-md"
+            style={{
+              padding: '6px 12px', fontSize: 12, fontFamily: 'inherit',
+              background: 'var(--surface0)', border: '1px solid var(--surface1)',
+              color: 'var(--text)', outline: 'none', cursor: 'pointer',
+              height: 32,
+            }}
+          >
+            <option value="circle">Circle grouping</option>
+            <option value="nextCatchup">Next catch-up (soonest first)</option>
+            <option value="lastCatchup">Last contact (oldest first)</option>
+          </select>
           <Button variant="secondary" icon={<Icons.Plus size={14} />} onClick={newCircle}>New circle</Button>
           <Button icon={<Icons.Plus size={14} />} onClick={addPerson}>Add person</Button>
         </div>
@@ -103,35 +143,44 @@ export default function People({ onOpen }: PeopleProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-7">
-        {circleNames.map((name) => {
-          const meta = metaFor(name);
-          const members = byGroup[name] ?? [];
-          if (members.length === 0) return null;
-          return (
-            <section key={name}>
-              <header className="flex items-center gap-3 mb-3.5">
-                <div className="grid place-items-center" style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: `color-mix(in srgb, ${meta.color} 18%, var(--surface0))`,
-                  border: `1px solid color-mix(in srgb, ${meta.color} 30%, var(--surface1))`,
-                }}>
-                  <meta.Icon size={14} color={meta.color} />
-                </div>
-                <div className="flex-1">
-                  <h2 className="m-0 text-[17px] font-bold text-ctp-text">{meta.name}</h2>
-                  <div className="flex items-center gap-2 mt-0.5 text-ctp-subtext1" style={{ fontSize: 11 }}>
-                    <span>{members.length} {members.length === 1 ? 'person' : 'people'}</span>
+      {sortBy === 'circle' ? (
+        <div className="flex flex-col gap-7">
+          {circleNames.map((name) => {
+            const meta = metaFor(name);
+            const members = byGroup[name] ?? [];
+            if (members.length === 0) return null;
+            return (
+              <section key={name}>
+                <header className="flex items-center gap-3 mb-3.5">
+                  <div className="grid place-items-center" style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: `color-mix(in srgb, ${meta.color} 18%, var(--surface0))`,
+                    border: `1px solid color-mix(in srgb, ${meta.color} 30%, var(--surface1))`,
+                  }}>
+                    <meta.Icon size={14} color={meta.color} />
                   </div>
+                  <div className="flex-1">
+                    <h2 className="m-0 text-[17px] font-bold text-ctp-text">{meta.name}</h2>
+                    <div className="flex items-center gap-2 mt-0.5 text-ctp-subtext1" style={{ fontSize: 11 }}>
+                      <span>{members.length} {members.length === 1 ? 'person' : 'people'}</span>
+                    </div>
+                  </div>
+                </header>
+                <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', paddingLeft: 'clamp(0px, 5vw, 48px)' }}>
+                  {members.map((p) => <PersonChip key={p._id} person={p} circleColor={meta.color} onOpen={onOpen} />)}
                 </div>
-              </header>
-              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', paddingLeft: 'clamp(0px, 5vw, 48px)' }}>
-                {members.map((p) => <PersonChip key={p._id} person={p} circleColor={meta.color} onOpen={onOpen} />)}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+              </section>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+          {sortedPeople.map((p) => {
+            const circleColor = metaFor(p.metadata.circle ?? '').color;
+            return <PersonChip key={p._id} person={p} circleColor={circleColor} onOpen={onOpen} />;
+          })}
+        </div>
+      )}
 
       <CreateNodeModal
         open={createOpen}

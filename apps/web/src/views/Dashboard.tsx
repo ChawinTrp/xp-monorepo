@@ -3,7 +3,7 @@ import { useNodes } from '../lib/hooks';
 import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui';
 import NodeCard from '../components/NodeCard';
 import { WEEK_PROGRESS } from '../lib/graphql';
-import { isOverdue, isCheckedOn } from '../lib/queue';
+import { isOverdue, isCheckedOn, getPersonCatchup } from '../lib/queue';
 
 // Date helpers mirror @xp/shared (canonical) — Sunday-start, local dates.
 function localDateStr(d: Date = new Date()): string {
@@ -196,6 +196,10 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
         <Panel icon={<Icons.Users size={14} color="var(--c-person)" />} title="Upcoming catch-ups"
           accentColor="var(--c-person)" onMore={() => onNavigate('people')}>
           {people
+            .map(p => {
+              const catchup = getPersonCatchup(p);
+              return { ...p, metadata: { ...(p.metadata as any), ...catchup } };
+            })
             .filter((p) => (p.metadata as any)?.nextCatchup)
             .sort((a, b) => new Date((a.metadata as any).nextCatchup).getTime() - new Date((b.metadata as any).nextCatchup).getTime())
             .slice(0, 5)

@@ -181,3 +181,28 @@ export function buildQueue(nodes: XPNode[], opts: BuildQueueOpts): QueueEntry[] 
 
   return applySnooze([...planned, ...appended], snoozedToBack);
 }
+
+// ── Dynamic catch-up state helper for PERSON nodes
+export function getPersonCatchup(person: any, todayStr: string = localDateStr()) {
+  const m = person?.metadata ?? {};
+  const nextCatchup = m.nextCatchup as string | undefined;
+  if (!nextCatchup) {
+    return { catchupState: 'none', relativeDate: '' };
+  }
+
+  const cleanNext = nextCatchup.slice(0, 10);
+  const cleanToday = todayStr.slice(0, 10);
+
+  if (cleanNext < cleanToday) {
+    const diffDays = Math.round((new Date(cleanToday + 'T00:00:00').getTime() - new Date(cleanNext + 'T00:00:00').getTime()) / (1000 * 3600 * 24));
+    const relativeDate = diffDays === 1 ? 'yesterday' : `${diffDays} days ago`;
+    return { catchupState: 'overdue', relativeDate };
+  } else {
+    const diffDays = Math.round((new Date(cleanNext + 'T00:00:00').getTime() - new Date(cleanToday + 'T00:00:00').getTime()) / (1000 * 3600 * 24));
+    let relativeDate = '';
+    if (diffDays === 0) relativeDate = 'today';
+    else if (diffDays === 1) relativeDate = 'tomorrow';
+    else relativeDate = `in ${diffDays} days`;
+    return { catchupState: 'upcoming', relativeDate };
+  }
+}
