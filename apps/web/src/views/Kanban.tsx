@@ -34,6 +34,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<string | null>(null);
   const [mode, setMode] = useState<'board' | 'sprint' | 'plan'>('board');
+  const [showArchive, setShowArchive] = useState(false);
   const [selectedSprint, setSelectedSprint] = useState('all');
   const [showCreateSprint, setShowCreateSprint] = useState(false);
   const [newSprint, setNewSprint] = useState({ name: '', startDate: '', endDate: '' });
@@ -286,7 +287,27 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
       ) : (
       <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(260px, 1fr))', gap: 16 }}>
         {COLUMNS.map((col) => {
-          const colTasks = filtered.filter((t) => (t.status ?? 'TODO') === col.key);
+          let colTasks = filtered.filter((t) => (t.status ?? 'TODO') === col.key);
+          // Done column: completions older than 7 days are archived behind a
+          // toggle so the board stays a working surface, not a graveyard.
+          let archivedCount = 0;
+          if (col.key === 'DONE') {
+            const cutoff = (() => {
+              const d = new Date();
+              d.setDate(d.getDate() - 7);
+              return localDateStr(d);
+            })();
+            const completedOn = (t: (typeof colTasks)[number]) => {
+              const m = t.metadata as any;
+              return m?.completedDate ?? (m?.completedAt ? String(m.completedAt).slice(0, 10) : null);
+            };
+            const recent = colTasks.filter((t) => {
+              const c = completedOn(t);
+              return c != null && c >= cutoff;
+            });
+            archivedCount = colTasks.length - recent.length;
+            if (!showArchive) colTasks = recent;
+          }
           const isOver = overCol === col.key;
           return (
             <div
@@ -347,10 +368,27 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
                   <div className="text-center text-ctp-overlay0 rounded-lg" style={{
                     padding: '32px 12px', fontSize: 12, border: '1px dashed var(--surface1)',
                   }}>
-                    {col.key === 'DONE' ? "Nothing completed yet" : 'Drop a task here'}
+                    {col.key === 'DONE'
+                      ? (archivedCount > 0 ? 'Nothing completed this week' : 'Nothing completed yet')
+                      : 'Drop a task here'}
                   </div>
                 )}
               </div>
+              {col.key === 'DONE' && archivedCount > 0 && (
+                <button
+                  onClick={() => setShowArchive(s => !s)}
+                  className="w-full flex items-center justify-center gap-2 border-none cursor-pointer transition-colors"
+                  style={{
+                    padding: '10px 14px', fontSize: 12, fontFamily: 'inherit',
+                    background: 'transparent', color: 'var(--overlay1)',
+                    borderTop: '1px solid var(--surface1)',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--overlay1)')}
+                >
+                  {showArchive ? 'Hide archive' : `Show archive (${archivedCount})`}
+                </button>
+              )}
               {col.key === 'TODO' && (
                 <button
                   onClick={onCreate}

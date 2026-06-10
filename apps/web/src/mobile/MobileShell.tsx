@@ -4,7 +4,7 @@ import { useNodes } from '../lib/hooks';
 import { Icons } from '../components/ui';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES,
-  UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE, DAY_PLAN,
+  UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE, DAY_PLAN, WEEK_PROGRESS,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
 import CreateNodeModal from '../components/CreateNodeModal';
@@ -642,22 +642,25 @@ function StatsView() {
   const routines = byType('ROUTINE');
   const skills   = byType('SKILL');
   const people   = byType('PERSON');
+  const { data: weekData } = useQuery<{ weekProgress: any }>(WEEK_PROGRESS);
 
   const longestStreak   = routines.reduce((m, r) => Math.max(m, (r.metadata as any)?.streak ?? 0), 0);
   const dailyRoutines   = routines.filter(r => (r.metadata as any)?.cadence === 'daily');
   const doneToday       = dailyRoutines.filter(r => isCheckedOn(r.metadata, TODAY)).length;
   const totalHours      = Math.round(skills.reduce((s, k) => s + ((k.metadata as any)?.totalHours ?? 0), 0));
 
-  const monday = (() => {
+  // Sunday-start week (canonical, matches @xp/shared) + local completedDate
+  // with legacy UTC completedAt fallback — same convention as Dashboard.
+  const weekStart = (() => {
     const d = new Date();
-    const dow = d.getDay() === 0 ? 7 : d.getDay();
-    d.setDate(d.getDate() - (dow - 1));
+    d.setDate(d.getDate() - d.getDay());
     return localDateStr(d);
   })();
   const doneThisWeek = tasks.filter(t => {
     if (t.status !== 'DONE') return false;
-    const completedAt = (t.metadata as any)?.completedAt as string | undefined;
-    return completedAt && completedAt >= monday;
+    const m = t.metadata as any;
+    const completed = m?.completedDate ?? (m?.completedAt ? String(m.completedAt).slice(0, 10) : null);
+    return completed != null && completed >= weekStart;
   }).length;
 
   const recent = tasks
@@ -704,6 +707,44 @@ function StatsView() {
         <Stat value={doneThisWeek}           label="Tasks done"     accent="var(--accent)" sub="this wk" />
         <Stat value={totalHours}             label="Skill hours"    accent="var(--green)"  sub="h" />
       </div>
+
+      {weekData?.weekProgress && (() => {
+        const { days, wonDays, weekTarget, weekWon, weekWinStreak } = weekData.weekProgress;
+        const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+        return (
+          <>
+            <SectionHeader>Win the week</SectionHeader>
+            <div style={{ background: 'var(--surface0)', borderRadius: 12, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                  {wonDays} / {weekTarget} days {weekWon && '🎉'}
+                </span>
+                {weekWinStreak > 1 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--orange)' }}>🔥 {weekWinStreak}w</span>
+                )}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                {days.map((day: any, i: number) => {
+                  const isFuture = day.date > TODAY;
+                  const pip = isFuture ? '·' : day.won ? '●' : '○';
+                  const color = isFuture ? 'var(--overlay0)' : day.won ? 'var(--green)' : 'var(--red)';
+                  return (
+                    <div key={day.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                      <span style={{ fontSize: 16, lineHeight: 1, color }}>{pip}</span>
+                      <span style={{ fontSize: 10, color: 'var(--subtext1)' }}>{DAY_LABELS[i]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {!weekWon && (
+                <div style={{ fontSize: 11, color: 'var(--subtext1)', marginTop: 8 }}>
+                  Need {weekTarget - wonDays} more · {days.filter((d: any) => d.date >= TODAY).length} days left
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       <SectionHeader>Recent completions</SectionHeader>
       <div style={{ display: 'grid', gap: 1, background: 'var(--surface0)', borderRadius: 12, overflow: 'hidden' }}>

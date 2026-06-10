@@ -27,6 +27,30 @@ export function isCheckedOn(meta: any, day: string): boolean {
   return checkInsOf(meta).some((c) => c.date === day);
 }
 
+// ── Cadence-aware "already satisfied" check. A weekly routine checked Monday
+//    shouldn't reappear in the queue Tue–Sun; monthly likewise within the month.
+//    Weeks are Sunday-start (canonical, matches @xp/shared.getWeekStart).
+function weekRangeOf(day: string): { start: string; end: string } {
+  const d = new Date(day + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  const start = localDateStr(d);
+  d.setDate(d.getDate() + 6);
+  return { start, end: localDateStr(d) };
+}
+export function isRoutineSatisfied(meta: any, day: string): boolean {
+  const cadence = meta?.cadence ?? 'daily';
+  const checks = checkInsOf(meta);
+  if (cadence === 'weekly') {
+    const { start, end } = weekRangeOf(day);
+    return checks.some((c) => c.date >= start && c.date <= end);
+  }
+  if (cadence === 'monthly') {
+    const month = day.slice(0, 7);
+    return checks.some((c) => c.date.slice(0, 7) === month);
+  }
+  return checks.some((c) => c.date === day);
+}
+
 // ── Task due helpers. Date-string compare avoids `new Date(due) < new Date()`
 //    mis-flagging a due-today task as overdue in non-UTC locales.
 export function isDueOnOrBefore(node: XPNode, day: string): boolean {
@@ -60,7 +84,7 @@ export interface BuildQueueOpts {
 // Auto baseline: not-checked routines + due tasks, in time-of-day rhythm order.
 function autoOrder(nodes: XPNode[], today: string): XPNode[] {
   const routines = nodes
-    .filter((n) => n.type === 'ROUTINE' && !isCheckedOn(n.metadata, today))
+    .filter((n) => n.type === 'ROUTINE' && !isRoutineSatisfied(n.metadata, today))
     .sort((a, b) => {
       const todA = (a.metadata as any)?.timeOfDay ?? 'anytime';
       const todB = (b.metadata as any)?.timeOfDay ?? 'anytime';
@@ -110,10 +134,10 @@ function autoOrder(nodes: XPNode[], today: string): XPNode[] {
   ];
 }
 
-// Still actionable when reading a plan: incomplete task / not-checked-in routine.
+// Still actionable when reading a plan: incomplete task / unsatisfied routine.
 function isActionable(node: XPNode, today: string): boolean {
   if (node.type === 'TASK') return node.status !== 'DONE';
-  if (node.type === 'ROUTINE') return !isCheckedOn(node.metadata, today);
+  if (node.type === 'ROUTINE') return !isRoutineSatisfied(node.metadata, today);
   return false;
 }
 

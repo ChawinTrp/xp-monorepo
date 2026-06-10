@@ -3,6 +3,7 @@ import { useNodes } from '../lib/hooks';
 import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui';
 import NodeCard from '../components/NodeCard';
 import { WEEK_PROGRESS } from '../lib/graphql';
+import { isOverdue, isCheckedOn } from '../lib/queue';
 
 // Date helpers mirror @xp/shared (canonical) — Sunday-start, local dates.
 function localDateStr(d: Date = new Date()): string {
@@ -82,11 +83,10 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
   const routines = byType('ROUTINE');
   const allSkills = byType('SKILL');
 
-  const overdue = tasks.filter((t) => {
-    const m = t.metadata as any;
-    if (!m?.due || t.status === 'DONE') return false;
-    return new Date(m.due) < new Date();
-  });
+  const todayStr = localDateStr();
+  // Date-string compare (lib/queue.isOverdue): `new Date(due) < new Date()`
+  // would mis-flag a due-today task as overdue for most of the day in UTC+7.
+  const overdue = tasks.filter((t) => t.status !== 'DONE' && isOverdue(t, todayStr));
   const inProgress = tasks.filter((t) => t.status === 'IN_PROGRESS');
   const done = tasks.filter((t) => t.status === 'DONE');
   const skills = allSkills.slice(0, 3);
@@ -96,8 +96,8 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
   const longestStreak = routines.reduce((max, r) => Math.max(max, (r.metadata as any)?.streak ?? 0), 0);
 
   const dailyRoutines = routines.filter(r => (r.metadata as any)?.cadence === 'daily');
-  const todayStr = localDateStr();
-  const dailyDoneToday = dailyRoutines.filter(r => (r.metadata as any)?.lastCheckInDate === todayStr).length;
+  // checkIns array, not lastCheckInDate — the latter goes stale after undo-check-in.
+  const dailyDoneToday = dailyRoutines.filter(r => isCheckedOn(r.metadata, todayStr)).length;
 
   const totalSkillHours = allSkills.reduce((sum, s) => sum + ((s.metadata as any)?.totalHours ?? 0), 0);
 

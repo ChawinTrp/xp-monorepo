@@ -4,7 +4,7 @@ import { useNodes } from '../lib/hooks';
 import NodeCard from '../components/NodeCard';
 import { Icons, useToast } from '../components/ui';
 import { DAY_PLAN, UPSERT_DAY_PLAN } from '../lib/graphql';
-import { buildQueue, isCheckedOn, addDaysStr } from '../lib/queue';
+import { buildQueue, isRoutineSatisfied, addDaysStr } from '../lib/queue';
 import type { XPNode } from '../lib/types';
 
 interface DayPlanData {
@@ -89,9 +89,10 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
   const inProgTasks = byType('TASK').filter(
     (t) => t.status === 'IN_PROGRESS' && !planSet.has(t._id),
   );
-  // Routines not yet planned → tray (none are checked-in on a future date).
+  // Routines not yet planned → tray. Cadence-aware: a weekly routine already
+  // checked this week (or monthly this month) is satisfied, not plannable.
   const trayRoutines = byType('ROUTINE').filter(
-    (r) => !isCheckedOn(r.metadata, tomorrow) && !planSet.has(r._id),
+    (r) => !isRoutineSatisfied(r.metadata, tomorrow) && !planSet.has(r._id),
   );
 
   const onItemDragOver = (e: React.DragEvent, index: number) => {
