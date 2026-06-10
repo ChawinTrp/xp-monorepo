@@ -40,7 +40,13 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
     seeded.current = true;
     const existing = data?.dayPlan?.orderedIds;
     if (existing && existing.length > 0) {
-      setOrderedIds(existing);
+      // Drop duplicate ids and re-persist if the stored plan was dirty (legacy
+      // plans seeded before the morning-routine duplication fix held doubles).
+      const deduped = [...new Set(existing)];
+      setOrderedIds(deduped);
+      if (deduped.length !== existing.length) {
+        upsertDayPlan({ variables: { input: { date: tomorrow, orderedIds: deduped } } });
+      }
     } else {
       const seed = buildQueue(nodes, { today: tomorrow }).map((e) => e.node._id);
       setOrderedIds(seed);
@@ -66,14 +72,15 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
     persist(next);
   };
 
-  // Live, ordered plan items (drop completed tasks / deleted ids).
-  const planItems = useMemo(
-    () =>
-      orderedIds
-        .map((id) => byId[id])
-        .filter((n): n is XPNode => !!n && (n.type !== 'TASK' || n.status !== 'DONE')),
-    [orderedIds, byId],
-  );
+  // Live, ordered plan items (drop completed tasks / deleted ids / duplicate ids).
+  // De-dup heals plans persisted before the morning-routine duplication fix.
+  const planItems = useMemo(() => {
+    const seen = new Set<string>();
+    return orderedIds
+      .filter((id) => (seen.has(id) ? false : (seen.add(id), true)))
+      .map((id) => byId[id])
+      .filter((n): n is XPNode => !!n && (n.type !== 'TASK' || n.status !== 'DONE'));
+  }, [orderedIds, byId]);
   const planSet = useMemo(() => new Set(planItems.map((n) => n._id)), [planItems]);
 
   const todoTasks = byType('TASK').filter(

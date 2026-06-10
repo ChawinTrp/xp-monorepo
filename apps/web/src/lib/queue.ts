@@ -82,7 +82,11 @@ function autoOrder(nodes: XPNode[], today: string): XPNode[] {
   const afternoonR = routines.filter((r) => (r.metadata as any)?.timeOfDay === 'afternoon');
   const eveningR = routines.filter((r) => (r.metadata as any)?.timeOfDay === 'evening');
   const nightR = routines.filter((r) => (r.metadata as any)?.timeOfDay === 'night');
-  const anytimeR = routines.filter((r) => !TOD_ORDER[(r.metadata as any)?.timeOfDay]);
+  // `=== undefined`, not `!TOD_ORDER[...]`: TOD_ORDER.morning is 0 (falsy), so a
+  // truthiness test would re-include every morning routine here and duplicate it.
+  const anytimeR = routines.filter(
+    (r) => TOD_ORDER[(r.metadata as any)?.timeOfDay] === undefined,
+  );
 
   const overdueTasks = tasks.filter((t) => isOverdue(t, today)).sort(byPriority);
   const todayTasks = tasks.filter((t) => !isOverdue(t, today)).sort(byPriority);
@@ -139,7 +143,10 @@ export function buildQueue(nodes: XPNode[], opts: BuildQueueOpts): QueueEntry[] 
   const byId = new Map(nodes.map((n) => [n._id, n]));
   const inPlan = new Set(dayPlan.orderedIds);
 
+  // De-dup ids: heals plans persisted before the morning-routine duplication fix.
+  const seenPlan = new Set<string>();
   const planned: QueueEntry[] = dayPlan.orderedIds
+    .filter((id) => (seenPlan.has(id) ? false : (seenPlan.add(id), true)))
     .map((id) => byId.get(id))
     .filter((n): n is XPNode => !!n && isActionable(n, today))
     .map((node) => ({ node, planned: true }));
