@@ -5,7 +5,7 @@ import { TypeBadge, TypeIcon, ProgressBar, TagChip, Button, Icons, LevelBadge, u
 import { TYPE_COLORS } from '../lib/types';
 import { CREATE_NODE, UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
 import { getPersonCatchup } from '../lib/queue';
-import { circleTagsOf, circleOfPerson } from '../lib/circles';
+import { circleTagsOf, circleOfPerson, isCircleTag } from '../lib/circles';
 import { ALLOWED_MAIN_PARENTS, localDateStr, type NodeType } from '@xp/shared';
 
 // ── Streak visual helpers ──
@@ -405,13 +405,14 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                   </div>
                 )}
               </div>
-              {(n.parents?.length ?? 0) > 0 && n.parents?.some(pid => pid !== n.mainParent) && (
+              {(n.parents?.length ?? 0) > 0 && n.parents?.some(pid => pid !== n.mainParent && !(byId[pid] && isCircleTag(byId[pid]))) && (
                 <div>
                   <div className="uppercase text-ctp-subtext1 mb-1.5" style={{ fontSize: 10, letterSpacing: 0.6 }}>Additional parents</div>
                   <div className="flex gap-2 flex-wrap">
                     {n.parents?.filter(pid => pid !== n.mainParent).map((pid) => {
                       const p = byId[pid];
                       if (!p) return null;
+                      if (isCircleTag(p)) return null; // circle membership is shown by the Circle field
                       return (
                         <button key={pid} onClick={() => onOpen(pid)}
                           className="inline-flex items-center gap-1.5 border-none rounded-md cursor-pointer"
