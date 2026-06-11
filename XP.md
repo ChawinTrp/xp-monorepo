@@ -713,9 +713,10 @@ All use cases are organized by pillar. Each describes WHO does WHAT, the TRIGGER
 **Flow:**
 1. Grid of PERSON nodes: photo placeholder, name, email, phone, last catch-up date, next catch-up date.
 2. Sort by: next catch-up (soonest first), last contact (oldest first), domain grouping.
-3. Click a person → NodeDetail with: contact info, related projects/tasks (from `parents` links), catch-up history (from metadata).
-4. "Schedule Catch-Up" button → set `nextCatchupDate` in metadata.
-5. Overdue catch-ups highlighted (nextCatchupDate < today).
+3. The grid is grouped by **circle** — TAG nodes with `metadata.kind: 'circle'`, one per person via `parents` (single circle per person, UI-enforced). Empty circles persist as member-less TAG nodes so they stay visible across devices.
+4. Click a person → NodeDetail with: contact info, related projects/tasks (from `parents` links), catch-up history (from metadata).
+5. "Schedule Catch-Up" button → set `nextCatchupDate` in metadata.
+6. Overdue catch-ups highlighted (nextCatchupDate < today).
 **Outcome:** Never lose touch. "Who haven't I caught up with in a while?"
 
 #### UC-O5: Tag-Based Filtering Across Views
