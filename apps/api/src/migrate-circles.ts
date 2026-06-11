@@ -78,6 +78,9 @@ async function migrate() {
   }
 
   // ── Step 3: link people with metadata.circle to their circle tag (both sides), then unset metadata.circle ──
+  const peopleWithCircle = people.filter(
+    (p) => typeof p.metadata?.circle === 'string' && p.metadata.circle.trim(),
+  ).length;
   let peopleLinked = 0;
   for (const p of people) {
     const circleName = p.metadata?.circle;
@@ -90,16 +93,20 @@ async function migrate() {
       continue;
     }
 
+    // Tag side FIRST: if the process dies between the two updates, metadata.circle
+    // is still set, so the person is retried on the next run ($addToSet makes the
+    // retry idempotent). Person-side-first would skip them forever with the tag's
+    // children entry missing.
+    await Node.updateOne(
+      { _id: tag._id },
+      { $addToSet: { children: p._id } },
+    );
     await Node.updateOne(
       { _id: p._id },
       {
         $addToSet: { parents: tag._id },
         $unset: { 'metadata.circle': '' },
       },
-    );
-    await Node.updateOne(
-      { _id: tag._id },
-      { $addToSet: { children: p._id } },
     );
     peopleLinked++;
   }
@@ -113,7 +120,7 @@ async function migrate() {
   // ── Summary ──
   console.log('\nMigration complete:');
   console.log(`  Circle tags created: ${createdCircleNames.length ? createdCircleNames.join(', ') : '(none)'}`);
-  console.log(`  People linked to circle tags: ${peopleLinked}`);
+  console.log(`  People linked to circle tags: ${peopleLinked} of ${peopleWithCircle} with metadata.circle`);
   console.log(`  People with vestigial fields cleaned: ${cleanupResult.modifiedCount}`);
 
   await mongoose.disconnect();
