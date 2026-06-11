@@ -115,6 +115,15 @@ async function seed() {
   const tagQuality = await Node.create({ title: 'quality', type: 'TAG', metadata: { color: '#cba6f7' } });
   const tagEmail = await Node.create({ title: 'email', type: 'TAG', metadata: { color: '#f5c2e7' } });
 
+  // ── CIRCLE TAGS (People view groupings — see apps/web/src/lib/circles.ts CIRCLE_DEFAULTS) ──
+  const circleFamily = await Node.create({ title: 'Family', type: 'TAG', metadata: { kind: 'circle' } });
+  const circleCloseFriends = await Node.create({ title: 'Close Friends', type: 'TAG', metadata: { kind: 'circle' } });
+  const circleCoreTeam = await Node.create({ title: 'Core Team', type: 'TAG', metadata: { kind: 'circle' } });
+  const circleAuraTeam = await Node.create({ title: 'Aura Team', type: 'TAG', metadata: { kind: 'circle' } });
+  const circleMentors = await Node.create({ title: 'Mentors', type: 'TAG', metadata: { kind: 'circle' } });
+  const circleNetwork = await Node.create({ title: 'Network', type: 'TAG', metadata: { kind: 'circle' } });
+  const circleWork = await Node.create({ title: 'Work', type: 'TAG', metadata: { kind: 'circle' } });
+
   // ── SKILLS (from Second Brain Skills Roadmap — hours-based mastery) ──
   const skillBackend = await Node.create({
     title: 'Backend Development', type: 'SKILL', mainParent: dev._id,
@@ -298,18 +307,20 @@ async function seed() {
 
   // ── PEOPLE ──
   const people = [
-    { title: 'Alice Chen', mainParent: relationships._id, metadata: { initials: 'AC', email: 'alice@example.com', circle: 'Close Friends', role: 'Designer', nextCatchup: '2026-05-22', relativeDate: 'in 3 days', catchupState: 'upcoming' } },
-    { title: 'Hana Sato', mainParent: relationships._id, metadata: { initials: 'HS', email: 'hana@example.com', circle: 'Core Team', role: 'PM', nextCatchup: '2026-05-20', relativeDate: 'tomorrow', catchupState: 'upcoming' } },
-    { title: 'Bob Rivera', mainParent: relationships._id, metadata: { initials: 'BR', email: 'bob@example.com', circle: 'Work', role: 'Backend Dev', nextCatchup: '2026-05-17', relativeDate: '2 days ago', catchupState: 'overdue' } },
-    { title: 'Maya Johnson', mainParent: relationships._id, metadata: { initials: 'MJ', circle: 'Family', role: 'Sister', nextCatchup: '2026-05-25', relativeDate: 'in 6 days', catchupState: 'upcoming' } },
-    { title: 'Liam Park', mainParent: relationships._id, metadata: { initials: 'LP', email: 'liam@example.com', circle: 'Close Friends', role: 'ML Engineer', nextCatchup: '2026-05-15', relativeDate: '4 days ago', catchupState: 'overdue' } },
-    { title: 'Nook (Mom)', mainParent: relationships._id, metadata: { initials: 'NK', circle: 'Family', role: 'Parent', phone: '+66-xxx', nextCatchup: '2026-05-21', relativeDate: 'in 2 days', catchupState: 'upcoming' } },
+    { title: 'Alice Chen', mainParent: relationships._id, circle: circleCloseFriends, metadata: { initials: 'AC', email: 'alice@example.com', role: 'Designer', nextCatchup: '2026-05-22' } },
+    { title: 'Hana Sato', mainParent: relationships._id, circle: circleCoreTeam, metadata: { initials: 'HS', email: 'hana@example.com', role: 'PM', nextCatchup: '2026-05-20' } },
+    { title: 'Bob Rivera', mainParent: relationships._id, circle: circleWork, metadata: { initials: 'BR', email: 'bob@example.com', role: 'Backend Dev', nextCatchup: '2026-05-17' } },
+    { title: 'Maya Johnson', mainParent: relationships._id, circle: circleFamily, metadata: { initials: 'MJ', role: 'Sister', nextCatchup: '2026-05-25' } },
+    { title: 'Liam Park', mainParent: relationships._id, circle: circleCloseFriends, metadata: { initials: 'LP', email: 'liam@example.com', role: 'ML Engineer', nextCatchup: '2026-05-15' } },
+    { title: 'Nook (Mom)', mainParent: relationships._id, circle: circleFamily, metadata: { initials: 'NK', role: 'Parent', phone: '+66-xxx', nextCatchup: '2026-05-21' } },
   ];
 
   const personDocs = [];
   for (const p of people) {
-    const doc = await Node.create({ ...p, type: 'PERSON' });
+    const { circle, ...rest } = p;
+    const doc = await Node.create({ ...rest, type: 'PERSON', parents: [circle._id] });
     personDocs.push(doc);
+    await Node.findByIdAndUpdate(circle._id, { $push: { children: doc._id } });
   }
   await Node.findByIdAndUpdate(relationships._id, { $push: { children: { $each: personDocs.map(p => p._id) } } });
 
