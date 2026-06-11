@@ -158,7 +158,12 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       // Rebuild parents array: keep non-SKILL, non-circle-tag & non-(old mainParent) parents,
       // then add: new mainParent + linked skills + selected circle tag
       const oldMainParent = n.mainParent;
-      const circleTagIds = new Set(circleTagsOf(byType('TAG')).map(t => t._id));
+      // Circle surgery is PERSON-only: other node types may carry circle-kind
+      // TAGs as ordinary tags in parents and must keep all of them.
+      const isPersonNode = n.type === 'PERSON';
+      const circleTagIds = isPersonNode
+        ? new Set(circleTagsOf(byType('TAG')).map(t => t._id))
+        : new Set<string>();
       const keptParents = (n.parents ?? []).filter(pid => {
         const p = byId[pid];
         if (!p) return false;
@@ -171,7 +176,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         ...(mainParentId ? [mainParentId] : []),
         ...keptParents,
         ...linkedSkillIds,
-        ...(circle ? [circle] : []),
+        ...(isPersonNode && circle ? [circle] : []),
       ];
 
       // Merge metadata (preserve existing fields like history, completedAt, etc.)
