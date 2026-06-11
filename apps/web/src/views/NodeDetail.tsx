@@ -3,8 +3,9 @@ import { useMutation } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { TypeBadge, TypeIcon, ProgressBar, TagChip, Button, Icons, LevelBadge, useToast } from '../components/ui';
 import { TYPE_COLORS } from '../lib/types';
-import { UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
+import { CREATE_NODE, UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
 import { getPersonCatchup } from '../lib/queue';
+import { circleTagsOf, circleOfPerson } from '../lib/circles';
 import { ALLOWED_MAIN_PARENTS, localDateStr, type NodeType } from '@xp/shared';
 
 // ── Streak visual helpers ──
@@ -33,6 +34,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const { toast } = useToast();
   const n = byId[id];
   const [updateNode] = useMutation(UPDATE_NODE, { refetchQueries: [{ query: GET_NODES }] });
+  const [createNode] = useMutation(CREATE_NODE, { refetchQueries: [{ query: GET_NODES }] });
   const [deleteNode] = useMutation(DELETE_NODE, { refetchQueries: [{ query: GET_NODES }] });
   const [completeTask, { loading: completing }] = useMutation(COMPLETE_TASK, { refetchQueries: [{ query: GET_NODES }] });
   const [startTimer] = useMutation(START_TIMER, { refetchQueries: [{ query: GET_NODES }] });
@@ -81,7 +83,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       // Person fields
       setEmail(meta.email ?? '');
       setPhone(meta.phone ?? '');
-      setCircle(meta.circle ?? 'Network');
+      setCircle(circleOfPerson(n, circleTagsOf(byType('TAG')))?._id ?? '');
       setRole(meta.role ?? '');
       setNextCatchup(meta.nextCatchup ?? '');
       setLastCatchup(meta.lastCatchup ?? '');
@@ -153,13 +155,15 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Rebuild parents array: keep non-SKILL & non-(old mainParent) parents,
-      // then add: new mainParent + linked skills
+      // Rebuild parents array: keep non-SKILL, non-circle-tag & non-(old mainParent) parents,
+      // then add: new mainParent + linked skills + selected circle tag
       const oldMainParent = n.mainParent;
+      const circleTagIds = new Set(circleTagsOf(byType('TAG')).map(t => t._id));
       const keptParents = (n.parents ?? []).filter(pid => {
         const p = byId[pid];
         if (!p) return false;
         if (p.type === 'SKILL') return false;          // skills are managed separately below
+        if (circleTagIds.has(pid)) return false;        // circle tags are managed separately below
         if (pid === oldMainParent) return false;        // old mainParent — replace with new
         return true;
       });
@@ -167,6 +171,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         ...(mainParentId ? [mainParentId] : []),
         ...keptParents,
         ...linkedSkillIds,
+        ...(circle ? [circle] : []),
       ];
 
       // Merge metadata (preserve existing fields like history, completedAt, etc.)
@@ -181,7 +186,6 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       if (n.type === 'PERSON') {
         if (email.trim()) newMeta.email = email.trim(); else delete newMeta.email;
         if (phone.trim()) newMeta.phone = phone.trim(); else delete newMeta.phone;
-        if (circle.trim()) newMeta.circle = circle.trim(); else delete newMeta.circle;
         if (role.trim()) newMeta.role = role.trim(); else delete newMeta.role;
         if (nextCatchup) newMeta.nextCatchup = nextCatchup; else delete newMeta.nextCatchup;
         if (lastCatchup) newMeta.lastCatchup = lastCatchup; else delete newMeta.lastCatchup;
@@ -607,15 +611,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                 const catchup = getPersonCatchup(n);
                 const isOverdue = catchup.catchupState === 'overdue';
 
-                const circleOptions = (() => {
-                  const s = new Set<string>();
-                  const add = (c?: string) => { if (c?.trim()) s.add(c.trim()); };
-                  ['Network', 'Core Team', 'Mentors', 'Close Friends', 'Family', 'Aura Team'].forEach(add);
-                  for (const p of byType('PERSON')) {
-                    add((p.metadata as any)?.circle);
-                  }
-                  return [...s];
-                })();
+                const circleOptions = circleTagsOf(byType('TAG'));
 
                 return (
                   <>
@@ -657,11 +653,32 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                     <Field label="Circle">
                       <select
                         value={circle}
-                        onChange={(e) => {
+                        onChange={async (e) => {
                           const val = e.target.value;
                           if (val === '__new_circle__') {
                             const name = window.prompt('Name the new circle')?.trim();
-                            if (name) setCircle(name);
+                            if (!name) return;
+                            const existing = circleOptions.find((t) => t.title.toLowerCase() === name.toLowerCase());
+                            if (existing) {
+                              setCircle(existing._id);
+                              return;
+                            }
+                            try {
+                              const { data } = await createNode({
+                                variables: {
+                                  input: {
+                                    title: name,
+                                    type: 'TAG',
+                                    metadata: { kind: 'circle' },
+                                  },
+                                },
+                              });
+                              const createdId = (data as any)?.createNode?._id as string | undefined;
+                              if (createdId) setCircle(createdId);
+                              toast({ message: 'Circle created', variant: 'success', details: name });
+                            } catch (err: any) {
+                              toast({ message: 'Failed to create circle', variant: 'error', details: err.message });
+                            }
                           } else {
                             setCircle(val);
                           }
@@ -673,8 +690,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                           color: 'var(--text)', outline: 'none', cursor: 'pointer',
                         }}
                       >
+                        <option value="">No circle</option>
                         {circleOptions.map(c => (
-                          <option key={c} value={c}>{c}</option>
+                          <option key={c._id} value={c._id}>{c.title}</option>
                         ))}
                         <option value="__new_circle__">+ New circle...</option>
                       </select>
