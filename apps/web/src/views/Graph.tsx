@@ -5,6 +5,7 @@ import { TypeBadge, StatusDot, ProgressBar, Button, Icons } from '../components/
 import { TypeIcon } from '../components/ui';
 import { TYPE_COLORS } from '../lib/types';
 import { getTheme } from '../lib/theme';
+import { circleTagsOf, circleOfPerson } from '../lib/circles';
 
 interface GraphProps {
   onOpen: (id: string) => void;
@@ -358,8 +359,11 @@ export default function Graph({ onOpen }: GraphProps) {
 }
 
 function GraphSidePanel({ node, onClose, onOpen }: { node: any; onClose: () => void; onOpen: (id: string) => void }) {
-  const { breadcrumb, childrenOf } = useNodes();
+  const { breadcrumb, childrenOf, byType } = useNodes();
   const m = node.metadata as any ?? {};
+  const circleTitle = node.type === 'PERSON'
+    ? circleOfPerson(node, circleTagsOf(byType('TAG')))?.title
+    : undefined;
   const bc = breadcrumb(node._id).map((c: any) => c.title).join(' / ');
   const children = childrenOf[node._id] ?? [];
 
@@ -417,7 +421,7 @@ function GraphSidePanel({ node, onClose, onOpen }: { node: any; onClose: () => v
       )}
       {node.type === 'PERSON' && (
         <>
-          {m.circle && <Row label="Circle">{m.circle}</Row>}
+          {circleTitle && <Row label="Circle">{circleTitle}</Row>}
           {m.role && <Row label="Role">{m.role}</Row>}
         </>
       )}
