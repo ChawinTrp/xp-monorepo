@@ -4,11 +4,9 @@ import { useNodes } from '../lib/hooks';
 import { Icons, TypeBadge, Button, useToast } from './ui';
 import { CREATE_NODE, GET_NODES } from '../lib/graphql';
 import { TYPE_COLORS } from '../lib/types';
+import { circleTagsOf } from '../lib/circles';
 
 const CREATABLE_TYPES = ['TASK', 'ROUTINE', 'PROJECT', 'SKILL', 'PERSON', 'DOMAIN', 'TAG'] as const;
-
-// Circles match the People view's GROUP_META grouping
-const PERSON_CIRCLES = ['Network', 'Core Team', 'Mentors', 'Close Friends', 'Family', 'Aura Team'] as const;
 
 /** "Alice Chen" -> "AC"; single word -> first two letters. */
 function deriveInitials(name: string): string {
@@ -99,13 +97,18 @@ export default function CreateNodeModal({
       setTimeOfDay('morning');
       setGroup('');
       setRole('');
-      setCircle(defaultCircle ?? readCapturePref(CAPTURE_KEYS.circle) ?? 'Network');
+      {
+        const candidate = defaultCircle ?? readCapturePref(CAPTURE_KEYS.circle) ?? 'Network';
+        const circleTagTitles = circleTagsOf(byType('TAG')).map((t) => t.title);
+        const isKnown = circleTagTitles.includes(candidate) || candidate === defaultCircle;
+        setCircle(isKnown ? candidate : 'Network');
+      }
       setEmail('');
       setPhone('');
       setLinkedSkillIds([]);
       setTimeout(() => titleRef.current?.focus(), 100);
     }
-    // byId intentionally omitted: only read on open; including it would reset the form on cache updates.
+    // byId/byType intentionally omitted: only read on open; including them would reset the form on cache updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultType, defaultStatus, defaultParentId, defaultCircle]);
 
@@ -122,7 +125,8 @@ export default function CreateNodeModal({
   const projects = byType('PROJECT');
   const domains = byType('DOMAIN');
 
-  // Circle options = defaults + circles already in use + any new one passed in (de-duped, ordered)
+  // Circle options = circle TAG titles (defaults-first order) + any new one passed in (de-duped, ordered)
+  const circleTags = circleTagsOf(byType('TAG'));
   const circleOptions = (() => {
     const seen = new Set<string>();
     const out: string[] = [];
@@ -130,8 +134,7 @@ export default function CreateNodeModal({
       const v = c?.trim();
       if (v && !seen.has(v)) { seen.add(v); out.push(v); }
     };
-    PERSON_CIRCLES.forEach(add);
-    for (const p of byType('PERSON')) add((p.metadata as any)?.circle);
+    circleTags.forEach((t) => add(t.title));
     add(defaultCircle);
     return out;
   })();
@@ -168,16 +171,20 @@ export default function CreateNodeModal({
     }
     if (type === 'PERSON') {
       metadata.initials = deriveInitials(title);
-      metadata.circle = circle;
       if (role.trim()) metadata.role = role.trim();
       if (email.trim()) metadata.email = email.trim();
       if (phone.trim()) metadata.phone = phone.trim();
-      metadata.catchupState = 'none';
     }
+
+    // Resolve the selected circle name to its TAG _id (if it still exists).
+    const circleTagId = type === 'PERSON'
+      ? circleTags.find((t) => t.title === circle)?._id
+      : undefined;
 
     const parents = [
       ...(parentId ? [parentId] : []),
       ...linkedSkillIds,
+      ...(circleTagId ? [circleTagId] : []),
     ];
 
     try {
@@ -475,11 +482,29 @@ export default function CreateNodeModal({
                 <Label>Circle</Label>
                 <select
                   value={circle}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const val = e.target.value;
                     if (val === '__new_circle__') {
                       const name = window.prompt('Name the new circle')?.trim();
-                      if (name) setCircle(name);
+                      if (!name) return;
+                      const existing = circleTags.find((t) => t.title.toLowerCase() === name.toLowerCase());
+                      if (!existing) {
+                        try {
+                          await createNode({
+                            variables: {
+                              input: {
+                                title: name,
+                                type: 'TAG',
+                                metadata: { kind: 'circle' },
+                              },
+                            },
+                          });
+                        } catch (err: any) {
+                          toast({ message: 'Failed to create circle', variant: 'error', details: err.message });
+                          return;
+                        }
+                      }
+                      setCircle(existing?.title ?? name);
                     } else {
                       setCircle(val);
                     }
