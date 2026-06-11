@@ -66,6 +66,7 @@ export default function CreateNodeModal({
   const [group, setGroup] = useState('');
   const [role, setRole] = useState('');
   const [circle, setCircle] = useState<string>('Network');
+  const [pendingCircle, setPendingCircle] = useState<{ title: string; _id: string } | null>(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [linkedSkillIds, setLinkedSkillIds] = useState<string[]>([]);
@@ -103,6 +104,7 @@ export default function CreateNodeModal({
         const isKnown = circleTagTitles.includes(candidate) || candidate === defaultCircle;
         setCircle(isKnown ? candidate : 'Network');
       }
+      setPendingCircle(null);
       setEmail('');
       setPhone('');
       setLinkedSkillIds([]);
@@ -177,8 +179,10 @@ export default function CreateNodeModal({
     }
 
     // Resolve the selected circle name to its TAG _id (if it still exists).
+    // Fall back to a just-created circle's id if the cache hasn't refreshed yet.
     const circleTagId = type === 'PERSON'
       ? circleTags.find((t) => t.title === circle)?._id
+        ?? (pendingCircle?.title === circle ? pendingCircle._id : undefined)
       : undefined;
 
     const parents = [
@@ -490,7 +494,7 @@ export default function CreateNodeModal({
                       const existing = circleTags.find((t) => t.title.toLowerCase() === name.toLowerCase());
                       if (!existing) {
                         try {
-                          await createNode({
+                          const { data } = await createNode({
                             variables: {
                               input: {
                                 title: name,
@@ -499,6 +503,11 @@ export default function CreateNodeModal({
                               },
                             },
                           });
+                          const createdId = (data as any)?.createNode?._id as string | undefined;
+                          if (createdId) {
+                            setPendingCircle({ title: name, _id: createdId });
+                          }
+                          toast({ message: 'Circle created', variant: 'success', details: name });
                         } catch (err: any) {
                           toast({ message: 'Failed to create circle', variant: 'error', details: err.message });
                           return;
