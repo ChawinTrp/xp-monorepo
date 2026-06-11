@@ -5,18 +5,11 @@ import { TypeBadge, TypeIcon, ProgressBar, TagChip, Button, Icons, LevelBadge, u
 import { TYPE_COLORS } from '../lib/types';
 import { UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
 import { getPersonCatchup } from '../lib/queue';
-
-type NodeType = 'DOMAIN' | 'SKILL' | 'PROJECT' | 'TASK' | 'PERSON' | 'TAG' | 'ROUTINE';
+import { ALLOWED_MAIN_PARENTS, localDateStr, type NodeType } from '@xp/shared';
 
 // ── Streak visual helpers ──
-function _localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${mo}-${day}`;
-}
-const _TODAY = _localDateStr();
-const _YESTERDAY = _localDateStr(new Date(Date.now() - 86400000));
+const _TODAY = localDateStr();
+const _YESTERDAY = localDateStr(new Date(Date.now() - 86400000));
 function _checkInDates(meta: any): string[] {
   if (Array.isArray(meta?.checkIns)) return meta.checkIns.map((c: any) => c.date);
   if (Array.isArray(meta?.checkInDates)) return meta.checkInDates;
@@ -28,18 +21,6 @@ function streakClass(streak: number, isLapsed: boolean): string {
   if (streak >= 7) return 'streak-fire';
   return '';
 }
-
-// Mirrors @xp/shared ALLOWED_MAIN_PARENTS — inlined to avoid the cross-package import
-// (Vite caches the prebuilt dist and doesn't re-detect new exports without a full restart).
-const ALLOWED_MAIN_PARENTS: Record<NodeType, NodeType[] | null> = {
-  DOMAIN:  ['DOMAIN'],
-  SKILL:   ['DOMAIN'],
-  PROJECT: ['DOMAIN'],
-  TASK:    ['PROJECT', 'DOMAIN', 'TASK'],
-  PERSON:  ['DOMAIN'],
-  TAG:     null,
-  ROUTINE: ['DOMAIN'],
-};
 
 interface NodeDetailProps {
   id: string;
@@ -124,7 +105,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
 
   const handleComplete = async () => {
     try {
-      const { data } = await completeTask({ variables: { id, completedDate: _localDateStr() } });
+      const { data } = await completeTask({ variables: { id, completedDate: localDateStr() } });
       const affectedNodes = data?.completeTask ?? [];
       const skills = affectedNodes.filter((node: any) => node.type === 'SKILL');
 

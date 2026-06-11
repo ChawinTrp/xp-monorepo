@@ -1,12 +1,8 @@
 import type { XPNode } from './types';
+import { localDateStr, getWeekStart, getWeekDates } from '@xp/shared';
 
-// ── Local-date string (YYYY-MM-DD). Drift-safe vs. UTC.
-export function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+// Re-export so existing view imports keep one entry point for queue+date utils.
+export { localDateStr };
 
 // ── localDateStr of `base` shifted by `days` (e.g. tomorrow = addDaysStr(new Date(), 1)).
 export function addDaysStr(base: Date, days: number): string {
@@ -29,13 +25,10 @@ export function isCheckedOn(meta: any, day: string): boolean {
 
 // ── Cadence-aware "already satisfied" check. A weekly routine checked Monday
 //    shouldn't reappear in the queue Tue–Sun; monthly likewise within the month.
-//    Weeks are Sunday-start (canonical, matches @xp/shared.getWeekStart).
+//    Weeks are Sunday-start (canonical @xp/shared convention).
 function weekRangeOf(day: string): { start: string; end: string } {
-  const d = new Date(day + 'T00:00:00');
-  d.setDate(d.getDate() - d.getDay());
-  const start = localDateStr(d);
-  d.setDate(d.getDate() + 6);
-  return { start, end: localDateStr(d) };
+  const start = getWeekStart(day);
+  return { start, end: getWeekDates(start)[6] };
 }
 export function isRoutineSatisfied(meta: any, day: string): boolean {
   const cadence = meta?.cadence ?? 'daily';

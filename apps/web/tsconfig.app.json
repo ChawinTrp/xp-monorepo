@@ -15,6 +15,9 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "paths": {
+      "@xp/shared": ["../../packages/shared/index.ts"]
+    },
 
     /* Linting */
     "strict": true,

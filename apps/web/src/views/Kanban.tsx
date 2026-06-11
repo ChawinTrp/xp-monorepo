@@ -6,13 +6,7 @@ import NodeCard from '../components/NodeCard';
 import { UPDATE_NODE, COMPLETE_TASK, GET_NODES } from '../lib/graphql';
 import { differenceInDays, format } from 'date-fns';
 import PlanMode from './PlanMode';
-
-function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${mo}-${day}`;
-}
+import { localDateStr } from '@xp/shared';
 
 interface KanbanProps {
   onOpen: (id: string) => void;

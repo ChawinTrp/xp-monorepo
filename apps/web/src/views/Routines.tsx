@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { Icons, RingGauge, Dropdown, Button, useToast } from '../components/ui';
 import { CHECK_IN_ROUTINE, UNDO_CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES, WEEK_PROGRESS } from '../lib/graphql';
+import { localDateStr } from '@xp/shared';
 
 interface RoutinesProps {
   onOpen: (id: string) => void;
@@ -10,12 +11,6 @@ interface RoutinesProps {
 }
 
 // ── Date helpers ──
-function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 const TODAY_STR = localDateStr();
 const YESTERDAY_STR = localDateStr(new Date(Date.now() - 86400000));
 function last30Dates(): string[] {

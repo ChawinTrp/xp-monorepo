@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import * as dotenv from 'dotenv';
 import { join } from 'path';
-import { getWeekStart } from '@xp/shared';
+import { getWeekStart, localDateStr } from '@xp/shared';
 
 dotenv.config({ path: join(__dirname, '..', '.env') });
 if (!process.env.MONGO_URI) {
@@ -24,13 +24,6 @@ const NodeSchema = new mongoose.Schema(
 );
 
 const Node = mongoose.model('Node', NodeSchema);
-
-function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
 
 type CheckIn = { date: string; hours: number };
 

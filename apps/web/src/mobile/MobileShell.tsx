@@ -13,6 +13,7 @@ import {
   buildQueue, isOverdue, isCheckedOn, localDateStr, addDaysStr,
   type QueueEntry,
 } from '../lib/queue';
+import { getWeekStart } from '@xp/shared';
 
 // ── Today / tomorrow (date helpers now live in ../lib/queue)
 const TODAY = localDateStr();
@@ -673,13 +674,9 @@ function StatsView() {
   const doneToday       = dailyRoutines.filter(r => isCheckedOn(r.metadata, TODAY)).length;
   const totalHours      = Math.round(skills.reduce((s, k) => s + ((k.metadata as any)?.totalHours ?? 0), 0));
 
-  // Sunday-start week (canonical, matches @xp/shared) + local completedDate
+  // Sunday-start week (canonical @xp/shared) + local completedDate
   // with legacy UTC completedAt fallback — same convention as Dashboard.
-  const weekStart = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - d.getDay());
-    return localDateStr(d);
-  })();
+  const weekStart = getWeekStart();
   const doneThisWeek = tasks.filter(t => {
     if (t.status !== 'DONE') return false;
     const m = t.metadata as any;

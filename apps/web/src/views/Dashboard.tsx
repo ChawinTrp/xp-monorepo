@@ -4,19 +4,7 @@ import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui'
 import NodeCard from '../components/NodeCard';
 import { WEEK_PROGRESS } from '../lib/graphql';
 import { isOverdue, isCheckedOn, getPersonCatchup } from '../lib/queue';
-
-// Date helpers mirror @xp/shared (canonical) — Sunday-start, local dates.
-function localDateStr(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-function getWeekStart(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() - d.getDay()); // getDay() === 0 for Sunday
-  return localDateStr(d);
-}
+import { localDateStr, getWeekStart } from '@xp/shared';
 
 function WinTheWeekWidget() {
   const { data, loading } = useQuery(WEEK_PROGRESS);
