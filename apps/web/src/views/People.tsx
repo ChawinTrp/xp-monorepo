@@ -1,52 +1,71 @@
 import { useState, useEffect } from 'react';
+import { useMutation } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
-import { Icons, Avatar, Button } from '../components/ui';
+import { Icons, Avatar, Button, useToast } from '../components/ui';
 import CreateNodeModal from '../components/CreateNodeModal';
 import { getPersonCatchup } from '../lib/queue';
+import { CREATE_NODE, GET_NODES } from '../lib/graphql';
+import { circleTagsOf, circleOfPerson, circleColorOf } from '../lib/circles';
+import type { XPNode } from '../lib/types';
 
 interface PeopleProps {
   onOpen: (id: string) => void;
 }
 
-const GROUP_META = [
-  { name: 'Family', color: 'var(--c-person)', Icon: Icons.User },
-  { name: 'Close Friends', color: 'var(--accent)', Icon: Icons.Sparkles },
-  { name: 'Core Team', color: 'var(--orange)', Icon: Icons.Users },
-  { name: 'Aura Team', color: 'var(--blue)', Icon: Icons.Users },
-  { name: 'Mentors', color: 'var(--yellow)', Icon: Icons.Award },
-  { name: 'Network', color: 'var(--c-routine)', Icon: Icons.Network },
-];
+// Icons for the 6 default circles; any other circle tag falls back to Icons.Network.
+const CIRCLE_ICONS: Record<string, typeof Icons.User> = {
+  'Family': Icons.User,
+  'Close Friends': Icons.Sparkles,
+  'Core Team': Icons.Users,
+  'Aura Team': Icons.Users,
+  'Mentors': Icons.Award,
+  'Network': Icons.Network,
+};
 
-// Style for a circle not in GROUP_META (user-created via "New circle")
-function metaFor(name: string) {
-  return GROUP_META.find((g) => g.name === name) ?? { name, color: 'var(--c-routine)', Icon: Icons.Network };
+function iconFor(name: string) {
+  return CIRCLE_ICONS[name] ?? Icons.Network;
 }
+
+const UNSORTED_KEY = '__unsorted__';
 
 export default function People({ onOpen }: PeopleProps) {
   const { byType } = useNodes();
+  const { toast } = useToast();
   const people = byType('PERSON');
+  const circleTags = circleTagsOf(byType('TAG'));
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createCircle, setCreateCircle] = useState<string | undefined>(undefined);
   const [sortBy, setSortBy] = useState<'circle' | 'nextCatchup' | 'lastCatchup'>('circle');
-  const [emptyCircles, setEmptyCircles] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('xp-empty-circles');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+
+  const [createCircleTag] = useMutation(CREATE_NODE, { refetchQueries: [{ query: GET_NODES }] });
+
+  // One-time cleanup of the stale localStorage key from the pre-TAG empty-circles feature.
+  useEffect(() => {
+    try { localStorage.removeItem('xp-empty-circles'); } catch { /* ignore */ }
+  }, []);
 
   const addPerson = () => { setCreateCircle(undefined); setCreateOpen(true); };
-  const newCircle = () => {
+  const newCircle = async () => {
     const name = window.prompt('Name the new circle')?.trim();
-    if (name) {
-      setEmptyCircles(prev => {
-        const next = prev.includes(name) ? prev : [...prev, name];
-        localStorage.setItem('xp-empty-circles', JSON.stringify(next));
-        return next;
+    if (!name) return;
+    if (circleTags.some((c) => c.title.toLowerCase() === name.toLowerCase())) {
+      toast({ message: 'Circle already exists', variant: 'error', details: name });
+      return;
+    }
+    try {
+      await createCircleTag({
+        variables: {
+          input: {
+            title: name,
+            type: 'TAG',
+            metadata: { kind: 'circle' },
+          },
+        },
       });
+      toast({ message: 'Circle created', variant: 'success', details: name });
+    } catch (err: any) {
+      toast({ message: 'Failed to create circle', variant: 'error', details: err.message });
     }
   };
 
@@ -61,29 +80,21 @@ export default function People({ onOpen }: PeopleProps) {
     };
   });
 
-  // Automatically prune emptyCircles from state and localStorage if they now have members
-  useEffect(() => {
-    const nextEmpty = emptyCircles.filter(c => !peopleWithCatchup.some(p => (p.metadata as any)?.circle === c));
-    if (nextEmpty.length !== emptyCircles.length) {
-      setEmptyCircles(nextEmpty);
-      localStorage.setItem('xp-empty-circles', JSON.stringify(nextEmpty));
-    }
-  }, [peopleWithCatchup, emptyCircles]);
+  const networkTag = circleTags.find((t) => t.title === 'Network');
 
   const byGroup: Record<string, typeof peopleWithCatchup> = {};
-  for (const meta of GROUP_META) byGroup[meta.name] = [];
+  for (const tag of circleTags) byGroup[tag._id] = [];
+  byGroup[UNSORTED_KEY] = [];
   for (const p of peopleWithCatchup) {
-    const circle = (p.metadata as any)?.circle ?? 'Network';
-    (byGroup[circle] ??= []).push(p);
+    const circle = circleOfPerson(p as unknown as XPNode, circleTags);
+    if (circle) {
+      byGroup[circle._id].push(p);
+    } else if (networkTag) {
+      byGroup[networkTag._id].push(p);
+    } else {
+      byGroup[UNSORTED_KEY].push(p);
+    }
   }
-
-  // Default circles first, then any extra circles people are actually assigned to, then empty circles (de-duped, ordered)
-  const circleNames = [
-    ...GROUP_META.map((g) => g.name),
-    ...peopleWithCatchup.map((p) => (p.metadata as any)?.circle).filter((c: unknown): c is string =>
-      typeof c === 'string' && c.trim().length > 0 && !GROUP_META.some((g) => g.name === c)),
-    ...emptyCircles,
-  ].filter((name, i, arr) => arr.indexOf(name) === i);
 
   const overdue = peopleWithCatchup.filter((p) => p.metadata.catchupState === 'overdue');
 
@@ -107,7 +118,7 @@ export default function People({ onOpen }: PeopleProps) {
           <div className="flex gap-3.5 mt-2.5 flex-wrap" style={{ fontSize: 12 }}>
             <span className="text-ctp-subtext1">{people.length} contacts</span>
             <span className="text-ctp-subtext1">·</span>
-            <span className="text-ctp-subtext1">{circleNames.filter(n => byGroup[n]?.length).length} circles</span>
+            <span className="text-ctp-subtext1">{circleTags.length} circles</span>
             {overdue.length > 0 && <>
               <span className="text-ctp-subtext1">·</span>
               <span className="text-ctp-red">⚠ {overdue.length} overdue catch-up{overdue.length === 1 ? '' : 's'}</span>
@@ -169,33 +180,33 @@ export default function People({ onOpen }: PeopleProps) {
 
       {sortBy === 'circle' ? (
         <div className="flex flex-col gap-7">
-          {circleNames.map((name) => {
-            const meta = metaFor(name);
-            const members = byGroup[name] ?? [];
-            if (members.length === 0 && !emptyCircles.includes(name)) return null;
+          {circleTags.map((tag) => {
+            const Icon = iconFor(tag.title);
+            const color = circleColorOf(tag);
+            const members = byGroup[tag._id] ?? [];
             return (
-              <section key={name}>
+              <section key={tag._id}>
                 <header className="flex items-center gap-3 mb-3.5">
                   <div className="grid place-items-center" style={{
                     width: 36, height: 36, borderRadius: 10,
-                    background: `color-mix(in srgb, ${meta.color} 18%, var(--surface0))`,
-                    border: `1px solid color-mix(in srgb, ${meta.color} 30%, var(--surface1))`,
+                    background: `color-mix(in srgb, ${color} 18%, var(--surface0))`,
+                    border: `1px solid color-mix(in srgb, ${color} 30%, var(--surface1))`,
                   }}>
-                    <meta.Icon size={14} color={meta.color} />
+                    <Icon size={14} color={color} />
                   </div>
                   <div className="flex-1">
-                    <h2 className="m-0 text-[17px] font-bold text-ctp-text">{meta.name}</h2>
+                    <h2 className="m-0 text-[17px] font-bold text-ctp-text">{tag.title}</h2>
                     <div className="flex items-center gap-2 mt-0.5 text-ctp-subtext1" style={{ fontSize: 11 }}>
                       <span>{members.length} {members.length === 1 ? 'person' : 'people'}</span>
                     </div>
                   </div>
                 </header>
                 <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', paddingLeft: 'clamp(0px, 5vw, 48px)' }}>
-                  {members.map((p) => <PersonChip key={p._id} person={p} circleColor={meta.color} onOpen={onOpen} />)}
+                  {members.map((p) => <PersonChip key={p._id} person={p} circleColor={color} onOpen={onOpen} />)}
                   {members.length === 0 && (
                     <button
                       onClick={() => {
-                        setCreateCircle(name);
+                        setCreateCircle(tag.title);
                         setCreateOpen(true);
                       }}
                       className="flex items-center justify-center gap-2 border-dashed rounded-[10px] cursor-pointer text-ctp-overlay1 hover:text-ctp-text hover:border-ctp-text transition-colors duration-200"
@@ -214,11 +225,34 @@ export default function People({ onOpen }: PeopleProps) {
               </section>
             );
           })}
+          {byGroup[UNSORTED_KEY]?.length > 0 && (
+            <section key={UNSORTED_KEY}>
+              <header className="flex items-center gap-3 mb-3.5">
+                <div className="grid place-items-center" style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: 'color-mix(in srgb, var(--c-routine) 18%, var(--surface0))',
+                  border: '1px solid color-mix(in srgb, var(--c-routine) 30%, var(--surface1))',
+                }}>
+                  <Icons.Network size={14} color="var(--c-routine)" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="m-0 text-[17px] font-bold text-ctp-text">Unsorted</h2>
+                  <div className="flex items-center gap-2 mt-0.5 text-ctp-subtext1" style={{ fontSize: 11 }}>
+                    <span>{byGroup[UNSORTED_KEY].length} {byGroup[UNSORTED_KEY].length === 1 ? 'person' : 'people'}</span>
+                  </div>
+                </div>
+              </header>
+              <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', paddingLeft: 'clamp(0px, 5vw, 48px)' }}>
+                {byGroup[UNSORTED_KEY].map((p) => <PersonChip key={p._id} person={p} circleColor="var(--c-routine)" onOpen={onOpen} />)}
+              </div>
+            </section>
+          )}
         </div>
       ) : (
         <div className="grid gap-2.5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
           {sortedPeople.map((p) => {
-            const circleColor = metaFor(p.metadata.circle ?? '').color;
+            const circle = circleOfPerson(p as unknown as XPNode, circleTags);
+            const circleColor = circle ? circleColorOf(circle) : 'var(--c-routine)';
             return <PersonChip key={p._id} person={p} circleColor={circleColor} onOpen={onOpen} />;
           })}
         </div>
