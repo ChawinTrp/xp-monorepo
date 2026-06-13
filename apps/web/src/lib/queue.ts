@@ -1,8 +1,10 @@
 import type { XPNode } from './types';
-import { localDateStr, getWeekStart, getWeekDates } from '@xp/shared';
+import { localDateStr, logicalDateStr, addDays, getWeekStart, getWeekDates } from '@xp/shared';
 
 // Re-export so existing view imports keep one entry point for queue+date utils.
-export { localDateStr };
+// logicalDateStr is the 5am-cutoff "today" — prefer it over bare localDateStr()
+// for anything that means "the day the user is currently living in".
+export { localDateStr, logicalDateStr, addDays };
 
 // ── localDateStr of `base` shifted by `days` (e.g. tomorrow = addDaysStr(new Date(), 1)).
 export function addDaysStr(base: Date, days: number): string {
@@ -176,7 +178,7 @@ export function buildQueue(nodes: XPNode[], opts: BuildQueueOpts): QueueEntry[] 
 }
 
 // ── Dynamic catch-up state helper for PERSON nodes
-export function getPersonCatchup(person: any, todayStr: string = localDateStr()) {
+export function getPersonCatchup(person: any, todayStr: string = logicalDateStr()) {
   const m = person?.metadata ?? {};
   const nextCatchup = m.nextCatchup as string | undefined;
   if (!nextCatchup) {

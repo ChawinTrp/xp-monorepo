@@ -1,6 +1,6 @@
 # Project XP: Master Architecture & System Design Document
 
-**Version:** 8.5 (Game + Orchestra + Mobile; Deployment ready)
+**Version:** 8.5 (Game + Orchestra + Mobile; Deployed — Render + Vercel)
 **Status:** Active Development
 **Lead Architect:** CT
 
@@ -272,28 +272,31 @@ npm run dev -w web
 
 ## 10. Deployment
 
+> **Canonical guide:** `docs/DEPLOYMENT.md` (live URLs, env vars, troubleshooting). This section is the summary.
+
+**Live:** Frontend → https://xp-monorepo-web.vercel.app · API → https://xp-monorepo.onrender.com/graphql
+
 ### 10.1 Architecture
 
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   Vercel (CDN)   │────▶│  Cloud Run (API)  │────▶│  MongoDB Atlas   │
+│   Vercel (CDN)   │────▶│   Render (API)    │────▶│  MongoDB Atlas   │
 │   React + Vite   │     │  NestJS + GraphQL │     │   xp-database    │
-│   Static build   │     │  asia-southeast1  │     │   (existing)     │
+│   Static build   │     │   Docker, free    │     │   (M0 free)      │
 └──────────────────┘     └──────────────────┘     └──────────────────┘
 ```
 
-### 10.2 API — GCP Cloud Run
+### 10.2 API — Render
 
-- **Dockerfile:** `apps/api/Dockerfile` (multi-stage: build + prod)
-- **Region:** `asia-southeast1` (Singapore — low latency from Bangkok)
-- **Port:** 8080 (Cloud Run default)
-- **Env vars (set in Cloud Run):**
-  - `MONGO_URI` — MongoDB Atlas connection string
-  - `PORT=8080`
+- **Dockerfile:** `apps/api/Dockerfile` (multi-stage: build + prod, Node.js 22)
+- **Region:** Washington, D.C. (Render free tier)
+- **Port:** Render injects `PORT`; `main.ts` reads `process.env.PORT`
+- **Env vars (set in Render):**
+  - `MONGO_URI` — MongoDB Atlas connection string (Atlas IP allowlist `0.0.0.0/0` for Render's dynamic IPs)
   - `NODE_ENV=production`
   - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (optional, for GCal)
-- **CORS:** `app.enableCors()` in `main.ts` — configure `origin` for production Vercel domain
-- **Scales to zero** on free tier — cold start ~2-5s
+- **CORS:** `app.enableCors()` in `main.ts` — `origin` set to the Vercel domain
+- **Scales to zero** on free tier — cold start ~30-50s on first request after idle
 
 ### 10.3 Frontend — Vercel
 
@@ -302,22 +305,15 @@ npm run dev -w web
 - **Build command:** `cd ../.. && npm ci && npm run build -w web`
 - **Output directory:** `dist`
 - **Env vars (set in Vercel):**
-  - `VITE_API_URL` — Cloud Run service URL (e.g. `https://xp-api-xxxxx-as.a.run.app`)
+  - `VITE_API_URL` — Render API URL (`https://xp-monorepo.onrender.com`)
 
-### 10.4 Deploy Commands
+### 10.4 Deploy
 
-```powershell
-# API — build and deploy to Cloud Run
-gcloud auth login
-gcloud config set project <PROJECT_ID>
-gcloud run deploy xp-api \
-  --source . \
-  --region asia-southeast1 \
-  --allow-unauthenticated \
-  --set-env-vars "MONGO_URI=<value>,PORT=8080,NODE_ENV=production"
+Both services auto-deploy from the GitHub repo on push to `main`:
+- **Render** — connected to the repo, builds `apps/api/Dockerfile`.
+- **Vercel** — connected to the repo, root `apps/web`, `VITE_API_URL` env var set.
 
-# Frontend — connect GitHub repo to Vercel, set VITE_API_URL env var
-```
+See `docs/DEPLOYMENT.md` for first-time setup and manual redeploy steps.
 
 ---
 

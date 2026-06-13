@@ -4,7 +4,7 @@ import { useNodes } from '../lib/hooks';
 import NodeCard from '../components/NodeCard';
 import { Icons, useToast } from '../components/ui';
 import { DAY_PLAN, UPSERT_DAY_PLAN } from '../lib/graphql';
-import { buildQueue, isRoutineSatisfied, addDaysStr } from '../lib/queue';
+import { buildQueue, isRoutineSatisfied, logicalDateStr, addDays } from '../lib/queue';
 import type { XPNode } from '../lib/types';
 
 interface DayPlanData {
@@ -19,7 +19,19 @@ const TOD_GLYPH: Record<string, string> = {
 
 export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
   const { nodes, byId, byType, breadcrumb, loading: nodesLoading } = useNodes();
-  const tomorrow = useMemo(() => addDaysStr(new Date(), 1), []);
+  // "Tomorrow" is relative to the 5am logical day. Track it in state and re-check
+  // each minute so a session left open across the 5am rollover advances to the
+  // new day instead of staying frozen at its mount-time value.
+  const [tomorrow, setTomorrow] = useState(() => addDays(logicalDateStr(), 1));
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTomorrow((prev) => {
+        const next = addDays(logicalDateStr(), 1);
+        return prev === next ? prev : next;
+      });
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
   const { toast } = useToast();
 
   const { data, loading } = useQuery<DayPlanData>(DAY_PLAN, { variables: { date: tomorrow } });
@@ -33,6 +45,10 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
   const [overIdx, setOverIdx] = useState<number | null>(null);
   const [overCol, setOverCol] = useState<'TODO' | 'IN_PROGRESS' | 'TOMORROW' | null>(null);
   const seeded = useRef(false);
+
+  // When the logical day rolls over (tomorrow changes), allow the seed effect to
+  // reload the new day's plan rather than keeping the prior day's order.
+  useEffect(() => { seeded.current = false; }, [tomorrow]);
 
   // Seed once on entry: load existing plan, else generate from buildQueue + persist.
   useEffect(() => {

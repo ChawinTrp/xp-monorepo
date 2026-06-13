@@ -6,7 +6,7 @@ import NodeCard from '../components/NodeCard';
 import { UPDATE_NODE, COMPLETE_TASK, GET_NODES } from '../lib/graphql';
 import { differenceInDays, format } from 'date-fns';
 import PlanMode from './PlanMode';
-import { localDateStr } from '@xp/shared';
+import { localDateStr, logicalDateStr } from '@xp/shared';
 
 interface KanbanProps {
   onOpen: (id: string) => void;
@@ -88,7 +88,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
 
     if (newStatus === 'DONE') {
       try {
-        const { data } = await completeTask({ variables: { id: dragId, completedDate: localDateStr() } });
+        const { data } = await completeTask({ variables: { id: dragId, completedDate: logicalDateStr() } });
         const skills = (data?.completeTask ?? []).filter((n: any) => n.type === 'SKILL');
         const taskNode = byId[dragId];
         const creditedHours = (taskNode?.metadata as any)?.actualHours ?? (taskNode?.metadata as any)?.estimatedHours ?? 0;
@@ -116,7 +116,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
 
   const handleQuickComplete = async (id: string) => {
     try {
-      const { data } = await completeTask({ variables: { id, completedDate: localDateStr() } });
+      const { data } = await completeTask({ variables: { id, completedDate: logicalDateStr() } });
       const skills = (data?.completeTask ?? []).filter((n: any) => n.type === 'SKILL');
       const taskNode = byId[id];
       const creditedHours = (taskNode?.metadata as any)?.actualHours ?? (taskNode?.metadata as any)?.estimatedHours ?? 0;

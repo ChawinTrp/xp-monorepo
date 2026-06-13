@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { google, calendar_v3 } from 'googleapis';
 import { Node, NodeDocument } from '../nodes/node.entity';
-import { localDateStr } from '@xp/shared';
+import { logicalDateStr } from '@xp/shared';
 
 interface GCalTokens {
   access_token: string;
@@ -122,8 +122,8 @@ export class GCalService {
     // Handle routines — daily recurring
     if (node.type === 'ROUTINE' && m.cadence === 'daily') {
       eventBody.recurrence = ['RRULE:FREQ=DAILY'];
-      eventBody.start = { date: localDateStr() };
-      eventBody.end = { date: localDateStr() };
+      eventBody.start = { date: logicalDateStr() };
+      eventBody.end = { date: logicalDateStr() };
     }
 
     try {

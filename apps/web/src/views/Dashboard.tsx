@@ -4,11 +4,11 @@ import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui'
 import NodeCard from '../components/NodeCard';
 import { WEEK_PROGRESS } from '../lib/graphql';
 import { isOverdue, isCheckedOn, getPersonCatchup } from '../lib/queue';
-import { localDateStr, getWeekStart } from '@xp/shared';
+import { logicalDateStr, parseLocalDate, getWeekStart } from '@xp/shared';
 
 function WinTheWeekWidget() {
   const { data, loading } = useQuery(WEEK_PROGRESS);
-  const today = localDateStr();
+  const today = logicalDateStr();
 
   if (loading || !data?.weekProgress) return null;
 
@@ -71,7 +71,7 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
   const routines = byType('ROUTINE');
   const allSkills = byType('SKILL');
 
-  const todayStr = localDateStr();
+  const todayStr = logicalDateStr();
   // Date-string compare (lib/queue.isOverdue): `new Date(due) < new Date()`
   // would mis-flag a due-today task as overdue for most of the day in UTC+7.
   const overdue = tasks.filter((t) => t.status !== 'DONE' && isOverdue(t, todayStr));
@@ -97,7 +97,9 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
     return completedDate && completedDate >= weekStart;
   }).length;
 
-  const today = new Date();
+  // Header date follows the logical day so it agrees with the streak/win pips
+  // (before 5am it still reads as the previous day).
+  const today = parseLocalDate(todayStr);
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   return (

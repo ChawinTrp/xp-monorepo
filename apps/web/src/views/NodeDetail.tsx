@@ -6,11 +6,11 @@ import { TYPE_COLORS } from '../lib/types';
 import { CREATE_NODE, UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
 import { getPersonCatchup } from '../lib/queue';
 import { circleTagsOf, circleOfPerson, isCircleTag } from '../lib/circles';
-import { ALLOWED_MAIN_PARENTS, localDateStr, type NodeType } from '@xp/shared';
+import { ALLOWED_MAIN_PARENTS, logicalDateStr, addDays, type NodeType } from '@xp/shared';
 
 // ── Streak visual helpers ──
-const _TODAY = localDateStr();
-const _YESTERDAY = localDateStr(new Date(Date.now() - 86400000));
+const _TODAY = logicalDateStr();
+const _YESTERDAY = addDays(logicalDateStr(), -1);
 function _checkInDates(meta: any): string[] {
   if (Array.isArray(meta?.checkIns)) return meta.checkIns.map((c: any) => c.date);
   if (Array.isArray(meta?.checkInDates)) return meta.checkInDates;
@@ -107,7 +107,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
 
   const handleComplete = async () => {
     try {
-      const { data } = await completeTask({ variables: { id, completedDate: localDateStr() } });
+      const { data } = await completeTask({ variables: { id, completedDate: logicalDateStr() } });
       const affectedNodes = data?.completeTask ?? [];
       const skills = affectedNodes.filter((node: any) => node.type === 'SKILL');
 

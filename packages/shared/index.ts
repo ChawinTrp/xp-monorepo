@@ -113,8 +113,36 @@ export function parseLocalDate(dateStr: string): Date {
   return new Date(y, m - 1, d);
 }
 
-/** Sunday that starts the week containing `dateStr` (defaults to today). Local. */
-export function getWeekStart(dateStr: string = localDateStr()): string {
+// ── Logical day (5am cutoff) ──
+// The "day" the user lives in rolls over at 5am, not midnight: anything done
+// between midnight and 5am counts toward the day that just ended. Every "today"
+// in the app (plans, streaks, win-the-week, check-ins, completion dates) should
+// derive from logicalDateStr so the boundary is consistent everywhere.
+
+/** Hour at which the logical day rolls over (local). Before this hour, an
+ *  instant belongs to the previous calendar date. */
+export const DAY_CUTOFF_HOUR = 5;
+
+/** Local YYYY-MM-DD of the *logical* day for `d` (defaults to now). Instants
+ *  before DAY_CUTOFF_HOUR map back to the previous calendar date. */
+export function logicalDateStr(d: Date = new Date()): string {
+  const shifted = new Date(d);
+  if (shifted.getHours() < DAY_CUTOFF_HOUR) {
+    shifted.setDate(shifted.getDate() - 1);
+  }
+  return localDateStr(shifted);
+}
+
+/** A YYYY-MM-DD string shifted by `n` local days (DST-safe; `n` may be negative). */
+export function addDays(dateStr: string, n: number): string {
+  const d = parseLocalDate(dateStr);
+  d.setDate(d.getDate() + n);
+  return localDateStr(d);
+}
+
+/** Sunday that starts the week containing `dateStr` (defaults to the logical
+ *  today). Local. */
+export function getWeekStart(dateStr: string = logicalDateStr()): string {
   const d = parseLocalDate(dateStr);
   d.setDate(d.getDate() - d.getDay()); // getDay() === 0 for Sunday
   return localDateStr(d);

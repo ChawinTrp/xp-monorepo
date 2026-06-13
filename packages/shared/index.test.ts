@@ -3,6 +3,9 @@ import {
   parseLocalDate,
   getWeekStart,
   getWeekDates,
+  logicalDateStr,
+  addDays,
+  DAY_CUTOFF_HOUR,
   dayWon,
   weekWon,
   WIN_RULES,
@@ -74,6 +77,57 @@ describe('getWeekDates', () => {
     expect(dates).toHaveLength(7);
     expect(dates[0]).toBe('2026-06-07');
     expect(dates[6]).toBe('2026-06-13');
+  });
+});
+
+describe('logicalDateStr (5am cutoff)', () => {
+  it('cutoff constant is 5am', () => {
+    expect(DAY_CUTOFF_HOUR).toBe(5);
+  });
+
+  it('maps an instant just before 5am back to the previous calendar day', () => {
+    // 2026-06-14 04:59 local → still the 13th's logical day
+    expect(logicalDateStr(new Date(2026, 5, 14, 4, 59, 59))).toBe('2026-06-13');
+  });
+
+  it('maps 5:00am exactly to the same calendar day', () => {
+    expect(logicalDateStr(new Date(2026, 5, 14, 5, 0, 0))).toBe('2026-06-14');
+  });
+
+  it('maps midday to the same calendar day', () => {
+    expect(logicalDateStr(new Date(2026, 5, 14, 12, 0, 0))).toBe('2026-06-14');
+  });
+
+  it('rolls back across a month boundary before 5am', () => {
+    // 2026-07-01 02:00 local → still June 30th's logical day
+    expect(logicalDateStr(new Date(2026, 6, 1, 2, 0, 0))).toBe('2026-06-30');
+  });
+
+  it('rolls back across a year boundary before 5am', () => {
+    // 2026-01-01 03:00 local → still 2025-12-31's logical day
+    expect(logicalDateStr(new Date(2026, 0, 1, 3, 0, 0))).toBe('2025-12-31');
+  });
+});
+
+describe('addDays', () => {
+  it('shifts a date string forward', () => {
+    expect(addDays('2026-06-13', 1)).toBe('2026-06-14');
+  });
+
+  it('shifts backward with a negative offset', () => {
+    expect(addDays('2026-06-13', -1)).toBe('2026-06-12');
+  });
+
+  it('crosses a month boundary', () => {
+    expect(addDays('2026-06-30', 1)).toBe('2026-07-01');
+  });
+
+  it('crosses a year boundary', () => {
+    expect(addDays('2025-12-31', 1)).toBe('2026-01-01');
+  });
+
+  it('round-trips with its own inverse', () => {
+    expect(addDays(addDays('2026-03-15', 10), -10)).toBe('2026-03-15');
   });
 });
 

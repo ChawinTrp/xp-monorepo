@@ -29,7 +29,7 @@ To ensure the system doesn't break or expose data during UAT, fundamental securi
 - [x] **Persist People circles server-side (circles → TAG nodes):**
   - Empty circles currently live only in `localStorage` (`xp-empty-circles` in `People.tsx`) and the circle list is duplicated between `People.tsx` (`GROUP_META`) and `CreateNodeModal.tsx` (`PERSON_CIRCLES`) — multi-device UAT will desync.
   - Proposed: model circles as TAG nodes (`metadata.kind: 'circle'`) per XP.md "tags are first-class" — membership via `parents`, color from TAG `color`, rename = one title edit. Needs a one-off migration from `metadata.circle` strings. No schema/enum change.
-  - (Landed on branch `feat/circles-as-tags`; run the one-off `npm run migrate:circles -w api` once against the DB to backfill existing `metadata.circle` strings into circle TAG nodes.)
+  - (Merged to `main`. Run the one-off `npm run migrate:circles -w api` once against the DB to backfill existing `metadata.circle` strings into circle TAG nodes — see memory note "Circles as TAGs".)
 
 ## Phase 3: Performance & Type Safety (Fast Follows)
 While UAT *could* start with the current over-fetching, it will degrade the experience rapidly.

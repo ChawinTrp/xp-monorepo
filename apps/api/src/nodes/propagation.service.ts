@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
-import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, getWeekDates, getWeekStart, localDateStr, parseLocalDate } from '@xp/shared';
+import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, getWeekDates, getWeekStart, localDateStr, logicalDateStr, parseLocalDate } from '@xp/shared';
 import { CompleteTaskInput } from './dto/complete-task.input';
 
 @Injectable()
@@ -21,7 +21,7 @@ export class PropagationService {
       (meta.actualHours as number) ?? (meta.estimatedHours as number) ?? 0;
 
     meta.completedAt = new Date().toISOString();
-    meta.completedDate = input.completedDate ?? localDateStr();
+    meta.completedDate = input.completedDate ?? logicalDateStr();
     meta.creditedHours = creditedHours;
 
     task.status = 'DONE';
@@ -246,7 +246,7 @@ export class PropagationService {
       throw new Error('checkInRoutine called on non-ROUTINE node');
 
     const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
-    const today = localDateStr();
+    const today = logicalDateStr();
 
     // Canonical log: one entry per completed day, with the hours spent that day.
     const checkIns = this.readCheckIns(meta);
@@ -341,7 +341,7 @@ export class PropagationService {
       throw new Error('undoCheckInRoutine called on non-ROUTINE node');
 
     const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
-    const today = localDateStr();
+    const today = logicalDateStr();
     const checkIns = this.readCheckIns(meta);
 
     const todayEntry = checkIns.find(c => c.date === today);
@@ -503,7 +503,7 @@ export class PropagationService {
   }
 
   async getWeekProgress(weekStart?: string): Promise<any> {
-    const today = localDateStr();
+    const today = logicalDateStr();
     const start = weekStart ?? getWeekStart(today);
 
     const allNodes = await this.nodeModel.find({}).lean();

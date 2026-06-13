@@ -10,15 +10,15 @@ import {
 import type { XPNode } from '../lib/types';
 import CreateNodeModal from '../components/CreateNodeModal';
 import {
-  buildQueue, isOverdue, isCheckedOn, localDateStr, addDaysStr,
+  buildQueue, isOverdue, isCheckedOn, logicalDateStr, addDays,
   type QueueEntry,
 } from '../lib/queue';
-import { getWeekStart } from '@xp/shared';
+import { getWeekStart, parseLocalDate } from '@xp/shared';
 
-// ── Today / tomorrow (date helpers now live in ../lib/queue)
-const TODAY = localDateStr();
+// ── Today / tomorrow (5am logical-day boundary; helpers live in ../lib/queue)
+const TODAY = logicalDateStr();
 function tomorrowStr(): string {
-  return addDaysStr(new Date(), 1);
+  return addDays(logicalDateStr(), 1);
 }
 
 // ── Timer helpers
@@ -418,7 +418,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       <div style={S.header}>
         <div>
           <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 11, color: 'var(--subtext1)', letterSpacing: 0.8 }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}
+            {parseLocalDate(logicalDateStr()).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase()}
           </div>
           <h1 style={{ fontSize: 26, fontWeight: 700, margin: '2px 0 0', letterSpacing: -0.5 }}>Focus</h1>
         </div>
@@ -719,7 +719,7 @@ function StatsView() {
       <div style={{ paddingTop: 8 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>Stats</h1>
         <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 12, color: 'var(--subtext1)', marginTop: 2 }}>
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+          {parseLocalDate(logicalDateStr()).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 18 }}>
@@ -910,7 +910,7 @@ export default function MobileShell() {
       if (node.type === 'ROUTINE') {
         await checkInMut({ variables: { id: node._id } });
       } else {
-        await completeTaskMut({ variables: { id: node._id, completedDate: localDateStr() } });
+        await completeTaskMut({ variables: { id: node._id, completedDate: logicalDateStr() } });
       }
     } catch { /* ignore */ }
   }, [runningId, stopTimerMut, checkInMut, completeTaskMut]);
