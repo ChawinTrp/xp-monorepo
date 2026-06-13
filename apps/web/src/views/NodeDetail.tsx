@@ -51,6 +51,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const [due, setDue] = useState<string>('');
   const [priority, setPriority] = useState<string>('');
   const [estimatedHours, setEstimatedHours] = useState<string>('');
+  const [timeOfDay, setTimeOfDay] = useState<string>('');
   const [mainParentId, setMainParentId] = useState<string>('');
 
   // Editable metadata fields (for PERSON)
@@ -77,6 +78,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       setDue(meta.due ?? '');
       setPriority(meta.priority ?? '');
       setEstimatedHours(meta.estimatedHours != null ? String(meta.estimatedHours) : '');
+      setTimeOfDay(meta.timeOfDay ?? '');
       setMainParentId(n.mainParent ?? '');
       setTags(meta.tags ?? []);
 
@@ -187,6 +189,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         if (priority) newMeta.priority = priority; else delete newMeta.priority;
         if (estimatedHours) newMeta.estimatedHours = parseFloat(estimatedHours);
         else delete newMeta.estimatedHours;
+      }
+      if (n.type === 'ROUTINE') {
+        if (timeOfDay) newMeta.timeOfDay = timeOfDay; else delete newMeta.timeOfDay;
       }
       if (n.type === 'PERSON') {
         if (email.trim()) newMeta.email = email.trim(); else delete newMeta.email;
@@ -591,6 +596,24 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                 <>
                   <Field label="Cadence"><span className="capitalize">{m.cadence}</span></Field>
                   <Field label="Target"><span>{m.target}</span></Field>
+                  <Field label="Time of day">
+                    <select
+                      value={timeOfDay}
+                      onChange={(e) => setTimeOfDay(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    >
+                      <option value="">⋯ Anytime</option>
+                      <option value="morning">☀ Morning</option>
+                      <option value="afternoon">◐ Afternoon</option>
+                      <option value="evening">◑ Evening</option>
+                      <option value="night">☾ Night</option>
+                    </select>
+                  </Field>
                   <Field label="Streak">
                     {(() => {
                       const sc = streakClass(m.streak ?? 0, m.cadence === 'daily' && !_checkInDates(m).some((d: string) => d === _TODAY || d === _YESTERDAY));
