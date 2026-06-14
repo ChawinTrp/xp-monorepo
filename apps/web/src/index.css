@@ -5,83 +5,93 @@
 @tailwind utilities;
 
 :root {
-  --base: #1e1e2e;
-  --mantle: #181825;
-  --crust: #11111b;
-  --surface0: #313244;
-  --surface1: #45475a;
-  --surface2: #585b70;
-  --overlay0: #6c7086;
-  --overlay1: #7f849c;
-  --overlay2: #9399b2;
-  --text: #cdd6f4;
-  --subtext0: #bac2de;
-  --subtext1: #a6adc8;
-  --accent: #cba6f7;
-  --red: #f38ba8;
-  --green: #a6e3a1;
-  --yellow: #f9e2af;
-  --orange: #fab387;
-  --blue: #89b4fa;
-  --pink: #f5c2e7;
-  --teal: #94e2d5;
+  /* Chrome — Warm Paper (light, default) */
+  --base: #F8F6F4;
+  --mantle: #F1EEEA;
+  --crust: #E8E4DF;
+  --surface0: #FFFFFF;
+  --surface1: #F3F0EC;
+  --surface2: #E9E5E0;
+  --surface-slate: #53617A;
+  --overlay0: #C7C1B9;
+  --overlay1: #A39C92;
+  --overlay2: #8A8278;
+  --text: #1F2430;
+  --subtext0: #454B57;
+  --subtext1: #5C6270;
+  --border: #E5E2DD;
+  --accent: #ED7B46;
+  --accent-soft: #E48B59;
+  --accent-strong: #DF6431;
+  --red: #E5484D;
+  --green: #2FA866;
+  --yellow: #E0A23C;
+  --orange: #ED7B46;
+  --blue: #4F86D6;
+  --pink: #E58FC4;
+  --teal: #3DBFAE;
 
-  /* Type Colors - Mocha */
-  --c-domain: #cba6f7;
-  --c-skill: #a6e3a1;
-  --c-project: #89b4fa;
-  --c-task: #fab387;
-  --c-person: #f5c2e7;
-  --c-tag: #f9e2af;
-  --c-routine: #94e2d5;
+  /* Node type colors — harmonized (light) */
+  --c-domain: #8B7BD8;
+  --c-skill: #5FB07F;
+  --c-project: #4F86D6;
+  --c-task: #F2935C;
+  --c-person: #E58FC4;
+  --c-tag: #E0A23C;
+  --c-routine: #3DBFAE;
 
-  /* Mobile Focus Card gradients/shadows */
-  --grad-routine: linear-gradient(160deg, #2bb3a0 0%, #4f86d6 100%);
-  --grad-task: linear-gradient(160deg, #f59f5d 0%, #e87a52 100%);
-  --shadow-routine: rgba(43, 179, 160, 0.35);
-  --shadow-task: rgba(245, 159, 93, 0.35);
-  --grad-routine-peek: linear-gradient(160deg, rgba(43,179,160,0.4), rgba(79,134,214,0.4));
-  --grad-task-peek: linear-gradient(160deg, rgba(245,159,93,0.4), rgba(232,122,82,0.4));
+  /* Mobile focus-card gradients/shadows (warm) */
+  --grad-routine: linear-gradient(160deg, #3DBFAE 0%, #4F86D6 100%);
+  --grad-task: linear-gradient(160deg, #F2935C 0%, #ED7B46 100%);
+  --shadow-routine: rgba(61,191,174,0.30);
+  --shadow-task: rgba(237,123,70,0.30);
+  --grad-routine-peek: linear-gradient(160deg, rgba(61,191,174,0.30), rgba(79,134,214,0.30));
+  --grad-task-peek: linear-gradient(160deg, rgba(242,147,92,0.30), rgba(237,123,70,0.30));
 }
 
-[data-theme="light"] {
-  --base: #eff1f5;
-  --mantle: #e6e9ef;
-  --crust: #dce0e8;
-  --surface0: #ccd0da;
-  --surface1: #bcc0cc;
-  --surface2: #acb0be;
-  --overlay0: #9ca0b0;
-  --overlay1: #8c8fa1;
-  --overlay2: #7c7f93;
-  --text: #4c4f69;
-  --subtext0: #5c5f77;
-  --subtext1: #6c6f85;
-  --accent: #8839ef;
-  --red: #d20f39;
-  --green: #40a02b;
-  --yellow: #df8e1d;
-  --orange: #fe640b;
-  --blue: #1e66f5;
-  --pink: #ea76cb;
-  --teal: #179299;
+[data-theme="dark"] {
+  /* Chrome — Warm Charcoal (dark variant) */
+  --base: #17120F;
+  --mantle: #120E0C;
+  --crust: #0C0908;
+  --surface0: #241D18;
+  --surface1: #2E2620;
+  --surface2: #3A302A;
+  --surface-slate: #3A4255;
+  --overlay0: #5A5048;
+  --overlay1: #7A6E63;
+  --overlay2: #9A8D80;
+  --text: #F3ECE5;
+  --subtext0: #D8CEC3;
+  --subtext1: #B6AC9F;
+  --border: #332A24;
+  --accent: #ED7B46;
+  --accent-soft: #E48B59;
+  --accent-strong: #F08A50;
+  --red: #F2787C;
+  --green: #5FCB8E;
+  --yellow: #E8B65E;
+  --orange: #ED7B46;
+  --blue: #6FA0E6;
+  --pink: #ECA4D2;
+  --teal: #54CFBE;
 
-  /* Type Colors - Latte */
-  --c-domain: #8839ef;
-  --c-skill: #40a02b;
-  --c-project: #1e66f5;
-  --c-task: #fe640b;
-  --c-person: #ea76cb;
-  --c-tag: #df8e1d;
-  --c-routine: #179299;
+  /* Node type colors — harmonized (dark) */
+  --c-domain: #A99BE8;
+  --c-skill: #73C796;
+  --c-project: #6FA0E6;
+  --c-task: #F4A878;
+  --c-person: #ECA4D2;
+  --c-tag: #E8B65E;
+  --c-routine: #54CFBE;
 
-  /* Mobile Focus Card gradients/shadows (Latte) */
-  --grad-routine: linear-gradient(160deg, #3dbfae 0%, #6398e6 100%);
-  --grad-task: linear-gradient(160deg, #fcae74 0%, #f08f6b 100%);
-  --shadow-routine: rgba(61, 191, 174, 0.25);
-  --shadow-task: rgba(252, 174, 116, 0.25);
-  --grad-routine-peek: linear-gradient(160deg, rgba(61, 191, 174, 0.3), rgba(99, 152, 230, 0.3));
-  --grad-task-peek: linear-gradient(160deg, rgba(252, 174, 116, 0.3), rgba(240, 143, 107, 0.3));
+  /* Mobile focus-card gradients/shadows (warm dark) */
+  --grad-routine: linear-gradient(160deg, #2BB3A0 0%, #4F86D6 100%);
+  --grad-task: linear-gradient(160deg, #E0824E 0%, #C85A36 100%);
+  --shadow-routine: rgba(43,179,160,0.35);
+  --shadow-task: rgba(224,130,78,0.35);
+  --grad-routine-peek: linear-gradient(160deg, rgba(43,179,160,0.40), rgba(79,134,214,0.40));
+  --grad-task-peek: linear-gradient(160deg, rgba(224,130,78,0.40), rgba(200,90,54,0.40));
 }
 
 * { box-sizing: border-box; }
@@ -151,3 +161,24 @@ button { font-family: inherit; cursor: pointer; }
 @media (min-width: 769px) {
   .hide-desktop { display: none !important; }
 }
+
+/* Glass surfaces (DESIGN.md §3) */
+.glass {
+  background: color-mix(in srgb, var(--surface0) 55%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, var(--surface0) 60%, transparent);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .glass { background: var(--surface0); }
+}
+/* Elevation (DESIGN.md §5.4) */
+.e1 { box-shadow: 0 1px 2px rgba(31,36,48,0.05); }
+.e2 { box-shadow: 0 4px 12px rgba(31,36,48,0.06); }
+.e3 { box-shadow: 0 12px 28px rgba(31,36,48,0.10); }
+.e4 { box-shadow: 0 30px 60px rgba(31,36,48,0.12); }
+.e-accent { box-shadow: 0 8px 16px rgba(237,123,70,0.30); }
+[data-theme="dark"] .e1 { box-shadow: 0 1px 2px rgba(0,0,0,0.40); }
+[data-theme="dark"] .e2 { box-shadow: 0 4px 12px rgba(0,0,0,0.45); }
+[data-theme="dark"] .e3 { box-shadow: 0 12px 28px rgba(0,0,0,0.50); }
+[data-theme="dark"] .e4 { box-shadow: 0 30px 60px rgba(0,0,0,0.55); }
