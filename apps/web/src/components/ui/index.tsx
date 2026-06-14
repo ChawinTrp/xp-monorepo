@@ -161,8 +161,12 @@ export function Button({ children, variant = 'primary', size = 'md', onClick, ic
   onClick?: () => void; icon?: ReactNode; style?: CSSProperties; disabled?: boolean;
 }) {
   const variants: Record<string, CSSProperties> = {
-    primary: { background: 'var(--accent)', color: 'var(--mantle)' },
-    secondary: { background: 'var(--surface1)', color: 'var(--text)' },
+    primary: {
+      background: 'linear-gradient(180deg, var(--accent), var(--accent-strong))',
+      color: '#FFFFFF',
+      boxShadow: '0 8px 16px rgba(237,123,70,0.30)',
+    },
+    secondary: { background: 'var(--surface1)', color: 'var(--text)', border: '1px solid var(--border)' },
     ghost: { background: 'transparent', color: 'var(--subtext1)' },
     danger: { background: 'transparent', color: 'var(--red)', border: '1px solid color-mix(in srgb, var(--red) 30%, transparent)' },
   };
@@ -179,10 +183,48 @@ export function Button({ children, variant = 'primary', size = 'md', onClick, ic
         ...variants[variant],
         ...style,
       }}
+      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
     >
       {icon}
       {children}
     </button>
+  );
+}
+
+export function GlassPanel({ children, solid = false, className = '', style }: {
+  children: ReactNode; solid?: boolean; className?: string; style?: CSSProperties;
+}) {
+  return (
+    <div
+      className={`rounded-3xl ${className}`}
+      style={{
+        background: solid ? 'var(--surface0)' : 'color-mix(in srgb, var(--surface0) 55%, transparent)',
+        backdropFilter: solid ? undefined : 'blur(20px)',
+        WebkitBackdropFilter: solid ? undefined : 'blur(20px)',
+        border: '1px solid var(--border)',
+        boxShadow: '0 30px 60px rgba(31,36,48,0.12)',
+        ...style,
+      } as CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function StatCard({ icon, value, label, color = 'var(--accent)' }: {
+  icon?: ReactNode; value: ReactNode; label: string; color?: string;
+}) {
+  return (
+    <div
+      className="rounded-2xl flex flex-col justify-center gap-1"
+      style={{ background: 'var(--surface0)', border: '1px solid var(--border)', padding: 16, minHeight: 80, boxShadow: '0 4px 12px rgba(31,36,48,0.06)' }}
+    >
+      <div className="flex items-center gap-1.5" style={{ color, fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
+        {icon}{value}
+      </div>
+      <div className="mono uppercase" style={{ fontSize: 11, color: 'var(--subtext1)', letterSpacing: 0.4 }}>{label}</div>
+    </div>
   );
 }
 
