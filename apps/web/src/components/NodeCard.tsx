@@ -52,13 +52,23 @@ export default function NodeCard({ node, breadcrumb, onOpen, onComplete, draggab
       className="rounded-lg cursor-pointer transition-all duration-200 relative group"
       style={{
         background: baseBg,
-        border: '1px solid transparent',
+        border: '1px solid var(--border)',
         padding: 12,
         opacity: done ? 0.78 : dragging ? 0.35 : 1,
-        boxShadow: dragging ? '0 8px 24px rgba(0,0,0,0.35)' : 'none',
+        boxShadow: dragging ? '0 12px 28px rgba(31,36,48,0.10)' : '0 1px 2px rgba(31,36,48,0.05)',
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = hoverBg; e.currentTarget.style.borderColor = 'var(--surface2)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = baseBg; e.currentTarget.style.borderColor = 'transparent'; }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = hoverBg;
+        e.currentTarget.style.boxShadow = '0 4px 12px rgba(31,36,48,0.06)';
+        e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--accent) 35%, var(--border))';
+        e.currentTarget.style.borderLeft = '2px solid var(--accent)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = baseBg;
+        e.currentTarget.style.boxShadow = '0 1px 2px rgba(31,36,48,0.05)';
+        e.currentTarget.style.borderColor = 'var(--border)';
+        e.currentTarget.style.borderLeft = '1px solid var(--border)';
+      }}
     >
       <div className="flex items-start gap-2">
         {done ? (
