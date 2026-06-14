@@ -1,6 +1,6 @@
 import { useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
-import { Icons, ProgressBar, Avatar, RingGauge, Button } from '../components/ui';
+import { Icons, ProgressBar, Avatar, RingGauge, Button, GlassPanel } from '../components/ui';
 import NodeCard from '../components/NodeCard';
 import { WEEK_PROGRESS } from '../lib/graphql';
 import { isOverdue, isCheckedOn, getPersonCatchup } from '../lib/queue';
@@ -16,46 +16,48 @@ function WinTheWeekWidget() {
   const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="flex items-center gap-3 p-4 rounded-[10px]" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
-      <div style={{ flex: 1 }}>
-        <div className="flex items-center justify-between mb-3">
-          <span className="flex items-center gap-2">
-            <span className="text-sm font-semibold uppercase tracking-wide opacity-60">Win the Week</span>
-            {weekWinStreak > 1 && (
-              <span className="inline-flex items-center gap-0.5 rounded-full font-bold streak-fire" style={{
-                fontSize: 10, padding: '1px 7px', color: 'var(--orange)',
-                background: 'color-mix(in srgb, var(--orange) 16%, transparent)',
-              }} title={`${weekWinStreak} weeks won in a row`}>🔥 {weekWinStreak}w</span>
-            )}
-          </span>
-          <span className="text-sm font-bold">
-            {wonDays} / {weekTarget}
-            {weekWon && <span className="ml-2">🎉</span>}
-          </span>
+    <GlassPanel className="fade-in" style={{ padding: 16, animationDelay: '180ms', boxShadow: '0 4px 12px rgba(31,36,48,0.06)' }}>
+      <div className="flex items-center gap-3">
+        <div style={{ flex: 1 }}>
+          <div className="flex items-center justify-between mb-3">
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-semibold uppercase tracking-wide opacity-60">Win the Week</span>
+              {weekWinStreak > 1 && (
+                <span className="inline-flex items-center gap-0.5 rounded-full font-bold streak-fire" style={{
+                  fontSize: 10, padding: '1px 7px', color: 'var(--orange)',
+                  background: 'color-mix(in srgb, var(--orange) 16%, transparent)',
+                }} title={`${weekWinStreak} weeks won in a row`}>🔥 {weekWinStreak}w</span>
+              )}
+            </span>
+            <span className="text-sm font-bold">
+              {wonDays} / {weekTarget}
+              {weekWon && <span className="ml-2">🎉</span>}
+            </span>
+          </div>
+          <div className="flex gap-1 justify-between mb-2">
+            {days.map((day: any, i: number) => {
+              const isFuture = day.date > today;
+              const pip = isFuture ? '·' : day.won ? '●' : '○';
+              const pipColor = isFuture ? 'var(--overlay1)' : day.won ? 'var(--green)' : 'var(--red)';
+              return (
+                <div key={day.date} className="flex flex-col items-center gap-1" title={`${DAY_LABELS[i]} — ${day.routinesCheckedIn}/${day.routineTarget} routines, ${day.tasksCompleted} task${day.tasksCompleted !== 1 ? 's' : ''}`}>
+                  <span className="text-lg leading-none" style={{ color: pipColor, opacity: isFuture ? 0.3 : 1 }}>{pip}</span>
+                  <span className="text-xs opacity-50">{DAY_LABELS[i]}</span>
+                </div>
+              );
+            })}
+          </div>
+          {!weekWon && (
+            <p className="text-xs opacity-50 mt-1">
+              Need {weekTarget - wonDays} more · {days.filter((d: any) => d.date >= today).length} days left
+            </p>
+          )}
+          {weekWon && (
+            <p className="text-xs mt-1" style={{ color: 'var(--green)' }}>Week won — bank the rest!</p>
+          )}
         </div>
-        <div className="flex gap-1 justify-between mb-2">
-          {days.map((day: any, i: number) => {
-            const isFuture = day.date > today;
-            const pip = isFuture ? '·' : day.won ? '●' : '○';
-            const color = isFuture ? 'opacity-30' : day.won ? 'text-green-400' : 'text-red-400';
-            return (
-              <div key={day.date} className="flex flex-col items-center gap-1" title={`${DAY_LABELS[i]} — ${day.routinesCheckedIn}/${day.routineTarget} routines, ${day.tasksCompleted} task${day.tasksCompleted !== 1 ? 's' : ''}`}>
-                <span className={`text-lg leading-none ${color}`}>{pip}</span>
-                <span className="text-xs opacity-50">{DAY_LABELS[i]}</span>
-              </div>
-            );
-          })}
-        </div>
-        {!weekWon && (
-          <p className="text-xs opacity-50 mt-1">
-            Need {weekTarget - wonDays} more · {days.filter((d: any) => d.date >= today).length} days left
-          </p>
-        )}
-        {weekWon && (
-          <p className="text-xs text-green-400 mt-1">Week won — bank the rest!</p>
-        )}
       </div>
-    </div>
+    </GlassPanel>
   );
 }
 
@@ -103,29 +105,34 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1320, margin: '0 auto' }}>
-      {/* Header */}
-      <div className="flex items-baseline justify-between mb-6 gap-3 flex-wrap">
-        <div>
-          <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>Good morning, CT</h1>
-          <div className="mono text-ctp-subtext1 mt-1.5" style={{ fontSize: 12 }}>{dateLabel}</div>
+    <div style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1320, margin: '0 auto' }}>
+      {/* Hero header — slot left for an optional future ambient backdrop */}
+      <div className="relative fade-in mb-6" style={{ animationDelay: '0ms' }}>
+        {/* ambient-backdrop-slot: reserved for a future low-contrast gradient/WebGL layer behind the hero */}
+        <div className="relative flex items-baseline justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="font-semibold m-0" style={{ fontSize: 'clamp(28px, 5vw, 40px)', letterSpacing: '-0.02em', lineHeight: 1.05, color: 'var(--text)' }}>
+              Good morning, CT
+            </h1>
+            <div className="mono mt-2" style={{ fontSize: 12, color: 'var(--subtext1)' }}>{dateLabel}</div>
+          </div>
+          <Button icon={<Icons.Plus size={14} />} onClick={onCreate}>Quick capture</Button>
         </div>
-        <Button icon={<Icons.Plus size={14} />} onClick={onCreate}>Quick capture</Button>
       </div>
 
       {/* Stat row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }} className="mb-6">
-        <StatCard icon={<Icons.Flame size={20} color="var(--mantle)" strokeWidth={2.4} />}
+        <StatCard icon={<Icons.Flame size={20} color="var(--mantle)" strokeWidth={2.4} className="streak-fire" />}
           iconBg="linear-gradient(135deg, var(--orange), var(--red))"
-          label="Streak" value={String(longestStreak)} suffix="days" />
+          label="Streak" value={String(longestStreak)} suffix="days" delay={0} />
         <StatCard icon={<RingGauge pct={dailyRoutines.length ? Math.round(dailyDoneToday / dailyRoutines.length * 100) : 0} color="var(--c-routine)" size={44} stroke={5} />}
-          label="Routines today" value={String(dailyDoneToday)} suffix={`/ ${dailyRoutines.length}`} />
+          label="Routines today" value={String(dailyDoneToday)} suffix={`/ ${dailyRoutines.length}`} delay={60} />
         <StatCard icon={<RingGauge pct={done.length ? Math.round(weekDone / done.length * 100) : 0} color="var(--accent)" size={44} stroke={5} />}
-          label="Done this week" value={String(weekDone)} suffix={`/ ${done.length}`} />
+          label="Done this week" value={String(weekDone)} suffix={`/ ${done.length}`} delay={120} />
         <StatCard icon={<Icons.Zap size={20} color="var(--c-skill)" strokeWidth={2.2} />}
           iconBg="color-mix(in srgb, var(--c-skill) 20%, transparent)"
           iconBorder="1px solid color-mix(in srgb, var(--c-skill) 30%, transparent)"
-          label="Total hours" value={String(Math.round(totalSkillHours))} suffix="h" />
+          label="Total hours" value={String(Math.round(totalSkillHours))} suffix="h" delay={180} />
       </div>
 
       {/* Win the Week */}
@@ -137,7 +144,7 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }} className="mb-6">
         <Panel icon={<Icons.CheckSquare size={14} color="var(--c-task)" />} title="Tasks"
           accentColor="var(--c-task)" rightLabel={`${overdue.length + inProgress.length} active`}
-          onMore={() => onNavigate('kanban')}>
+          onMore={() => onNavigate('kanban')} delay={240}>
           <SubSection title="Overdue" count={overdue.length} accent="var(--red)">
             {overdue.length === 0 && <EmptyHint>No overdue tasks. Nice.</EmptyHint>}
             {overdue.map((t) => (
@@ -157,7 +164,7 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
         </Panel>
 
         <Panel icon={<Icons.Zap size={14} color="var(--c-skill)" />} title="Skill summary"
-          accentColor="var(--c-skill)" onMore={() => onNavigate('skills')}>
+          accentColor="var(--c-skill)" onMore={() => onNavigate('skills')} delay={300}>
           {skills.map((s) => {
             const m = s.metadata as any;
             const tier = (m?.level ?? 'unfamiliar') as string;
@@ -184,7 +191,7 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
       {/* Catch-ups */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
         <Panel icon={<Icons.Users size={14} color="var(--c-person)" />} title="Upcoming catch-ups"
-          accentColor="var(--c-person)" onMore={() => onNavigate('people')}>
+          accentColor="var(--c-person)" onMore={() => onNavigate('people')} delay={360}>
           {people
             .map(p => {
               const catchup = getPersonCatchup(p);
@@ -219,28 +226,31 @@ export default function Dashboard({ onOpen, onNavigate, onCreate }: DashboardPro
   );
 }
 
-function Panel({ icon, title, accentColor, rightLabel, onMore, children }: {
+function Panel({ icon, title, accentColor, rightLabel, onMore, children, delay = 0 }: {
   icon: React.ReactNode; title: string; accentColor: string; rightLabel?: string;
-  onMore?: () => void; children: React.ReactNode;
+  onMore?: () => void; children: React.ReactNode; delay?: number;
 }) {
   return (
-    <section className="flex flex-col gap-4 rounded-xl" style={{
-      background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 18,
-    }}>
-      <header className="flex items-center gap-2.5 pb-3" style={{ borderBottom: '1px solid var(--surface1)' }}>
-        <div className="w-6 h-6 rounded-md grid place-items-center"
-          style={{ background: `color-mix(in srgb, ${accentColor} 16%, var(--mantle))` }}>{icon}</div>
-        <h2 className="m-0 font-bold text-ctp-text" style={{ fontSize: 14 }}>{title}</h2>
-        <span className="mono text-ctp-subtext1 ml-auto" style={{ fontSize: 11 }}>{rightLabel}</span>
-        {onMore && (
-          <button onClick={onMore} className="bg-transparent border-none text-ctp-accent font-semibold cursor-pointer inline-flex items-center gap-1"
-            style={{ fontSize: 11, fontFamily: 'inherit' }}>
-            View all <Icons.ArrowRight size={11} />
-          </button>
-        )}
-      </header>
-      {children}
-    </section>
+    <GlassPanel
+      className="fade-in transition-transform duration-200 hover:-translate-y-0.5"
+      style={{ padding: 18, animationDelay: `${delay}ms`, boxShadow: '0 4px 12px rgba(31,36,48,0.06)' }}
+    >
+      <section className="flex flex-col gap-4">
+        <header className="flex items-center gap-2.5 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="w-6 h-6 rounded-md grid place-items-center"
+            style={{ background: `color-mix(in srgb, ${accentColor} 16%, var(--mantle))` }}>{icon}</div>
+          <h2 className="m-0 font-bold" style={{ fontSize: 14, color: 'var(--text)' }}>{title}</h2>
+          <span className="mono ml-auto" style={{ fontSize: 11, color: 'var(--subtext1)' }}>{rightLabel}</span>
+          {onMore && (
+            <button onClick={onMore} className="bg-transparent border-none font-semibold cursor-pointer inline-flex items-center gap-1"
+              style={{ fontSize: 11, fontFamily: 'inherit', color: 'var(--accent)' }}>
+              View all <Icons.ArrowRight size={11} />
+            </button>
+          )}
+        </header>
+        {children}
+      </section>
+    </GlassPanel>
   );
 }
 
@@ -251,8 +261,8 @@ function SubSection({ title, count, accent, children }: {
     <div>
       <div className="flex items-center gap-2 mb-2">
         <span className="rounded" style={{ width: 3, height: 11, background: accent }} />
-        <span className="font-bold uppercase text-ctp-subtext0" style={{ fontSize: 10, letterSpacing: 0.8 }}>{title}</span>
-        <span className="mono text-ctp-overlay1" style={{ fontSize: 10 }}>{count}</span>
+        <span className="font-bold uppercase" style={{ fontSize: 10, letterSpacing: 0.8, color: 'var(--subtext0)' }}>{title}</span>
+        <span className="mono" style={{ fontSize: 10, color: 'var(--overlay1)' }}>{count}</span>
       </div>
       <div className="flex flex-col gap-2">{children}</div>
     </div>
@@ -272,26 +282,30 @@ function EmptyHint({ children }: { children: React.ReactNode }) {
 function CompletionRow({ task, onClick }: { task: any; onClick: () => void }) {
   const m = task.metadata as any;
   return (
-    <div onClick={onClick} className="flex items-center gap-2.5 p-1.5 rounded-md cursor-pointer hover:bg-ctp-mantle">
+    <div onClick={onClick} className="flex items-center gap-2.5 p-1.5 rounded-md cursor-pointer transition-colors duration-150 hover:bg-[var(--surface1)]">
       <Icons.CheckCircle size={13} color="var(--green)" />
-      <span className="flex-1 text-ctp-subtext0 line-through" style={{ fontSize: 12 }}>{task.title}</span>
+      <span className="flex-1 line-through" style={{ fontSize: 12, color: 'var(--subtext0)' }}>{task.title}</span>
       {m?.creditedHours != null && (
-        <span className="text-ctp-green font-semibold rounded" style={{
-          fontSize: 10, background: 'color-mix(in srgb, var(--c-skill) 14%, transparent)', padding: '1px 5px',
+        <span className="font-semibold rounded" style={{
+          fontSize: 10, color: 'var(--green)', background: 'color-mix(in srgb, var(--c-skill) 14%, transparent)', padding: '1px 5px',
         }}>+{m.creditedHours}h</span>
       )}
-      {m?.completedAt && <span className="mono text-ctp-overlay1 min-w-[60px] text-right" style={{ fontSize: 10 }}>{m.completedAt}</span>}
+      {m?.completedAt && <span className="mono min-w-[60px] text-right" style={{ fontSize: 10, color: 'var(--overlay1)' }}>{m.completedAt}</span>}
     </div>
   );
 }
 
-function StatCard({ icon, iconBg, iconBorder, label, value, suffix, extra }: {
+function StatCard({ icon, iconBg, iconBorder, label, value, suffix, extra, delay = 0 }: {
   icon: React.ReactNode; iconBg?: string; iconBorder?: string;
-  label: string; value: string; suffix?: string; extra?: string;
+  label: string; value: string; suffix?: string; extra?: string; delay?: number;
 }) {
   const isRing = !iconBg;
   return (
-    <div className="flex items-center gap-3 p-4 rounded-[10px]" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
+    <GlassPanel
+      solid
+      className="fade-in flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5"
+      style={{ padding: 16, animationDelay: `${delay}ms`, boxShadow: '0 4px 12px rgba(31,36,48,0.06)' }}
+    >
       {isRing ? icon : (
         <div className="grid place-items-center" style={{
           width: 44, height: 44, borderRadius: 10,
@@ -302,10 +316,10 @@ function StatCard({ icon, iconBg, iconBorder, label, value, suffix, extra }: {
         </div>
       )}
       <div>
-        <div className="uppercase text-ctp-subtext1 mb-0.5" style={{ fontSize: 10, letterSpacing: 0.6 }}>{label}</div>
+        <div className="uppercase mb-0.5" style={{ fontSize: 10, letterSpacing: 0.6, color: 'var(--subtext1)' }}>{label}</div>
         <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-bold text-ctp-text">{value}</span>
-          {suffix && <span className="text-sm text-ctp-overlay1">{suffix}</span>}
+          <span className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{value}</span>
+          {suffix && <span className="text-sm" style={{ color: 'var(--overlay1)' }}>{suffix}</span>}
         </div>
         {extra && (
           <div className="inline-flex items-center gap-1 mt-0.5" style={{ fontSize: 10, color: 'var(--green)', fontWeight: 600 }}>
@@ -313,7 +327,7 @@ function StatCard({ icon, iconBg, iconBorder, label, value, suffix, extra }: {
           </div>
         )}
       </div>
-    </div>
+    </GlassPanel>
   );
 }
 
