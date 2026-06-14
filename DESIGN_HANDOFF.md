@@ -1,3 +1,5 @@
+> ⚠️ **Superseded by [DESIGN.md](./DESIGN.md).** This document predates the warm-glassmorphism redesign and is retained only for view-flow / interaction reference (user flows, card anatomy, swipe gestures). For colors, theme, and components, follow DESIGN.md.
+
 # XP — Design Handoff for Claude Design
 
 > Use this document to create high-fidelity UX/UI mockups for Project XP.

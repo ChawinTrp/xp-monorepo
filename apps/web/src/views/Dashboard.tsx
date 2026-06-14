@@ -16,7 +16,7 @@ function WinTheWeekWidget() {
   const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <GlassPanel className="fade-in" style={{ padding: 16, animationDelay: '180ms', boxShadow: '0 4px 12px rgba(31,36,48,0.06)' }}>
+    <GlassPanel className="fade-in" elevation="e2" style={{ padding: 16, animationDelay: '180ms' }}>
       <div className="flex items-center gap-3">
         <div style={{ flex: 1 }}>
           <div className="flex items-center justify-between mb-3">
@@ -233,7 +233,8 @@ function Panel({ icon, title, accentColor, rightLabel, onMore, children, delay =
   return (
     <GlassPanel
       className="fade-in transition-transform duration-200 hover:-translate-y-0.5"
-      style={{ padding: 18, animationDelay: `${delay}ms`, boxShadow: '0 4px 12px rgba(31,36,48,0.06)' }}
+      elevation="e2"
+      style={{ padding: 18, animationDelay: `${delay}ms` }}
     >
       <section className="flex flex-col gap-4">
         <header className="flex items-center gap-2.5 pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -304,7 +305,8 @@ function StatCard({ icon, iconBg, iconBorder, label, value, suffix, extra, delay
     <GlassPanel
       solid
       className="fade-in flex items-center gap-3 transition-transform duration-200 hover:-translate-y-0.5"
-      style={{ padding: 16, animationDelay: `${delay}ms`, boxShadow: '0 4px 12px rgba(31,36,48,0.06)' }}
+      elevation="e2"
+      style={{ padding: 16, animationDelay: `${delay}ms` }}
     >
       {isRing ? icon : (
         <div className="grid place-items-center" style={{

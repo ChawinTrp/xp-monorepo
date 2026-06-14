@@ -102,7 +102,7 @@ export default function Graph({ onOpen }: GraphProps) {
     const el = containerRef.current;
     if (!el) return;
 
-    const mantleColor = getCssVar('--mantle', '#181825');
+    const mantleColor = getCssVar('--mantle', '#F1EEEA');
     const fg = new ForceGraph(el)
       .backgroundColor(mantleColor)
       .nodeRelSize(1)
@@ -110,7 +110,7 @@ export default function Graph({ onOpen }: GraphProps) {
       .nodeCanvasObject((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
         const r = NODE_RADIUS[node.type] ?? 6;
         const colorVar = CANVAS_COLORS[node.type];
-        const color = colorVar ? getCssVar(colorVar, '#cdd6f4') : '#cdd6f4';
+        const color = colorVar ? getCssVar(colorVar, '#1F2430') : '#1F2430';
         const isSel = node.id === node.__selected;
         const isDimmed = node.__focusMode && node.__selected && !node.__neighbours?.has(node.id);
 
@@ -147,13 +147,13 @@ export default function Graph({ onOpen }: GraphProps) {
           const ty = node.y + r + 4;
 
           // Pill background
-          ctx.fillStyle = getTheme() === 'light' ? 'rgba(220, 224, 232, 0.85)' : 'rgba(17,17,27,0.82)';
+          ctx.fillStyle = getTheme() === 'light' ? 'rgba(241,238,234,0.85)' : 'rgba(12,9,8,0.82)';
           ctx.beginPath();
           ctx.roundRect(tx - textW / 2 - padX, ty - padY, textW + padX * 2, fontSize + padY * 2, 3);
           ctx.fill();
 
           // Text
-          ctx.fillStyle = isSel ? color : getCssVar('--subtext0', '#bac2de');
+          ctx.fillStyle = isSel ? color : getCssVar('--subtext0', '#454B57');
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
           ctx.fillText(label, tx, ty);
@@ -171,7 +171,7 @@ export default function Graph({ onOpen }: GraphProps) {
         const isDimmed = link.__focusMode && selId && !isSel;
 
         ctx.globalAlpha = isDimmed ? 0.04 : isSel ? 0.85 : 0.3;
-        ctx.strokeStyle = isSel ? getCssVar('--accent', '#cba6f7') : getCssVar('--surface2', '#585b70');
+        ctx.strokeStyle = isSel ? getCssVar('--accent', '#ED7B46') : getCssVar('--surface2', '#E9E5E0');
         ctx.lineWidth = isSel ? 2 : link.dashed ? 0.8 : 1.2;
         ctx.setLineDash(link.dashed ? [4, 4] : []);
         ctx.beginPath();
@@ -184,7 +184,7 @@ export default function Graph({ onOpen }: GraphProps) {
       .linkCanvasObjectMode(() => 'replace')
       .linkDirectionalArrowLength(4)
       .linkDirectionalArrowRelPos(1)
-      .linkDirectionalArrowColor(() => getCssVar('--overlay0', '#6c7086'))
+      .linkDirectionalArrowColor(() => getCssVar('--overlay0', '#C7C1B9'))
       .onNodeClick((node: any) => {
         setSelected((prev) => {
           const next = prev === node.id ? null : node.id;
@@ -219,7 +219,7 @@ export default function Graph({ onOpen }: GraphProps) {
   // Update graph data and background color when nodes/filters or theme changes
   useEffect(() => {
     if (!graphRef.current) return;
-    const mantleColor = getCssVar('--mantle', '#181825');
+    const mantleColor = getCssVar('--mantle', '#F1EEEA');
     graphRef.current.backgroundColor(mantleColor);
     graphRef.current.graphData({ ...graphData });
   }, [graphData, theme]);

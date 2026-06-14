@@ -190,18 +190,17 @@ export function Button({ children, variant = 'primary', size = 'md', onClick, ic
   );
 }
 
-export function GlassPanel({ children, solid = false, className = '', style }: {
-  children: ReactNode; solid?: boolean; className?: string; style?: CSSProperties;
+export function GlassPanel({ children, solid = false, className = '', style, elevation = 'e4' }: {
+  children: ReactNode; solid?: boolean; className?: string; style?: CSSProperties; elevation?: 'e1' | 'e2' | 'e3' | 'e4';
 }) {
   return (
     <div
-      className={`rounded-3xl ${className}`}
+      className={`rounded-3xl ${elevation} ${className}`}
       style={{
         background: solid ? 'var(--surface0)' : 'color-mix(in srgb, var(--surface0) 55%, transparent)',
         backdropFilter: solid ? undefined : 'blur(20px)',
         WebkitBackdropFilter: solid ? undefined : 'blur(20px)',
         border: '1px solid var(--border)',
-        boxShadow: '0 30px 60px rgba(31,36,48,0.12)',
         ...style,
       } as CSSProperties}
     >
