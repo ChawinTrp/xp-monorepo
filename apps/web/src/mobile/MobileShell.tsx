@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
-import { Icons } from '../components/ui';
+import { Icons, StatCard } from '../components/ui';
 import { getTheme, toggleTheme } from '../lib/theme';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES,
@@ -26,6 +26,10 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const fmtElapsed = (s: number) =>
   `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 
+// ── Reduced-motion check (non-essential decorative animation only)
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 // ── Time-of-day config
 const TOD_GLYPH: Record<string, string> = { morning: '☀', afternoon: '◐', evening: '◑', night: '☾' };
 const TOD_LABEL: Record<string, string> = { morning: 'Morning', afternoon: 'Afternoon', evening: 'Evening', night: 'Night' };
@@ -35,6 +39,8 @@ const ROUTINE_BG = 'var(--grad-routine)';
 const TASK_BG    = 'var(--grad-task)';
 const ROUTINE_SHADOW = 'var(--shadow-routine)';
 const TASK_SHADOW    = 'var(--shadow-task)';
+const ROUTINE_FG = 'var(--c-routine)';
+const TASK_FG    = 'var(--c-task)';
 
 const PRIORITY_COLOR: Record<string, string> = {
   high: 'var(--red)', medium: 'var(--yellow)', low: 'var(--green)',
@@ -81,11 +87,12 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
   const running   = runningId === node._id;
   const m = (node.metadata as any) ?? {};
 
-  const bg     = isRoutine ? ROUTINE_BG : TASK_BG;
-  const shadow = isRoutine ? ROUTINE_SHADOW : TASK_SHADOW;
-  const ink    = isRoutine ? 'rgba(13,46,42,0.82)' : 'rgba(58,29,14,0.88)';
-  const cardFg = isRoutine ? '#0d2e2a' : '#3a1d0e';
-  const chipBg = isRoutine ? 'rgba(13,46,42,0.18)' : 'rgba(58,29,14,0.18)';
+  const bg      = isRoutine ? ROUTINE_BG : TASK_BG;
+  const shadow  = isRoutine ? ROUTINE_SHADOW : TASK_SHADOW;
+  const typeFg  = isRoutine ? ROUTINE_FG : TASK_FG;
+  const cardFg  = '#FFFFFF';
+  const ink     = 'rgba(255,255,255,0.88)';
+  const chipBg  = 'rgba(255,255,255,0.22)';
 
   const tod = m.timeOfDay as string | undefined;
   const overReveal  = dragDx > 80;
@@ -96,9 +103,11 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
       style={{
         ...S.card,
         background: bg,
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         transform: `translateX(${dragDx}px) rotate(${dragDx / 40}deg)`,
         transition: dragging ? 'none' : 'transform 360ms cubic-bezier(.2,.85,.3,1.1)',
-        boxShadow: `0 24px 60px ${shadow}, 0 8px 24px rgba(0,0,0,0.5)`,
+        boxShadow: `0 24px 60px ${shadow}, 0 30px 60px rgba(31,36,48,0.12)`,
       }}
     >
       {/* snooze stamp */}
@@ -108,7 +117,7 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
         transform: `rotate(-12deg) scale(${snoozeReveal ? 1 : 0.85})`,
         pointerEvents: 'none',
       }}>
-        <Stamp fg={cardFg}>↓ SNOOZE</Stamp>
+        <Stamp fg={typeFg}>↓ SNOOZE</Stamp>
       </div>
       {/* done stamp */}
       <div style={{
@@ -117,14 +126,14 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
         transform: `rotate(12deg) scale(${overReveal ? 1 : 0.85})`,
         pointerEvents: 'none',
       }}>
-        <Stamp fg={cardFg}>{isRoutine ? 'CHECK IN ✓' : 'DONE ✓'}</Stamp>
+        <Stamp fg={typeFg}>{isRoutine ? 'CHECK IN ✓' : 'DONE ✓'}</Stamp>
       </div>
 
       {/* top meta row */}
       <div style={S.topMeta}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <span style={{ ...S.kindChip, background: chipBg, color: cardFg }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: cardFg }} />
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: typeFg }} />
             {isRoutine ? 'ROUTINE' : 'TASK'}
           </span>
           {unplanned && (
@@ -186,12 +195,12 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
           {running ? (
             <button
               onClick={e => { e.stopPropagation(); onPauseTimer(); }}
-              style={{ ...S.timerBtn, background: cardFg, color: 'rgba(255,255,255,0.92)' }}
+              style={{ ...S.timerBtn, background: '#FFFFFF', color: typeFg }}
             >⏸ Pause</button>
           ) : (
             <button
               onClick={e => { e.stopPropagation(); onStartTimer(); }}
-              style={{ ...S.timerBtn, background: cardFg, color: 'rgba(255,255,255,0.92)' }}
+              style={{ ...S.timerBtn, background: '#FFFFFF', color: typeFg }}
             >▶ Start</button>
           )}
         </div>
@@ -604,10 +613,10 @@ function TimerBar({ runningId, elapsed, onPause, onStop }: {
   if (!runningId) return null;
   const node = byId[runningId];
   if (!node) return null;
-  const tint = node.type === 'ROUTINE' ? 'var(--teal)' : 'var(--orange)';
+  const tint = node.type === 'ROUTINE' ? 'var(--c-routine)' : 'var(--c-task)';
   return (
-    <div style={S.timerBar}>
-      <button onClick={onPause} style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', color: tint, border: 'none', background: 'none', cursor: 'pointer', animation: 'mob-pulse 2s ease-in-out infinite' }}>
+    <div className="glass" style={S.timerBar}>
+      <button onClick={onPause} style={{ width: 28, height: 28, display: 'grid', placeItems: 'center', color: tint, border: 'none', background: 'none', cursor: 'pointer', animation: prefersReducedMotion() ? 'none' : 'mob-pulse 2s ease-in-out infinite' }}>
         <svg width={14} height={14} viewBox="0 0 24 24" fill={tint}>
           <rect x="6" y="5" width="4" height="14" rx="1"/>
           <rect x="14" y="5" width="4" height="14" rx="1"/>
@@ -702,16 +711,13 @@ function StatsView() {
     })
     .slice(0, 3);
 
-  const Stat = ({ value, label, accent, sub }: { value: string | number; label: string; accent: string; sub?: string }) => (
-    <div style={S.statCard}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{ fontSize: 28, fontWeight: 700, color: accent, letterSpacing: -0.5 }}>{value}</span>
-        {sub && <span style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 11, color: 'var(--subtext1)' }}>{sub}</span>}
-      </div>
-      <div style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.8, color: 'var(--subtext1)', textTransform: 'uppercase', marginTop: 6 }}>
-        {label}
-      </div>
-    </div>
+  const statValue = (value: string | number, sub?: string) => (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+      {value}
+      {sub && (
+        <span className="mono" style={{ fontSize: 11, fontWeight: 500, color: 'var(--subtext1)' }}>{sub}</span>
+      )}
+    </span>
   );
 
   return (
@@ -723,10 +729,10 @@ function StatsView() {
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 18 }}>
-        <Stat value={`🔥 ${longestStreak}`} label="Day streak"      accent="var(--orange)" />
-        <Stat value={doneToday}              label="Routines today" accent="var(--teal)"   sub={`/ ${dailyRoutines.length}`} />
-        <Stat value={doneThisWeek}           label="Tasks done"     accent="var(--accent)" sub="this wk" />
-        <Stat value={totalHours}             label="Skill hours"    accent="var(--green)"  sub="h" />
+        <StatCard value={statValue(`🔥 ${longestStreak}`)}     label="Day streak"      color="var(--accent)" />
+        <StatCard value={statValue(doneToday, `/ ${dailyRoutines.length}`)} label="Routines today" color="var(--c-routine)" />
+        <StatCard value={statValue(doneThisWeek, 'this wk')}   label="Tasks done"      color="var(--accent)" />
+        <StatCard value={statValue(totalHours, 'h')}           label="Skill hours"     color="var(--c-skill)" />
       </div>
 
       {weekData?.weekProgress && (() => {
@@ -990,28 +996,28 @@ export default function MobileShell() {
           position: 'fixed', right: 16,
           bottom: 'calc(env(safe-area-inset-bottom, 0px) + 140px)',
           zIndex: 101, display: 'flex', flexDirection: 'column', gap: 10,
-          animation: 'fadeIn 0.12s ease-out',
+          animation: prefersReducedMotion() ? 'none' : 'fadeIn 0.12s ease-out',
         }}>
-          <FabAction label="Person" icon={<Icons.Users size={16} color="var(--mantle)" />} onClick={() => openCapture('PERSON')} />
-          <FabAction label="Task" icon={<Icons.CheckSquare size={16} color="var(--mantle)" />} onClick={() => openCapture('TASK')} />
+          <FabAction label="Person" icon={<Icons.Users size={16} color="#FFFFFF" />} onClick={() => openCapture('PERSON')} />
+          <FabAction label="Task" icon={<Icons.CheckSquare size={16} color="#FFFFFF" />} onClick={() => openCapture('TASK')} />
         </div>
       )}
 
       {/* FAB — quick capture */}
       <button
+        className="e-accent"
         onClick={() => setFabOpen((v) => !v)}
         style={{
           position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)', right: 16,
           width: 56, height: 56, borderRadius: 999,
-          background: 'var(--accent)',
-          boxShadow: '0 4px 16px rgba(203,166,247,0.35)',
+          background: 'linear-gradient(180deg, var(--accent), var(--accent-strong))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: 'none', cursor: 'pointer', zIndex: 100,
           transition: 'transform 0.15s ease',
           transform: fabOpen ? 'rotate(45deg)' : 'none',
         }}
       >
-        <Icons.Plus size={24} color="var(--mantle)" strokeWidth={2.5} />
+        <Icons.Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
       </button>
 
       <CreateNodeModal
@@ -1026,13 +1032,13 @@ export default function MobileShell() {
 function FabAction({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
   return (
     <button
+      className="e-accent"
       onClick={onClick}
       style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '10px 16px', borderRadius: 999, border: 'none', cursor: 'pointer',
-        background: 'var(--accent)', color: 'var(--mantle)',
+        background: 'linear-gradient(180deg, var(--accent), var(--accent-strong))', color: '#FFFFFF',
         fontFamily: 'inherit', fontSize: 14, fontWeight: 600,
-        boxShadow: '0 4px 14px rgba(203,166,247,0.3)',
       }}
     >
       {icon}
@@ -1077,20 +1083,21 @@ const S = {
   peek: {
     position: 'absolute' as const,
     inset: '14px 18px 0 18px',
-    borderRadius: 28,
+    borderRadius: 16,
     pointerEvents: 'none' as const,
     transition: 'transform 220ms, opacity 220ms',
   },
   card: {
     flex: 1,
     position: 'relative' as const,
-    borderRadius: 28,
+    borderRadius: 16,
     padding: '26px 24px 22px',
     display: 'flex',
     flexDirection: 'column' as const,
     cursor: 'grab',
     minHeight: 0,
     overflow: 'hidden',
+    border: '1px solid rgba(255,255,255,0.22)',
   },
   topMeta: {
     display: 'flex',
@@ -1170,22 +1177,16 @@ const S = {
     gap: 10,
     height: 48,
     padding: '0 12px',
-    background: 'var(--mantle)',
-    borderTop: '1px solid var(--surface0)',
+    background: 'color-mix(in srgb, var(--mantle) 70%, transparent)',
+    borderTop: '1px solid var(--border)',
     flexShrink: 0,
   },
   bottomNav: {
     display: 'flex',
     height: 60,
     background: 'var(--mantle)',
-    borderTop: '1px solid var(--surface0)',
+    borderTop: '1px solid var(--border)',
     flexShrink: 0,
-  },
-  statCard: {
-    background: 'var(--surface0)',
-    borderRadius: 12,
-    padding: '14px 14px 12px',
-    minHeight: 80,
   },
   statRow: {
     display: 'flex',
