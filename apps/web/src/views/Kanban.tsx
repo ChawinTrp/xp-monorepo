@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
-import { Icons, Dropdown, useToast } from '../components/ui';
+import { Icons, Dropdown, useToast, Button } from '../components/ui';
 import NodeCard from '../components/NodeCard';
 import { UPDATE_NODE, COMPLETE_TASK, GET_NODES } from '../lib/graphql';
 import { differenceInDays, format } from 'date-fns';
@@ -168,9 +168,9 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
 
   return (
     <div className="fade-in flex flex-col h-full" style={{ padding: 'clamp(12px, 2vw, 24px) clamp(16px, 3vw, 32px)' }}>
-      <div className="flex items-center gap-3 mb-5 pb-4 flex-wrap" style={{ borderBottom: '1px solid var(--surface1)' }}>
+      <div className="flex items-center gap-3 mb-5 pb-4 flex-wrap" style={{ borderBottom: '1px solid var(--border)' }}>
         {/* Mode toggle */}
-        <div className="flex gap-0.5 p-0.5 rounded-md" style={{ background: 'var(--mantle)', border: '1px solid var(--surface1)' }}>
+        <div className="flex gap-0.5 p-0.5 rounded-md" style={{ background: 'var(--mantle)', border: '1px solid var(--border)' }}>
           {(['board', 'sprint', 'plan'] as const).map(m => (
             <button key={m} onClick={() => setMode(m)}
               className="border-none cursor-pointer rounded px-2.5 py-1 capitalize font-semibold"
@@ -178,6 +178,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
                 fontSize: 11, fontFamily: 'inherit',
                 background: mode === m ? 'var(--surface0)' : 'transparent',
                 color: mode === m ? 'var(--accent)' : 'var(--subtext1)',
+                boxShadow: mode === m ? '0 1px 2px rgba(31,36,48,0.05)' : 'none',
               }}>{m}</button>
           ))}
         </div>
@@ -203,11 +204,9 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
                 ...sprints.map(s => ({ value: s.name, label: s.name })),
               ]}
             />
-            <button onClick={() => setShowCreateSprint(true)}
-              className="inline-flex items-center gap-1 border-none cursor-pointer rounded px-2.5 py-1.5 font-semibold"
-              style={{ fontSize: 11, background: 'var(--surface0)', color: 'var(--accent)', fontFamily: 'inherit', border: '1px solid var(--surface1)' }}>
-              <Icons.Plus size={12} /> Sprint
-            </button>
+            <Button size="sm" variant="secondary" icon={<Icons.Plus size={12} />} onClick={() => setShowCreateSprint(true)}>
+              Sprint
+            </Button>
           </>
         )}
 
@@ -217,7 +216,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
 
       {/* Sprint header */}
       {mode === 'sprint' && sprintStats && activeSprint && (
-        <div className="flex items-center gap-4 mb-4 p-3 rounded-lg" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
+        <div className="flex items-center gap-4 mb-4 p-3 rounded-lg" style={{ background: 'var(--surface0)', border: '1px solid var(--border)' }}>
           <div className="flex items-center gap-2">
             <Icons.Target size={14} color="var(--accent)" />
             <span className="font-bold" style={{ fontSize: 13 }}>{activeSprint.name}</span>
@@ -250,27 +249,23 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
       {showCreateSprint && (
         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: 'rgba(0,0,0,0.5)' }}
           onClick={() => setShowCreateSprint(false)}>
-          <div className="rounded-xl p-5 flex flex-col gap-3" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', width: 360 }}
+          <div className="rounded-xl p-5 flex flex-col gap-3 e3" style={{ background: 'var(--surface0)', border: '1px solid var(--border)', width: 360 }}
             onClick={e => e.stopPropagation()}>
             <h3 className="m-0 font-bold" style={{ fontSize: 14 }}>New Sprint</h3>
             <input placeholder="Sprint name" value={newSprint.name} onChange={e => setNewSprint(s => ({ ...s, name: e.target.value }))}
               className="rounded-md px-3 py-2 border-none outline-none"
-              style={{ background: 'var(--mantle)', color: 'var(--text)', fontSize: 13 }} />
+              style={{ background: 'var(--mantle)', color: 'var(--text)', fontSize: 13, border: '1px solid var(--border)' }} />
             <div className="flex gap-2">
               <input type="date" value={newSprint.startDate} onChange={e => setNewSprint(s => ({ ...s, startDate: e.target.value }))}
                 className="flex-1 rounded-md px-3 py-2 border-none outline-none"
-                style={{ background: 'var(--mantle)', color: 'var(--text)', fontSize: 12 }} />
+                style={{ background: 'var(--mantle)', color: 'var(--text)', fontSize: 12, border: '1px solid var(--border)' }} />
               <input type="date" value={newSprint.endDate} onChange={e => setNewSprint(s => ({ ...s, endDate: e.target.value }))}
                 className="flex-1 rounded-md px-3 py-2 border-none outline-none"
-                style={{ background: 'var(--mantle)', color: 'var(--text)', fontSize: 12 }} />
+                style={{ background: 'var(--mantle)', color: 'var(--text)', fontSize: 12, border: '1px solid var(--border)' }} />
             </div>
             <div className="flex gap-2 justify-end mt-1">
-              <button onClick={() => setShowCreateSprint(false)}
-                className="border-none cursor-pointer rounded px-3 py-1.5 font-semibold"
-                style={{ fontSize: 12, background: 'var(--mantle)', color: 'var(--subtext1)', fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={handleCreateSprint}
-                className="border-none cursor-pointer rounded px-3 py-1.5 font-semibold"
-                style={{ fontSize: 12, background: 'var(--accent)', color: 'var(--mantle)', fontFamily: 'inherit' }}>Create</button>
+              <Button size="sm" variant="ghost" onClick={() => setShowCreateSprint(false)}>Cancel</Button>
+              <Button size="sm" variant="primary" onClick={handleCreateSprint}>Create</Button>
             </div>
           </div>
         </div>
@@ -303,6 +298,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
             if (!showArchive) colTasks = recent;
           }
           const isOver = overCol === col.key;
+          const isFiltered = filter !== 'all';
           return (
             <div
               key={col.key}
@@ -312,18 +308,26 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
               className="flex flex-col overflow-hidden rounded-[10px] transition-all duration-200"
               style={{
                 background: 'var(--mantle)',
-                border: `1px ${isOver ? 'dashed' : 'solid'} ${isOver ? 'var(--accent)' : 'var(--surface1)'}`,
+                border: `1px ${isOver ? 'dashed' : 'solid'} ${isOver ? 'var(--accent)' : 'var(--border)'}`,
+                boxShadow: isOver ? 'inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent)' : 'none',
               }}
             >
-              <div className="flex items-center gap-2 px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface1)' }}>
+              <div className="flex items-center gap-2 px-4 py-3.5 relative" style={{ borderBottom: '1px solid var(--border)' }}>
                 <span className="w-2 h-2 rounded-full" style={{ background: col.color }} />
                 <span className="font-semibold uppercase" style={{ fontSize: 13, letterSpacing: 0.5 }}>{col.label}</span>
-                <span className="mono text-ctp-overlay1" style={{ fontSize: 11 }}>{colTasks.length}</span>
+                <span className="mono rounded-full px-1.5" style={{ fontSize: 11, color: 'var(--subtext1)', background: 'var(--surface1)' }}>{colTasks.length}</span>
                 <div className="flex-1" />
+                {isFiltered && (
+                  <span className="absolute bottom-0 left-0 right-0" style={{ height: 2, background: 'var(--accent)', opacity: 0.6 }} />
+                )}
               </div>
               <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5">
                 {colTasks.map((t) => (
-                  <div key={t._id} className="relative group">
+                  <div
+                    key={t._id}
+                    className="relative group transition-transform duration-150"
+                    style={{ transform: dragId === t._id ? 'scale(1.02)' : 'scale(1)' }}
+                  >
                     <NodeCard
                       node={t}
                       onOpen={onOpen}
@@ -360,7 +364,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
                 ))}
                 {colTasks.length === 0 && (
                   <div className="text-center text-ctp-overlay0 rounded-lg" style={{
-                    padding: '32px 12px', fontSize: 12, border: '1px dashed var(--surface1)',
+                    padding: '32px 12px', fontSize: 12, border: '1px dashed var(--border)',
                   }}>
                     {col.key === 'DONE'
                       ? (archivedCount > 0 ? 'Nothing completed this week' : 'Nothing completed yet')
@@ -375,7 +379,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
                   style={{
                     padding: '10px 14px', fontSize: 12, fontFamily: 'inherit',
                     background: 'transparent', color: 'var(--overlay1)',
-                    borderTop: '1px solid var(--surface1)',
+                    borderTop: '1px solid var(--border)',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'var(--overlay1)')}
@@ -390,7 +394,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
                   style={{
                     padding: '10px 14px', fontSize: 12, fontFamily: 'inherit',
                     background: 'transparent', color: 'var(--overlay1)',
-                    borderTop: '1px solid var(--surface1)',
+                    borderTop: '1px solid var(--border)',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--accent)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'var(--overlay1)')}
