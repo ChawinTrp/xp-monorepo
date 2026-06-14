@@ -173,7 +173,7 @@ export function Button({ children, variant = 'primary', size = 'md', onClick, ic
   return (
     <button
       onClick={onClick} disabled={disabled}
-      className="inline-flex items-center gap-1.5 rounded-2xl border-none font-semibold transition-all duration-200"
+      className={`inline-flex items-center gap-1.5 rounded-2xl border-none font-semibold transition-all duration-200 ${disabled ? '' : 'hover:-translate-y-px'}`}
       style={{
         padding: size === 'sm' ? '6px 12px' : '8px 16px',
         fontSize: size === 'sm' ? 12 : 13,
@@ -183,8 +183,6 @@ export function Button({ children, variant = 'primary', size = 'md', onClick, ic
         ...variants[variant],
         ...style,
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}
     >
       {icon}
       {children}
