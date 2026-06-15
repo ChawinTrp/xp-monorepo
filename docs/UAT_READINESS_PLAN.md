@@ -40,6 +40,20 @@ While UAT *could* start with the current over-fetching, it will degrade the expe
 - [ ] **TypeScript / Metadata Refactor:**
   - Replace the generic `metadata: any` bag pattern with discriminated unions in the GraphQL schema and TypeScript definitions to eliminate runtime type errors and brittle `as any` casts.
 
+### Node property / editability audit (2026-06-14)
+
+Full spec lives in `NODE.md` §3.1–3.3. Findings from auditing every node type against the schema, `CreateNodeModal`, `NodeDetail`, and `propagation.service`, ranked. The well-scoped create-only gaps were executed in this pass; the architectural items remain open.
+
+- [x] **ROUTINE / PROJECT / TASK / TAG create-only field gaps** — fields that could be set at creation but never edited afterward are now editable in the Node Detail panel:
+  - ROUTINE `cadence` (recomputes `weekTarget`), `target`, `group` (+ `timeOfDay`, fixed earlier).
+  - PROJECT `status` (was plain text), `startDate`, `dueDate` (previously Gantt-only).
+  - TASK `startDate` (previously Gantt-only / read-only).
+  - TAG `color` editor + `kind` badge (TAG nodes previously had no Detail editor at all).
+- [ ] **🔴 Reconcile the two parallel tag systems** — `metadata.tags` free-strings (Detail "Tags" card, `window.prompt`) vs first-class TAG nodes linked via `parents` ("Additional parents" / graph). `NODE.md` §2 declares the parent-based model canonical, but the UI writes free strings. Decide migration + single mechanism **before** reworking the tag UI. Needs a design pass (data-model change + Obsidian-sync implications).
+- [ ] **🟠 Full Connections editing in Node Detail** — allow adding/removing arbitrary PERSON/TAG `parents` from the panel, not just `mainParent` + skills + circle, to match `NODE.md` §2.
+- [ ] **🟡 Replace `window.prompt`** for adding tags and naming new circles with inline inputs consistent with the rest of the UI.
+- [ ] **🟡 "Log catch-up" action** on PERSON — one click sets `lastCatchup = today` and bumps `nextCatchup`, instead of manual date entry.
+
 ## Phase 4: UAT Execution Setup
 Once development is complete, testers will evaluate the core loops.
 

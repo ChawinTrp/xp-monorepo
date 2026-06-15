@@ -522,16 +522,22 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
             </svg>
           }
         />
-        {node.type === 'TASK' && (
+        {(node.type === 'TASK' || node.type === 'ROUTINE') && (
           <ActionBtn
             tone="dismiss"
-            label="Tomorrow"
-            hint="dismiss"
+            label={node.type === 'ROUTINE' ? 'Skip' : 'Tomorrow'}
+            hint={node.type === 'ROUTINE' ? 'not today' : 'dismiss'}
             onClick={() => advance('dismiss')}
             icon={
-              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-              </svg>
+              node.type === 'ROUTINE' ? (
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+                </svg>
+              ) : (
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+                </svg>
+              )
             }
           />
         )}
@@ -922,8 +928,22 @@ export default function MobileShell() {
   }, [runningId, stopTimerMut, checkInMut, completeTaskMut]);
 
   const handleDismiss = useCallback(async (node: XPNode) => {
-    if (node.type !== 'TASK') return; // routines have no due date
-    const meta = { ...(node.metadata as any), due: tomorrowStr() };
+    let meta: any;
+    if (node.type === 'TASK') {
+      // Tasks: push the due date out a day so it drops off today's queue.
+      meta = { ...(node.metadata as any), due: tomorrowStr() };
+    } else if (node.type === 'ROUTINE') {
+      // Routines have no due date — record a per-day skip ("not today") so the
+      // queue hides it for today only (see isRoutineSkippedOn).
+      const today = logicalDateStr();
+      const prev: string[] = Array.isArray((node.metadata as any)?.skips)
+        ? (node.metadata as any).skips
+        : [];
+      if (prev.some((d) => d.slice(0, 10) === today)) return; // already skipped today
+      meta = { ...(node.metadata as any), skips: [...prev, today] };
+    } else {
+      return;
+    }
     try {
       await updateNodeMut({ variables: { input: { _id: node._id, metadata: meta } } });
     } catch { /* ignore */ }
@@ -941,8 +961,16 @@ export default function MobileShell() {
 
   const handleUndoDismiss = useCallback(async (node: XPNode, prevDue?: string) => {
     const meta = { ...(node.metadata as any) };
-    if (prevDue == null) delete meta.due;
-    else meta.due = prevDue;
+    if (node.type === 'ROUTINE') {
+      // Undo a routine skip: drop today's skip entry so it returns to the queue.
+      const today = logicalDateStr();
+      const prev: string[] = Array.isArray(meta.skips) ? meta.skips : [];
+      meta.skips = prev.filter((d) => d.slice(0, 10) !== today);
+    } else if (prevDue == null) {
+      delete meta.due;
+    } else {
+      meta.due = prevDue;
+    }
     try {
       await updateNodeMut({ variables: { input: { _id: node._id, metadata: meta } } });
     } catch { /* ignore */ }

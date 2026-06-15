@@ -324,6 +324,8 @@ See `docs/DEPLOYMENT.md` for first-time setup and manual redeploy steps.
 - **Timezone edge:** All week/date math is centralised in `@xp/shared` (`localDateStr`, `getWeekStart` [Sunday, local], `getWeekDates`) and uses **local** dates everywhere — routine check-ins, task `completedDate`, `weekProgress`, and the Win-the-Week tracker. Consistent, but still assumes the server and client share a timezone. UTC+7 users: day/week cutoff is midnight Bangkok time.
 - **Graph view performance:** force-graph loads all nodes — performance degrades above ~500 nodes. No pagination or lazy loading yet.
 - **No auth:** Single-user personal OS; no authentication layer. All data is public to anyone with the API URL.
+- **Tag system dualism:** Two parallel tag mechanisms coexist — free-string `metadata.tags` (Node Detail "Tags" card) vs first-class TAG nodes linked via `parents` (graph / "Additional parents"). `NODE.md` §2 declares the parent-based model canonical, but the UI still writes free strings. Reconcile before reworking the tag UI. See `NODE.md` §3.3 and `docs/UAT_READINESS_PLAN.md` Phase 3.
+- **Metadata is unvalidated:** `metadata` is an opaque `GraphQLJSON` bag; its per-type shape is enforced only by the React forms + propagation engine, not the server. Discriminated-union refactor tracked in UAT Phase 3. Node-type property/editability spec: `NODE.md` §3.1–3.3.
 
 ---
 

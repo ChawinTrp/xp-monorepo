@@ -46,6 +46,17 @@ export function isRoutineSatisfied(meta: any, day: string): boolean {
   return checks.some((c) => c.date === day);
 }
 
+// ── Per-day routine skip ("not today" from the Focus deck). Unlike check-ins,
+//    skips are ALWAYS daily regardless of cadence: skipping a weekly routine
+//    hides it for today only, not the whole week. Kept separate from
+//    isRoutineSatisfied so the cadence-aware satisfaction logic stays clean.
+export function skipsOf(meta: any): string[] {
+  return Array.isArray(meta?.skips) ? meta.skips : [];
+}
+export function isRoutineSkippedOn(meta: any, day: string): boolean {
+  return skipsOf(meta).some((d) => d.slice(0, 10) === day);
+}
+
 // ── Task due helpers. Date-string compare avoids `new Date(due) < new Date()`
 //    mis-flagging a due-today task as overdue in non-UTC locales.
 export function isDueOnOrBefore(node: XPNode, day: string): boolean {
@@ -79,7 +90,12 @@ export interface BuildQueueOpts {
 // Auto baseline: not-checked routines + due tasks, in time-of-day rhythm order.
 function autoOrder(nodes: XPNode[], today: string): XPNode[] {
   const routines = nodes
-    .filter((n) => n.type === 'ROUTINE' && !isRoutineSatisfied(n.metadata, today))
+    .filter(
+      (n) =>
+        n.type === 'ROUTINE' &&
+        !isRoutineSatisfied(n.metadata, today) &&
+        !isRoutineSkippedOn(n.metadata, today),
+    )
     .sort((a, b) => {
       const todA = (a.metadata as any)?.timeOfDay ?? 'anytime';
       const todB = (b.metadata as any)?.timeOfDay ?? 'anytime';
@@ -132,7 +148,8 @@ function autoOrder(nodes: XPNode[], today: string): XPNode[] {
 // Still actionable when reading a plan: incomplete task / unsatisfied routine.
 function isActionable(node: XPNode, today: string): boolean {
   if (node.type === 'TASK') return node.status !== 'DONE';
-  if (node.type === 'ROUTINE') return !isRoutineSatisfied(node.metadata, today);
+  if (node.type === 'ROUTINE')
+    return !isRoutineSatisfied(node.metadata, today) && !isRoutineSkippedOn(node.metadata, today);
   return false;
 }
 

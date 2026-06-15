@@ -52,6 +52,12 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const [priority, setPriority] = useState<string>('');
   const [estimatedHours, setEstimatedHours] = useState<string>('');
   const [timeOfDay, setTimeOfDay] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [dueDate, setDueDate] = useState<string>('');
+  const [cadence, setCadence] = useState<string>('');
+  const [target, setTarget] = useState<string>('');
+  const [group, setGroup] = useState<string>('');
+  const [tagColor, setTagColor] = useState<string>('');
   const [mainParentId, setMainParentId] = useState<string>('');
 
   // Editable metadata fields (for PERSON)
@@ -79,6 +85,12 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       setPriority(meta.priority ?? '');
       setEstimatedHours(meta.estimatedHours != null ? String(meta.estimatedHours) : '');
       setTimeOfDay(meta.timeOfDay ?? '');
+      setStartDate(meta.startDate ?? '');
+      setDueDate(meta.dueDate ?? '');
+      setCadence(meta.cadence ?? '');
+      setTarget(meta.target ?? '');
+      setGroup(meta.group ?? '');
+      setTagColor(meta.color ?? '');
       setMainParentId(n.mainParent ?? '');
       setTags(meta.tags ?? []);
 
@@ -186,12 +198,27 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       const newMeta: Record<string, unknown> = { ...oldMeta, tags };
       if (n.type === 'TASK') {
         if (due) newMeta.due = due; else delete newMeta.due;
+        if (startDate) newMeta.startDate = startDate; else delete newMeta.startDate;
         if (priority) newMeta.priority = priority; else delete newMeta.priority;
         if (estimatedHours) newMeta.estimatedHours = parseFloat(estimatedHours);
         else delete newMeta.estimatedHours;
       }
+      if (n.type === 'PROJECT') {
+        if (startDate) newMeta.startDate = startDate; else delete newMeta.startDate;
+        if (dueDate) newMeta.dueDate = dueDate; else delete newMeta.dueDate;
+      }
       if (n.type === 'ROUTINE') {
         if (timeOfDay) newMeta.timeOfDay = timeOfDay; else delete newMeta.timeOfDay;
+        if (cadence) {
+          newMeta.cadence = cadence;
+          // weekTarget is derived from cadence — keep them in sync.
+          newMeta.weekTarget = cadence === 'daily' ? 7 : 1;
+        }
+        if (target.trim()) newMeta.target = target.trim(); else delete newMeta.target;
+        if (group.trim()) newMeta.group = group.trim(); else delete newMeta.group;
+      }
+      if (n.type === 'TAG') {
+        if (tagColor) newMeta.color = tagColor; else delete newMeta.color;
       }
       if (n.type === 'PERSON') {
         if (email.trim()) newMeta.email = email.trim(); else delete newMeta.email;
@@ -563,15 +590,55 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                       ))}
                     </div>
                   </Field>
-                  {m.startDate && <Field label="Start date"><span className="mono">{m.startDate}</span></Field>}
+                  <Field label="Start date">
+                    <input
+                      type="date"
+                      value={startDate ? startDate.slice(0, 10) : ''}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    />
+                  </Field>
                   {m.sprint && <Field label="Sprint"><span className="font-semibold" style={{ color: 'var(--accent)' }}>{m.sprint}</span></Field>}
                 </>
               )}
               {n.type === 'PROJECT' && (
                 <>
-                  <Field label="Status">{n.status}</Field>
+                  <Field label="Status">
+                    <SegmentedStatus value={status} onChange={setStatus} />
+                  </Field>
                   <Field label="Progress">
                     <ProgressBar value={n.progress ?? 0} color="var(--c-project)" showLabel />
+                  </Field>
+                  <Field label="Start date">
+                    <input
+                      type="date"
+                      value={startDate ? startDate.slice(0, 10) : ''}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    />
+                  </Field>
+                  <Field label="Due date">
+                    <input
+                      type="date"
+                      value={dueDate ? dueDate.slice(0, 10) : ''}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    />
                   </Field>
                 </>
               )}
@@ -594,8 +661,36 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
               )}
               {n.type === 'ROUTINE' && (
                 <>
-                  <Field label="Cadence"><span className="capitalize">{m.cadence}</span></Field>
-                  <Field label="Target"><span>{m.target}</span></Field>
+                  <Field label="Cadence">
+                    <select
+                      value={cadence}
+                      onChange={(e) => setCadence(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </Field>
+                  <Field label="Target">
+                    <input
+                      type="text"
+                      value={target}
+                      onChange={(e) => setTarget(e.target.value)}
+                      placeholder="e.g. 30 min, 2 hours"
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    />
+                  </Field>
                   <Field label="Time of day">
                     <select
                       value={timeOfDay}
@@ -633,7 +728,20 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                   <Field label="This week">
                     <span className="mono">{m.thisWeek ?? 0} / {m.weekTarget ?? 0}</span>
                   </Field>
-                  {m.group && <Field label="Group"><span>{m.group}</span></Field>}
+                  <Field label="Group">
+                    <input
+                      type="text"
+                      value={group}
+                      onChange={(e) => setGroup(e.target.value)}
+                      placeholder="e.g. Health, Work (optional)"
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    />
+                  </Field>
                 </>
               )}
               {n.type === 'PERSON' && (() => {
@@ -787,6 +895,43 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
               })()}
               {n.type === 'DOMAIN' && (
                 <DomainProgress nodeId={id} childrenOf={childrenOf} byId={byId} />
+              )}
+              {n.type === 'TAG' && (
+                <>
+                  <Field label="Color">
+                    <div className="flex gap-2 items-center">
+                      <input
+                        type="color"
+                        value={/^#[0-9a-fA-F]{6}$/.test(tagColor) ? tagColor : '#cba6f7'}
+                        onChange={(e) => setTagColor(e.target.value)}
+                        className="rounded-md cursor-pointer"
+                        style={{ width: 40, height: 34, padding: 2, background: 'var(--base)', border: '1px solid var(--surface1)' }}
+                      />
+                      <input
+                        type="text"
+                        value={tagColor}
+                        onChange={(e) => setTagColor(e.target.value)}
+                        placeholder="#cba6f7 (optional)"
+                        className="rounded-md flex-1 mono"
+                        style={{
+                          padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                          background: 'var(--base)', border: '1px solid var(--surface1)',
+                          color: 'var(--text)', outline: 'none',
+                        }}
+                      />
+                    </div>
+                  </Field>
+                  {m.kind && (
+                    <Field label="Kind">
+                      <span className="inline-flex items-center gap-1.5 rounded capitalize font-semibold" style={{
+                        padding: '3px 8px', fontSize: 11,
+                        background: 'color-mix(in srgb, var(--c-tag) 14%, transparent)', color: 'var(--c-tag)',
+                      }}>
+                        {m.kind}
+                      </span>
+                    </Field>
+                  )}
+                </>
               )}
             </div>
           </SectionCard>

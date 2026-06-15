@@ -45,13 +45,13 @@ All XP nodes share the universal schema (`title`, `type`, `description`, `parent
 
 | Node Type | Fields | Where stored |
 | :--- | :--- | :--- |
-| **TASK** | `priority` (high/medium/low), `estimatedHours`, `actualHours`, `due` (ISO date string), `creditedHours`, `completedAt` (ISO), `timeEntries: [{start: ISO, end?: ISO}]`, `gcalEventId` | MongoDB `metadata` |
+| **TASK** | `priority` (high/medium/low), `estimatedHours`, `actualHours`, `due` (ISO date string), `startDate` (ISO, set via Gantt), `sprint` (label, set via Kanban), `creditedHours`, `completedAt` (ISO), `completedDate` (YYYY-MM-DD, local), `timeEntries: [{start: ISO, end?: ISO}]`, `gcalEventId` | MongoDB `metadata` |
 | **PROJECT** | `startDate`, `dueDate`, `gcalEventId` — `status` and `progress` on root schema | MongoDB `metadata` |
 | **SKILL** | `totalHours` (accumulated), `level` (unfamiliar/familiar/skilled/master/world_class), `hoursToNext` (hours remaining to next tier) — all computed, read-only | MongoDB `metadata` |
 | **PERSON** | `role`, `email`, `phone`, `initials`, `nextCatchup` (ISO date), `lastCatchup` (ISO date) — `catchupState` (upcoming/overdue/none) and `relativeDate` (human label e.g. "in 3 days") are **derived at render** from `nextCatchup` (`getPersonCatchup` in `apps/web/src/lib/queue.ts`), never stored. Circle membership is **not** metadata — it's a TAG node with `metadata.kind: 'circle'` linked via the PERSON's `parents` (single circle per person, UI-enforced). | MongoDB `metadata` |
 | **DOMAIN** | _(none — progress computed from children)_ | — |
 | **TAG** | `color` hex — UI chip rendering. `kind` (optional) — `'circle'` marks a People-view circle grouping; for circle tags, `color` is optional and the web falls back to name-based default colors when absent. | MongoDB `metadata` |
-| **ROUTINE** | `cadence` (daily/weekly/monthly), `target` (string e.g. "30 min"), `timeOfDay` (morning/afternoon/evening/night), `group` (optional label), `checkIns: [{date: YYYY-MM-DD, hours: number}]`, `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate` (YYYY-MM-DD), `creditedHours`, `timeEntries: [{start: ISO, end?: ISO}]` | MongoDB `metadata` |
+| **ROUTINE** | `cadence` (daily/weekly/monthly), `target` (string e.g. "30 min"), `timeOfDay` (morning/afternoon/evening/night), `group` (optional label), `skips: [YYYY-MM-DD]` (per-day "not today" dismissals from the Focus deck — always daily regardless of cadence), `checkIns: [{date: YYYY-MM-DD, hours: number}]`, `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate` (YYYY-MM-DD), `creditedHours`, `timeEntries: [{start: ISO, end?: ISO}]` | MongoDB `metadata` |
 | **NOTE** ★ | `domain`, `source` (optional), `xp_link` (optional wikilink to related XP node) | Obsidian frontmatter |
 | **IDEA** ★ | `domain`, `idea_status` (raw / evaluating / developed / shelved), `xp_link` (optional) | Obsidian frontmatter |
 
@@ -60,6 +60,68 @@ All XP nodes share the universal schema (`title`, `type`, `description`, `parent
 > ROUTINE check-ins are stored as `checkIns: [{date, hours}]` (one entry per day). The legacy `checkInDates: string[]` format is automatically migrated to this structure on read.
 >
 > ★ Obsidian-only. See `06 - Templates/Note Template.md` and `06 - Templates/Idea Template.md`.
+
+---
+
+## 3.1 Property Classes
+
+Every property is one of three classes. This is the lens for "should it be editable":
+
+| Class | Meaning | Editable? | Examples |
+| :--- | :--- | :--- | :--- |
+| **User-set** | Entered by the user | ✅ editable wherever it matters | `priority`, `due`, `role`, `cadence`, `timeOfDay`, TAG `color` |
+| **Engine-computed** | Written by `propagation.service.ts` on `completeTask` / `checkInRoutine` / timer stop | ❌ read-only always | SKILL `totalHours`/`level`/`hoursToNext`; ROUTINE `streak`/`bestStreak`/`thisWeek`/`checkIns`/`lastCheckInDate`; TASK `actualHours`/`creditedHours`/`completedAt`/`completedDate`; PROJECT & DOMAIN `progress` |
+| **Derived-at-render** | Never stored; computed in `apps/web/src/lib/queue.ts` | ❌ not a stored field | PERSON `catchupState`/`relativeDate`; PERSON circle (read from TAG parent); PERSON `initials` (derived on save) |
+
+> **No server-side validation.** `CreateNodeInput` / `UpdateNodeInput` accept `metadata` as opaque `GraphQLJSON`. The shape of `metadata` is enforced only by the React forms and the propagation engine. A discriminated-union refactor is tracked in `docs/UAT_READINESS_PLAN.md` Phase 3.
+
+---
+
+## 3.2 Editability & Surfacing Matrix
+
+Where each **user-set** property can be edited, and where it is surfaced read-only across views. (Computed/derived fields omitted — always read-only per §3.1.)
+
+| Type | Property | Create modal | Node Detail | Also surfaced in |
+| :--- | :--- | :---: | :---: | :--- |
+| **TASK** | `status` | ✅ | ✅ segmented | Kanban (column), Calendar |
+| | `priority` | ✅ | ✅ | Kanban card |
+| | `estimatedHours` | ✅ | ✅ | — |
+| | `due` | ✅ | ✅ date | Kanban card, Calendar, Gantt |
+| | `startDate` | ✖ | ✅ date | Gantt (drag), Calendar |
+| | `progress` | ✖ | ✅ slider (manual; auto→100 on complete) | — |
+| | `sprint` | ✖ | 👁 read-only (set via Kanban) | Kanban sprint board |
+| **ROUTINE** | `cadence` | ✅ | ✅ select (recomputes `weekTarget`) | Routines |
+| | `target` | ✅ | ✅ input | Routines, Focus deck |
+| | `timeOfDay` | ✅ | ✅ select | Routines grouping, Mobile/Plan queue order |
+| | `group` | ✅ | ✅ input | Routines section header |
+| **PROJECT** | `status` | ✅ | ✅ segmented | Kanban, Dashboard |
+| | `startDate` / `dueDate` | ✖ | ✅ date | Gantt, Calendar |
+| **PERSON** | `role` / `email` / `phone` | ✅ | ✅ | People card |
+| | circle (TAG parent) | ✅ select+new | ✅ select+new | People grouping, Graph |
+| | `nextCatchup` / `lastCatchup` | ✖ | ✅ date | People (overdue badge) |
+| **TAG** | `color` | (circles only, via People) | ✅ color picker | chips everywhere |
+| | `kind` (`'circle'`) | set when creating a circle | 👁 read-only badge | People (circle grouping) |
+| **SKILL** | _(no user-set type fields)_ | — | universal only | Skills, SkillPicker |
+| **DOMAIN** | _(no user-set type fields)_ | — | universal only | tree, Dashboard |
+
+**Universal, all types:** `title` (header, inline), `description` (Detail textarea), `mainParent` (Detail → Connections → ParentPicker, type-filtered per §1), `metadata.tags` free-string list (Detail → Tags card).
+
+### Editability conventions
+
+- **Node Detail uses batched save.** All edits mutate local React state and persist together via one `updateNode` on **Save changes**. New Detail editors MUST follow this — do not auto-save individual fields in the panel.
+- **List/board quick-edits save immediately** (Kanban drag, Routines check-in, People inline). That is the exception, reserved for high-frequency actions outside the Detail panel.
+- **Never expose computed fields as editable** (§3.1). When a user-set field feeds a computed one, recompute on save — e.g. editing ROUTINE `cadence` must reset `weekTarget` (`daily → 7`, else `1`).
+
+---
+
+## 3.3 Known Spec Gaps (tracked)
+
+Open inconsistencies between this spec and the implementation, ranked. Full detail and status in `docs/UAT_READINESS_PLAN.md` Phase 3.
+
+1. **🔴 Two parallel tag systems.** §2 says a tag = a TAG node's id in `parents`. But the Detail "Tags" card edits `metadata.tags` as free strings (no TAG node, not in the graph), while graph-linked TAGs appear under "Additional parents." These must be reconciled before the tag UI is reworked. **Not yet resolved.**
+2. **🟠 Connections editing is partial.** §2 says additional parents are "set explicitly via the Connections field," but the Detail panel only edits `mainParent`, linked skills, and (PERSON) circle. Arbitrary PERSON/TAG parents cannot be added/removed from the panel yet. **Not yet resolved.**
+3. **🟡 No server-side metadata validation** (§3.1) — Phase 3 discriminated-union refactor. **Not yet resolved.**
+4. **🟡 `window.prompt`** is still used for adding free-string tags and naming new circles — to be replaced with inline inputs. **Not yet resolved.**
 
 ---
 
