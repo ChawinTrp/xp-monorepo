@@ -235,6 +235,44 @@ interface FocusViewProps {
   dayPlan: { orderedIds: string[] } | null;
 }
 
+// FireBurst — one-shot celebration overlay shown when a card is finished.
+// Pure CSS particles (see .fire-* in index.css); reduced-motion handled there.
+// Mount it with a changing `key` so each finish replays the animation.
+function FireBurst() {
+  const particles = useMemo(() => {
+    const rand = (min: number, max: number) => min + Math.random() * (max - min);
+    return Array.from({ length: 12 }, (_, i) => ({
+      id: i,
+      x: rand(-72, 72),
+      dist: rand(110, 200),
+      rot: rand(-28, 28),
+      dur: rand(650, 1000),
+      delay: rand(0, 150),
+      size: rand(16, 34),
+      glyph: Math.random() < 0.82 ? '🔥' : '✨',
+    }));
+  }, []);
+  return (
+    <div className="fire-overlay" aria-hidden>
+      <div className="fire-flash" />
+      {particles.map(p => (
+        <span
+          key={p.id}
+          className="fire-particle"
+          style={{
+            ['--x' as any]: `${p.x}px`,
+            ['--dist' as any]: `${p.dist}px`,
+            ['--rot' as any]: `${p.rot}deg`,
+            ['--dur' as any]: `${p.dur}ms`,
+            ['--delay' as any]: `${p.delay}ms`,
+            fontSize: p.size,
+          }}
+        >{p.glyph}</span>
+      ))}
+    </div>
+  );
+}
+
 function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss, dayPlan }: FocusViewProps) {
   const { nodes, breadcrumb } = useNodes();
   const [theme, setThemeState] = useState(getTheme());
@@ -265,6 +303,11 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   // up" screen — and its destructive Replay button — from flashing mid-undo.
   const [undoing, setUndoing] = useState(false);
   const startX = useRef<number | null>(null);
+  // One-shot fire celebration on finish. `burstKey` remounts FireBurst so it replays.
+  const [bursting, setBursting] = useState(false);
+  const [burstKey, setBurstKey] = useState(0);
+  const burstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (burstTimer.current) clearTimeout(burstTimer.current); }, []);
 
   const entries = useQueue(nodes, snoozedToBack, dayPlan);
   const queue = useMemo(() => entries.map((e) => e.node), [entries]);
@@ -315,6 +358,11 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       onFinish(node);
       setClearedIds(s => new Set([...s, node._id]));
       setDragDx(600);
+      // Celebrate: remount FireBurst, then auto-clear after the animation.
+      setBurstKey(k => k + 1);
+      setBursting(true);
+      if (burstTimer.current) clearTimeout(burstTimer.current);
+      burstTimer.current = setTimeout(() => setBursting(false), 1100);
     } else if (action === 'dismiss') {
       onDismiss(node);
       setClearedIds(s => new Set([...s, node._id]));
@@ -507,6 +555,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
           breadcrumbStr={crumbStr}
           unplanned={unplannedIds.has(node._id)}
         />
+        {bursting && <FireBurst key={burstKey} />}
       </div>
 
       {/* action buttons — single row of three */}

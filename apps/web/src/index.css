@@ -152,6 +152,39 @@ button { font-family: inherit; cursor: pointer; }
 /* streak-ice: lapsed/dormant routine treatment */
 .streak-ice { filter: saturate(0.2) brightness(0.85); opacity: 0.6; }
 
+/* fire-burst: one-shot celebration when a focus card is finished/checked-in */
+@keyframes fire-rise {
+  0%   { transform: translate(calc(-50% + var(--x, 0px)), 0) scale(0.5) rotate(var(--rot, 0deg)); opacity: 0; }
+  12%  { opacity: 1; }
+  60%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--x, 0px)), calc(-1 * var(--dist, 150px))) scale(1.15) rotate(var(--rot, 0deg)); opacity: 0; }
+}
+@keyframes fire-flash {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  25%  { opacity: 0.75; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+}
+@keyframes fire-static { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
+.fire-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.fire-flash {
+  position: absolute; left: 50%; top: 56%; width: 240px; height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(251,146,60,0.55), rgba(239,68,68,0.25) 45%, transparent 70%);
+  animation: fire-flash 600ms ease-out both;
+}
+.fire-particle {
+  position: absolute; bottom: 16%; left: 50%;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 0 6px rgba(249,115,22,0.8));
+  user-select: none;
+  animation: fire-rise var(--dur, 800ms) cubic-bezier(0.25, 0.8, 0.4, 1) both;
+  animation-delay: var(--delay, 0ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .fire-particle { animation: fire-static 480ms ease both; transform: translate(-50%, 0); }
+  .fire-flash { animation-duration: 360ms; }
+}
+
 /* Mobile responsive utilities */
 @media (max-width: 768px) {
   .hide-mobile { display: none !important; }
