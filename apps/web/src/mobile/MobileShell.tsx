@@ -235,10 +235,27 @@ interface FocusViewProps {
   dayPlan: { orderedIds: string[] } | null;
 }
 
+// Short, punchy encouragements shown on finish — must read in ~1s.
+const FINISH_QUOTES = [
+  'One down.',
+  'Momentum.',
+  'Win banked.',
+  'Ship beats scroll.',
+  'Future you says thanks.',
+  'Show up. Repeat.',
+  'Progress, not perfect.',
+  '4/7 wins the week.',
+  'Done is the engine.',
+  'Keep the streak warm.',
+  'That moved the needle.',
+  'Earned it.',
+];
+
 // FireBurst — one-shot celebration overlay shown when a card is finished.
 // Pure CSS particles (see .fire-* in index.css); reduced-motion handled there.
 // Mount it with a changing `key` so each finish replays the animation.
 function FireBurst() {
+  const quote = useMemo(() => FINISH_QUOTES[Math.floor(Math.random() * FINISH_QUOTES.length)], []);
   const particles = useMemo(() => {
     const rand = (min: number, max: number) => min + Math.random() * (max - min);
     return Array.from({ length: 12 }, (_, i) => ({
@@ -255,6 +272,7 @@ function FireBurst() {
   return (
     <div className="fire-overlay" aria-hidden>
       <div className="fire-flash" />
+      <div className="fire-quote">{quote}</div>
       {particles.map(p => (
         <span
           key={p.id}
@@ -362,7 +380,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       setBurstKey(k => k + 1);
       setBursting(true);
       if (burstTimer.current) clearTimeout(burstTimer.current);
-      burstTimer.current = setTimeout(() => setBursting(false), 1100);
+      burstTimer.current = setTimeout(() => setBursting(false), 1700);
     } else if (action === 'dismiss') {
       onDismiss(node);
       setClearedIds(s => new Set([...s, node._id]));

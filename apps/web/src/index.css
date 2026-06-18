@@ -180,9 +180,25 @@ button { font-family: inherit; cursor: pointer; }
   animation: fire-rise var(--dur, 800ms) cubic-bezier(0.25, 0.8, 0.4, 1) both;
   animation-delay: var(--delay, 0ms);
 }
+@keyframes fire-quote {
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.96); }
+  16%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  78%  { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -10px) scale(1); }
+}
+.fire-quote {
+  position: absolute; left: 50%; top: 40%;
+  transform: translate(-50%, 0);
+  font-weight: 800; font-size: 19px; letter-spacing: -0.3px;
+  color: var(--text);
+  text-shadow: 0 1px 10px rgba(249,115,22,0.65), 0 0 3px color-mix(in srgb, var(--base) 70%, transparent);
+  white-space: nowrap; text-align: center;
+  animation: fire-quote 1600ms ease both;
+}
 @media (prefers-reduced-motion: reduce) {
   .fire-particle { animation: fire-static 480ms ease both; transform: translate(-50%, 0); }
   .fire-flash { animation-duration: 360ms; }
+  .fire-quote { animation: fire-static 1400ms ease both; transform: translate(-50%, 0); }
 }
 
 /* Mobile responsive utilities */
