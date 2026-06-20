@@ -92,7 +92,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ background: 'var(--base)' }}>
+      <div className="flex items-center justify-center h-full" style={{ background: 'var(--base)' }}>
         <div className="flex flex-col items-center gap-4">
           <div className="grid place-items-center" style={{
             width: 48, height: 48, borderRadius: 12,
@@ -108,7 +108,7 @@ export default function App() {
 
   return (
     <ToastProvider>
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--base)' }}>
+    <div className="flex h-full overflow-hidden" style={{ background: 'var(--base)' }}>
       {/* Mobile sidebar overlay */}
       {isMobile && mobileMenuOpen && (
         <div

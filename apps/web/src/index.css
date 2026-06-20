@@ -96,10 +96,20 @@
 
 * { box-sizing: border-box; }
 
-html, body, #root {
+html, body {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+}
+
+/* #root tracks the *dynamic* viewport so the layout always fits the visible
+   area on iOS Safari/iPadOS, where the URL/toolbar shrinks the viewport and
+   100vh (large viewport) would push the bottom of the page behind the bar —
+   making bottom-anchored controls (e.g. NodeDetail's Delete) unreachable. */
+#root {
+  height: 100vh;  /* fallback for browsers without dvh */
+  height: 100dvh;
   overflow: hidden;
 }
 
