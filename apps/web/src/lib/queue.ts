@@ -147,7 +147,16 @@ function autoOrder(nodes: XPNode[], today: string): XPNode[] {
 
 // Still actionable when reading a plan: incomplete task / unsatisfied routine.
 function isActionable(node: XPNode, today: string): boolean {
-  if (node.type === 'TASK') return node.status !== 'DONE';
+  if (node.type === 'TASK') {
+    if (node.status === 'DONE') return false;
+    // Dismissed ("Tomorrow") or otherwise deferred to a FUTURE due date → it has
+    // left today. Without this a planned task pushed to tomorrow reappears in the
+    // deck after a refresh (it's still "not DONE"). A task with no due date, or
+    // one due today/overdue, stays actionable.
+    const due = (node.metadata as any)?.due as string | undefined;
+    if (due && due.slice(0, 10) > today) return false;
+    return true;
+  }
   if (node.type === 'ROUTINE')
     return !isRoutineSatisfied(node.metadata, today) && !isRoutineSkippedOn(node.metadata, today);
   return false;
