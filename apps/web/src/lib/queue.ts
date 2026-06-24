@@ -162,22 +162,24 @@ function applySnooze(entries: QueueEntry[], snoozedToBack: string[]): QueueEntry
   return [...front, ...tail];
 }
 
-// ── Pure queue builder. With no dayPlan it is the Focus v2 baseline (all
-//    planned:true). With a dayPlan it orders planned-and-still-actionable nodes
-//    first, then appends any eligible card not in the plan (planned:false safety net).
+// ── Pure queue builder.
+//    • No dayPlan → Focus v2 baseline: the full autoOrder rhythm (all planned:true).
+//      This branch also seeds PlanMode, so it must keep returning everything eligible.
+//    • With a dayPlan → EXACTLY the plan: the planned, still-actionable nodes in plan
+//      order and nothing else. We deliberately do NOT append eligible-but-unplanned
+//      cards — the deck must match what the user planned (no surprise extras, no
+//      reordering). New/just-due cards surface in tomorrow's plan, not today's deck.
 export function buildQueue(nodes: XPNode[], opts: BuildQueueOpts): QueueEntry[] {
   const { today, snoozedToBack = [], dayPlan = null } = opts;
-  const auto = autoOrder(nodes, today);
 
   if (!dayPlan) {
     return applySnooze(
-      auto.map((node) => ({ node, planned: true })),
+      autoOrder(nodes, today).map((node) => ({ node, planned: true })),
       snoozedToBack,
     );
   }
 
   const byId = new Map(nodes.map((n) => [n._id, n]));
-  const inPlan = new Set(dayPlan.orderedIds);
 
   // De-dup ids: heals plans persisted before the morning-routine duplication fix.
   const seenPlan = new Set<string>();
@@ -187,11 +189,7 @@ export function buildQueue(nodes: XPNode[], opts: BuildQueueOpts): QueueEntry[] 
     .filter((n): n is XPNode => !!n && isActionable(n, today))
     .map((node) => ({ node, planned: true }));
 
-  const appended: QueueEntry[] = auto
-    .filter((n) => !inPlan.has(n._id))
-    .map((node) => ({ node, planned: false }));
-
-  return applySnooze([...planned, ...appended], snoozedToBack);
+  return applySnooze(planned, snoozedToBack);
 }
 
 // ── Dynamic catch-up state helper for PERSON nodes

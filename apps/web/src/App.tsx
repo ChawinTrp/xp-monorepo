@@ -16,6 +16,7 @@ import Calendar from './views/Calendar';
 import Settings from './views/Settings';
 import NodeDetail from './views/NodeDetail';
 import MobileShell from './mobile/MobileShell';
+import BootSplash from './components/BootSplash';
 
 type ViewId = 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph' | 'gantt' | 'calendar' | 'settings';
 
@@ -35,7 +36,7 @@ function useIsMobile() {
 }
 
 export default function App() {
-  const { byId, breadcrumb, loading } = useNodes();
+  const { byId, breadcrumb, loading, nodes } = useNodes();
   const isMobile = useIsMobile();
   const [view, setView] = useState<ViewId>('dashboard');
   const [openId, setOpenId] = useState<string | null>(null);
@@ -82,27 +83,18 @@ export default function App() {
     return [VIEW_LABELS[view]];
   }, [view, openId, byId, breadcrumb]);
 
-  if (!loading && isMobile) {
+  // Block the UI only on the very first load with an empty cache (the ~15s Render
+  // cold start). cache-and-network keeps `loading` true during later background
+  // refetches, so gating on data presence avoids re-showing the splash each time.
+  if (loading && nodes.length === 0) {
+    return <BootSplash />;
+  }
+
+  if (isMobile) {
     return (
       <ToastProvider>
         <MobileShell />
       </ToastProvider>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full" style={{ background: 'var(--base)' }}>
-        <div className="flex flex-col items-center gap-4">
-          <div className="grid place-items-center" style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: 'linear-gradient(135deg, var(--accent), var(--blue))',
-          }}>
-            <span style={{ fontWeight: 800, fontSize: 20, color: 'var(--mantle)' }}>XP</span>
-          </div>
-          <span className="text-ctp-subtext1" style={{ fontSize: 13 }}>Loading…</span>
-        </div>
-      </div>
     );
   }
 

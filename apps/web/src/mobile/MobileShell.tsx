@@ -233,6 +233,11 @@ interface FocusViewProps {
   onUndoFinish: (node: XPNode) => void;
   onUndoDismiss: (node: XPNode, prevDue?: string) => void;
   dayPlan: { orderedIds: string[] } | null;
+  // False until the DayPlan query has returned once. While false we must not
+  // build the queue: dayPlan is still null and buildQueue would fall back to the
+  // full autoOrder, flashing every eligible card (wrong count + wrong order)
+  // before snapping to the plan. See the loading guard below.
+  dayPlanReady: boolean;
 }
 
 // Short, punchy encouragements shown on finish — must read in ~1s.
@@ -291,7 +296,7 @@ function FireBurst() {
   );
 }
 
-function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss, dayPlan }: FocusViewProps) {
+function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss, dayPlan, dayPlanReady }: FocusViewProps) {
   const { nodes, breadcrumb } = useNodes();
   const [theme, setThemeState] = useState(getTheme());
   useEffect(() => {
@@ -448,6 +453,17 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
     else if (dragDx < -120) advance('snooze');
     else setDragDx(0);
   };
+
+  // Plan not loaded yet: don't render the auto-fallback queue (it would show every
+  // eligible card in rhythm order, not the plan). Hold on a quiet spinner instead.
+  if (!dayPlanReady) {
+    return (
+      <div style={S.empty}>
+        <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.7 }}>✦</div>
+        <p style={{ color: 'var(--subtext1)', fontSize: 14 }}>Loading your plan…</p>
+      </div>
+    );
+  }
 
   if (!node) {
     if (undoing) {
@@ -906,11 +922,17 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 // ══════════════════════════════════════════════════════
 export default function MobileShell() {
   const { nodes } = useNodes();
-  const { data: dayPlanData } = useQuery<{ dayPlan: { orderedIds: string[] } | null }>(
+  const { data: dayPlanData, error: dayPlanError } = useQuery<{ dayPlan: { orderedIds: string[] } | null }>(
     DAY_PLAN,
     { variables: { date: TODAY } },
   );
   const dayPlan = dayPlanData?.dayPlan ?? null;
+  // `data` is undefined until the first response (null or a plan). Gate on data
+  // presence — not `loading` — so cache-and-network background refetches don't
+  // re-trigger the "Loading your plan…" guard once we already have an answer.
+  // Treat an error as "ready" too, so a down/unreachable API degrades to the
+  // normal empty deck instead of hanging on the loading guard forever.
+  const dayPlanReady = dayPlanData !== undefined || dayPlanError != null;
   const [tab, setTab] = useState('today');
   const [createOpen, setCreateOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
@@ -1061,6 +1083,7 @@ export default function MobileShell() {
             onUndoFinish={handleUndoFinish}
             onUndoDismiss={handleUndoDismiss}
             dayPlan={dayPlan}
+            dayPlanReady={dayPlanReady}
           />
         )}
         {tab === 'stats' && <StatsView />}

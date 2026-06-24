@@ -14,6 +14,13 @@ const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').repla
 const client = new ApolloClient({
   link: new HttpLink({ uri: `${API_BASE}/graphql` }),
   cache: new InMemoryCache(),
+  // cache-and-network: render cached data instantly, but ALWAYS refetch in the
+  // background so the Focus deck / queue never shows stale data after edits made
+  // here, on the desktop, or in another tab. cache-first (the default) was
+  // serving old GetNodes/DayPlan copies on revisit.
+  defaultOptions: {
+    watchQuery: { fetchPolicy: 'cache-and-network', errorPolicy: 'all' },
+  },
 });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
