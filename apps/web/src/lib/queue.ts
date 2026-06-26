@@ -46,16 +46,18 @@ export function isRoutineSatisfied(meta: any, day: string): boolean {
   return checks.some((c) => c.date === day);
 }
 
-// ── Per-day routine skip ("not today" from the Focus deck). Unlike check-ins,
-//    skips are ALWAYS daily regardless of cadence: skipping a weekly routine
-//    hides it for today only, not the whole week. Kept separate from
-//    isRoutineSatisfied so the cadence-aware satisfaction logic stays clean.
+// ── Per-day skip ("not today" from the Focus deck). Both TASK and ROUTINE carry
+//    `metadata.skips: [YYYY-MM-DD]`. Skips are ALWAYS daily regardless of cadence:
+//    skipping a weekly routine hides it for today only, not the whole week. Kept
+//    separate from isRoutineSatisfied so the cadence-aware logic stays clean.
 export function skipsOf(meta: any): string[] {
   return Array.isArray(meta?.skips) ? meta.skips : [];
 }
-export function isRoutineSkippedOn(meta: any, day: string): boolean {
+export function isSkippedOn(meta: any, day: string): boolean {
   return skipsOf(meta).some((d) => d.slice(0, 10) === day);
 }
+// Backwards-compatible alias (call sites predate the task/routine generalization).
+export const isRoutineSkippedOn = isSkippedOn;
 
 // ── Task due helpers. Date-string compare avoids `new Date(due) < new Date()`
 //    mis-flagging a due-today task as overdue in non-UTC locales.
@@ -224,4 +226,39 @@ export function getPersonCatchup(person: any, todayStr: string = logicalDateStr(
     else relativeDate = `in ${diffDays} days`;
     return { catchupState: 'upcoming', relativeDate };
   }
+}
+
+// ── Solid-daily-queue per-item status. Derived per plan-date `day` from canonical
+//    node state, so it persists across refreshes and never drifts from the rest of
+//    the app (Win-the-Week, XP). `done` wins over `skipped`.
+export type ItemStatus = 'done' | 'skipped' | 'pending';
+
+export function itemStatus(node: XPNode, day: string): ItemStatus {
+  const meta = node.metadata as any;
+  if (node.type === 'TASK') {
+    if (node.status === 'DONE') return 'done';
+    if (isSkippedOn(meta, day)) return 'skipped';
+    return 'pending';
+  }
+  if (node.type === 'ROUTINE') {
+    if (isCheckedOn(meta, day)) return 'done';
+    if (isSkippedOn(meta, day)) return 'skipped';
+    return 'pending';
+  }
+  return 'pending';
+}
+
+export interface DaySummary {
+  total: number;
+  done: number;
+  skipped: number;
+  pending: number;
+  resolved: number; // done + skipped — drives the X / Y progress counter
+}
+
+export function summarizeDay(statuses: ItemStatus[]): DaySummary {
+  const done = statuses.filter((s) => s === 'done').length;
+  const skipped = statuses.filter((s) => s === 'skipped').length;
+  const pending = statuses.filter((s) => s === 'pending').length;
+  return { total: statuses.length, done, skipped, pending, resolved: done + skipped };
 }

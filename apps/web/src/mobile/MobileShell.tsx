@@ -5,21 +5,18 @@ import { Icons, StatCard } from '../components/ui';
 import { getTheme, toggleTheme } from '../lib/theme';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES,
-  UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE, DAY_PLAN, WEEK_PROGRESS,
+  UPDATE_NODE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE, WEEK_PROGRESS,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
 import CreateNodeModal from '../components/CreateNodeModal';
 import {
-  buildQueue, isOverdue, isCheckedOn, logicalDateStr, addDays,
-  type QueueEntry,
+  isOverdue, isCheckedOn, logicalDateStr,
 } from '../lib/queue';
+import { useDayQueue } from '../lib/dayQueue';
 import { getWeekStart, parseLocalDate } from '@xp/shared';
 
-// ── Today / tomorrow (5am logical-day boundary; helpers live in ../lib/queue)
+// ── Today (5am logical-day boundary; helpers live in ../lib/queue)
 const TODAY = logicalDateStr();
-function tomorrowStr(): string {
-  return addDays(logicalDateStr(), 1);
-}
 
 // ── Timer helpers
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -45,13 +42,6 @@ const TASK_FG    = 'var(--c-task)';
 const PRIORITY_COLOR: Record<string, string> = {
   high: 'var(--red)', medium: 'var(--yellow)', low: 'var(--green)',
 };
-
-function useQueue(nodes: XPNode[], snoozedToBack: string[], dayPlan: { orderedIds: string[] } | null): QueueEntry[] {
-  return useMemo(
-    () => buildQueue(nodes, { today: TODAY, snoozedToBack, dayPlan }),
-    [nodes, snoozedToBack, dayPlan],
-  );
-}
 
 // ── Detect existing open timer on mount
 function detectOpenTimer(nodes: XPNode[]): { runningId: string | null; elapsed: number } {
@@ -79,10 +69,9 @@ interface FocusCardProps {
   onStartTimer: () => void;
   onPauseTimer: () => void;
   breadcrumbStr: string;
-  unplanned: boolean;
 }
 
-function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, onPauseTimer, breadcrumbStr, unplanned }: FocusCardProps) {
+function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, onPauseTimer, breadcrumbStr }: FocusCardProps) {
   const isRoutine = node.type === 'ROUTINE';
   const running   = runningId === node._id;
   const m = (node.metadata as any) ?? {};
@@ -136,14 +125,6 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
             <span style={{ width: 6, height: 6, borderRadius: 999, background: typeFg }} />
             {isRoutine ? 'ROUTINE' : 'TASK'}
           </span>
-          {unplanned && (
-            <span style={{
-              fontSize: 9.5, fontWeight: 700, letterSpacing: 0.8,
-              padding: '3px 7px', borderRadius: 999,
-              background: 'rgba(255,255,255,0.28)', color: ink,
-              textTransform: 'uppercase',
-            }}>+ Unplanned</span>
-          )}
         </span>
         {isRoutine ? (
           <span style={{ ...S.metaRight, color: ink }}>
@@ -231,13 +212,7 @@ interface FocusViewProps {
   onFinish: (node: XPNode) => void;
   onDismiss: (node: XPNode) => void;
   onUndoFinish: (node: XPNode) => void;
-  onUndoDismiss: (node: XPNode, prevDue?: string) => void;
-  dayPlan: { orderedIds: string[] } | null;
-  // False until the DayPlan query has returned once. While false we must not
-  // build the queue: dayPlan is still null and buildQueue would fall back to the
-  // full autoOrder, flashing every eligible card (wrong count + wrong order)
-  // before snapping to the plan. See the loading guard below.
-  dayPlanReady: boolean;
+  onUndoDismiss: (node: XPNode) => void;
 }
 
 // Short, punchy encouragements shown on finish — must read in ~1s.
@@ -296,8 +271,11 @@ function FireBurst() {
   );
 }
 
-function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss, dayPlan, dayPlanReady }: FocusViewProps) {
-  const { nodes, breadcrumb } = useNodes();
+function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, onDismiss, onUndoFinish, onUndoDismiss }: FocusViewProps) {
+  const { breadcrumb } = useNodes();
+  // The solid daily queue: frozen plan + derived per-item status. `pending` is the
+  // swipe rotation; `summary` drives the persistent progress counter.
+  const { pending, summary, ready } = useDayQueue();
   const [theme, setThemeState] = useState(getTheme());
   useEffect(() => {
     const handler = (e: Event) => {
@@ -309,8 +287,6 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
 
   // Cards snoozed THIS SESSION are pushed to the back of the queue (session-only).
   const [snoozedToBack, setSnoozedToBack] = useState<string[]>([]);
-  // Ids finished or dismissed this session — drives the stable counter denominator.
-  const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
   // ID-based tracking avoids index drift when the queue shrinks after a refetch.
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
@@ -318,7 +294,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   const [dragging, setDragging] = useState(false);
   // Single-level undo of the most recent action this session.
   const [lastAction, setLastAction] = useState<
-    | { kind: 'finish' | 'snooze' | 'dismiss'; node: XPNode; prevDue?: string }
+    | { kind: 'finish' | 'snooze' | 'dismiss'; node: XPNode }
     | null
   >(null);
   // True while an undo of a finish/dismiss is waiting for the un-done card to
@@ -332,20 +308,20 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   const burstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (burstTimer.current) clearTimeout(burstTimer.current); }, []);
 
-  const entries = useQueue(nodes, snoozedToBack, dayPlan);
-  const queue = useMemo(() => entries.map((e) => e.node), [entries]);
-  const unplannedIds = useMemo(
-    () => new Set(entries.filter((e) => !e.planned).map((e) => e.node._id)),
-    [entries],
-  );
+  // Pending items are the swipe rotation; snoozed-this-session cards move to the back.
+  const queue = useMemo(() => {
+    if (snoozedToBack.length === 0) return pending;
+    const back = new Set(snoozedToBack);
+    return [...pending.filter((n) => !back.has(n._id)), ...pending.filter((n) => back.has(n._id))];
+  }, [pending, snoozedToBack]);
 
   const idx = queue.findIndex(n => n._id === currentId);
   const node = idx >= 0 ? queue[idx] : undefined;
 
-  // Distinct cards seen this session. A finished/dismissed card lingers in `queue`
-  // until the refetch resolves; the union dedupes it so the denominator never flickers.
-  const total = new Set([...queue.map(n => n._id), ...clearedIds]).size;
-  const cleared = clearedIds.size;
+  // Progress is derived from the frozen plan + canonical node state, so it persists
+  // across refreshes — no session counter to reset.
+  const total = summary.total;
+  const resolved = summary.resolved;
 
   // Initialize currentId once the queue is ready; showDone prevents re-init after completion.
   useEffect(() => {
@@ -371,15 +347,10 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
     // The next card to show, computed before state changes reshuffle the queue.
     const nextId = queue.find((n, i) => i > idx && n._id !== node._id)?._id ?? null;
 
-    setLastAction({
-      kind: action,
-      node,
-      prevDue: (node.metadata as any)?.due,
-    });
+    setLastAction({ kind: action, node });
 
     if (action === 'finish') {
       onFinish(node);
-      setClearedIds(s => new Set([...s, node._id]));
       setDragDx(600);
       // Celebrate: remount FireBurst, then auto-clear after the animation.
       setBurstKey(k => k + 1);
@@ -388,7 +359,6 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       burstTimer.current = setTimeout(() => setBursting(false), 1700);
     } else if (action === 'dismiss') {
       onDismiss(node);
-      setClearedIds(s => new Set([...s, node._id]));
       setDragDx(-600);
     } else {
       // Snooze: push to back of the remaining queue, do NOT count as cleared.
@@ -413,7 +383,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
 
   const handleUndo = useCallback(() => {
     if (!lastAction) return;
-    const { kind, node: an, prevDue } = lastAction;
+    const { kind, node: an } = lastAction;
 
     if (kind === 'snooze') {
       // Pull the card back out of the snoozed-to-back list and make it current.
@@ -422,13 +392,11 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
     } else if (kind === 'finish') {
       setUndoing(true);
       onUndoFinish(an);
-      setClearedIds(s => { const n = new Set(s); n.delete(an._id); return n; });
       setShowDone(false);
       setCurrentId(an._id);
     } else {
       setUndoing(true);
-      onUndoDismiss(an, prevDue);
-      setClearedIds(s => { const n = new Set(s); n.delete(an._id); return n; });
+      onUndoDismiss(an);
       setShowDone(false);
       setCurrentId(an._id);
     }
@@ -454,9 +422,9 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
     else setDragDx(0);
   };
 
-  // Plan not loaded yet: don't render the auto-fallback queue (it would show every
-  // eligible card in rhythm order, not the plan). Hold on a quiet spinner instead.
-  if (!dayPlanReady) {
+  // Plan not loaded / still snapshotting: hold on a quiet spinner rather than
+  // flashing an empty or half-built queue.
+  if (!ready) {
     return (
       <div style={S.empty}>
         <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.7 }}>✦</div>
@@ -478,24 +446,13 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       <div style={S.empty}>
         <div style={{ fontSize: 64, marginBottom: 16 }}>✦</div>
         <h2 style={{ fontSize: 28, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>
-          You're all caught up
+          {total === 0 ? 'Nothing planned today' : "You're all caught up"}
         </h2>
         <p style={{ color: 'var(--subtext1)', marginTop: 10, fontSize: 14 }}>
-          {cleared} card{cleared === 1 ? '' : 's'} cleared today.
+          {total === 0
+            ? 'Plan your day or add a task to get going.'
+            : `${summary.done} done · ${summary.skipped} skipped · ${total} planned.`}
         </p>
-        <button
-          onClick={() => {
-            setShowDone(false);
-            setSnoozedToBack([]);
-            setClearedIds(new Set());
-            setCurrentId(null);
-          }}
-          style={{
-            marginTop: 28, padding: '10px 18px',
-            borderRadius: 999, background: 'var(--surface0)',
-            color: 'var(--subtext0)', fontSize: 13, fontWeight: 500,
-          }}
-        >Replay queue</button>
       </div>
     );
   }
@@ -529,10 +486,10 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
           </button>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: 22, fontWeight: 600, letterSpacing: -0.5 }}>
-              {cleared + 1}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
+              {resolved}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
             </div>
             <div style={{ fontSize: 10.5, letterSpacing: 1, color: 'var(--subtext1)', textTransform: 'uppercase' }}>
-              {total - cleared} left
+              {summary.pending} left
             </div>
           </div>
           <button
@@ -558,7 +515,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
 
       {/* progress dots — top */}
       <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 10 }}>
-        <ProgressDots total={total} index={cleared} />
+        <ProgressDots total={total} index={resolved} />
       </div>
 
       {/* swipe stage */}
@@ -587,7 +544,6 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
           onStartTimer={() => onStartTimer(node._id)}
           onPauseTimer={onPauseTimer}
           breadcrumbStr={crumbStr}
-          unplanned={unplannedIds.has(node._id)}
         />
         {bursting && <FireBurst key={burstKey} />}
       </div>
@@ -608,19 +564,13 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
         {(node.type === 'TASK' || node.type === 'ROUTINE') && (
           <ActionBtn
             tone="dismiss"
-            label={node.type === 'ROUTINE' ? 'Skip' : 'Tomorrow'}
-            hint={node.type === 'ROUTINE' ? 'not today' : 'dismiss'}
+            label="Skip"
+            hint="not today"
             onClick={() => advance('dismiss')}
             icon={
-              node.type === 'ROUTINE' ? (
-                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
-                </svg>
-              ) : (
-                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-                </svg>
-              )
+              <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
             }
           />
         )}
@@ -922,17 +872,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 // ══════════════════════════════════════════════════════
 export default function MobileShell() {
   const { nodes } = useNodes();
-  const { data: dayPlanData, error: dayPlanError } = useQuery<{ dayPlan: { orderedIds: string[] } | null }>(
-    DAY_PLAN,
-    { variables: { date: TODAY } },
-  );
-  const dayPlan = dayPlanData?.dayPlan ?? null;
-  // `data` is undefined until the first response (null or a plan). Gate on data
-  // presence — not `loading` — so cache-and-network background refetches don't
-  // re-trigger the "Loading your plan…" guard once we already have an answer.
-  // Treat an error as "ready" too, so a down/unreachable API degrades to the
-  // normal empty deck instead of hanging on the loading guard forever.
-  const dayPlanReady = dayPlanData !== undefined || dayPlanError != null;
+  // The day plan + queue now live in useDayQueue (consumed inside FocusView).
   const [tab, setTab] = useState('today');
   const [createOpen, setCreateOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
@@ -1017,22 +957,16 @@ export default function MobileShell() {
   }, [runningId, stopTimerMut, checkInMut, completeTaskMut]);
 
   const handleDismiss = useCallback(async (node: XPNode) => {
-    let meta: any;
-    if (node.type === 'TASK') {
-      // Tasks: push the due date out a day so it drops off today's queue.
-      meta = { ...(node.metadata as any), due: tomorrowStr() };
-    } else if (node.type === 'ROUTINE') {
-      // Routines have no due date — record a per-day skip ("not today") so the
-      // queue hides it for today only (see isRoutineSkippedOn).
-      const today = logicalDateStr();
-      const prev: string[] = Array.isArray((node.metadata as any)?.skips)
-        ? (node.metadata as any).skips
-        : [];
-      if (prev.some((d) => d.slice(0, 10) === today)) return; // already skipped today
-      meta = { ...(node.metadata as any), skips: [...prev, today] };
-    } else {
-      return;
-    }
+    if (node.type !== 'TASK' && node.type !== 'ROUTINE') return;
+    // Skip = a per-day "not today" marker on metadata.skips (TASK and ROUTINE
+    // alike). In the frozen-plan model this is a status change, not a reschedule:
+    // the item stays in today's plan but reads as "skipped".
+    const today = logicalDateStr();
+    const prev: string[] = Array.isArray((node.metadata as any)?.skips)
+      ? (node.metadata as any).skips
+      : [];
+    if (prev.some((d) => d.slice(0, 10) === today)) return; // already skipped today
+    const meta = { ...(node.metadata as any), skips: [...prev, today] };
     try {
       await updateNodeMut({ variables: { input: { _id: node._id, metadata: meta } } });
     } catch { /* ignore */ }
@@ -1048,18 +982,12 @@ export default function MobileShell() {
     } catch { /* ignore */ }
   }, [reopenTaskMut, undoCheckInMut]);
 
-  const handleUndoDismiss = useCallback(async (node: XPNode, prevDue?: string) => {
+  const handleUndoDismiss = useCallback(async (node: XPNode) => {
+    // Undo a skip (TASK or ROUTINE): drop today's skip entry so it returns to pending.
+    const today = logicalDateStr();
     const meta = { ...(node.metadata as any) };
-    if (node.type === 'ROUTINE') {
-      // Undo a routine skip: drop today's skip entry so it returns to the queue.
-      const today = logicalDateStr();
-      const prev: string[] = Array.isArray(meta.skips) ? meta.skips : [];
-      meta.skips = prev.filter((d) => d.slice(0, 10) !== today);
-    } else if (prevDue == null) {
-      delete meta.due;
-    } else {
-      meta.due = prevDue;
-    }
+    const prev: string[] = Array.isArray(meta.skips) ? meta.skips : [];
+    meta.skips = prev.filter((d) => d.slice(0, 10) !== today);
     try {
       await updateNodeMut({ variables: { input: { _id: node._id, metadata: meta } } });
     } catch { /* ignore */ }
@@ -1082,8 +1010,6 @@ export default function MobileShell() {
             onDismiss={handleDismiss}
             onUndoFinish={handleUndoFinish}
             onUndoDismiss={handleUndoDismiss}
-            dayPlan={dayPlan}
-            dayPlanReady={dayPlanReady}
           />
         )}
         {tab === 'stats' && <StatsView />}

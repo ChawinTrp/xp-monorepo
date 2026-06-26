@@ -15,13 +15,14 @@ import Gantt from './views/Gantt';
 import Calendar from './views/Calendar';
 import Settings from './views/Settings';
 import NodeDetail from './views/NodeDetail';
+import Today from './views/Today';
 import MobileShell from './mobile/MobileShell';
 import BootSplash from './components/BootSplash';
 
-type ViewId = 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph' | 'gantt' | 'calendar' | 'settings';
+type ViewId = 'today' | 'dashboard' | 'kanban' | 'routines' | 'skills' | 'people' | 'graph' | 'gantt' | 'calendar' | 'settings';
 
 const VIEW_LABELS: Record<string, string> = {
-  dashboard: 'Dashboard', kanban: 'Kanban', gantt: 'Gantt', calendar: 'Calendar',
+  today: 'Today', dashboard: 'Dashboard', kanban: 'Kanban', gantt: 'Gantt', calendar: 'Calendar',
   routines: 'Routines', skills: 'Skills', people: 'People', graph: 'Graph', settings: 'Settings',
 };
 
@@ -181,6 +182,7 @@ function ViewRenderer({ view, onOpen, onNavigate, onCreate }: {
   view: ViewId; onOpen: (id: string) => void; onNavigate: (v: string) => void; onCreate: () => void;
 }) {
   switch (view) {
+    case 'today': return <Today onOpen={onOpen} />;
     case 'dashboard': return <Dashboard onOpen={onOpen} onNavigate={onNavigate} onCreate={onCreate} />;
     case 'kanban': return <Kanban onOpen={onOpen} onCreate={onCreate} />;
     case 'gantt': return <Gantt onOpen={onOpen} />;
