@@ -62,6 +62,10 @@ export class Node {
   @Prop({ required: false })
   obsidianPath?: string;
 
+  @Prop({ required: false, default: false })
+  @Field(() => Boolean, { nullable: true })
+  archived?: boolean;
+
   @Field(() => GraphQLISODateTime, { nullable: true })
   createdAt?: Date;
 

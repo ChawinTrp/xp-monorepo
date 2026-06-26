@@ -28,8 +28,9 @@ export class NodesService {
     return node;
   }
 
-  async findAll(): Promise<Node[]> {
-    return this.nodeModel.find().exec();
+  async findAll(includeArchived = false): Promise<Node[]> {
+    const query = includeArchived ? {} : { archived: { $ne: true } };
+    return this.nodeModel.find(query).exec();
   }
 
   async findOne(id: string): Promise<Node> {
@@ -40,7 +41,11 @@ export class NodesService {
     return node;
   }
 
-  async searchNodes(term: string, allowedTypes?: string[]): Promise<Node[]> {
+  async searchNodes(
+    term: string,
+    allowedTypes?: string[],
+    includeArchived = false,
+  ): Promise<Node[]> {
     const query: Record<string, unknown> = {};
 
     if (term) {
@@ -49,6 +54,10 @@ export class NodesService {
 
     if (allowedTypes && allowedTypes.length > 0) {
       query.type = { $in: allowedTypes };
+    }
+
+    if (!includeArchived) {
+      query.archived = { $ne: true };
     }
 
     return this.nodeModel.find(query).limit(20).exec();
@@ -142,6 +151,26 @@ export class NodesService {
 
     await this.nodeModel.findByIdAndDelete(id).exec();
 
+    return node;
+  }
+
+  async archive(id: string): Promise<Node> {
+    const node = await this.nodeModel
+      .findByIdAndUpdate(id, { archived: true }, { returnDocument: 'after' })
+      .exec();
+    if (!node) {
+      throw new NotFoundException(`Node with ID ${id} not found`);
+    }
+    return node;
+  }
+
+  async unarchive(id: string): Promise<Node> {
+    const node = await this.nodeModel
+      .findByIdAndUpdate(id, { archived: false }, { returnDocument: 'after' })
+      .exec();
+    if (!node) {
+      throw new NotFoundException(`Node with ID ${id} not found`);
+    }
     return node;
   }
 
