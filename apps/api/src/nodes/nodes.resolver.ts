@@ -20,8 +20,11 @@ export class NodesResolver {
   }
 
   @Query(() => [Node], { name: 'nodes' })
-  findAll() {
-    return this.nodesService.findAll();
+  findAll(
+    @Args('includeArchived', { type: () => Boolean, nullable: true })
+    includeArchived?: boolean,
+  ) {
+    return this.nodesService.findAll(includeArchived ?? false);
   }
 
   @Query(() => Node, { name: 'node' })
@@ -39,13 +42,29 @@ export class NodesResolver {
     @Args('term', { type: () => String, nullable: true }) term?: string,
     @Args('allowedTypes', { type: () => [String], nullable: 'itemsAndList' })
     allowedTypes?: string[],
+    @Args('includeArchived', { type: () => Boolean, nullable: true })
+    includeArchived?: boolean,
   ) {
-    return this.nodesService.searchNodes(term || '', allowedTypes);
+    return this.nodesService.searchNodes(
+      term || '',
+      allowedTypes,
+      includeArchived ?? false,
+    );
   }
 
   @Mutation(() => Node)
   deleteNode(@Args('id', { type: () => ID }) id: string) {
     return this.nodesService.remove(id);
+  }
+
+  @Mutation(() => Node)
+  archiveNode(@Args('id', { type: () => ID }) id: string) {
+    return this.nodesService.archive(id);
+  }
+
+  @Mutation(() => Node)
+  unarchiveNode(@Args('id', { type: () => ID }) id: string) {
+    return this.nodesService.unarchive(id);
   }
 
   @Mutation(() => [Node])

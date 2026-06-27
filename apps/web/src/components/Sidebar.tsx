@@ -4,7 +4,7 @@ import { TYPE_COLORS } from '../lib/types';
 import type { XPNode } from '../lib/types';
 import { useNodes } from '../lib/hooks';
 
-type ViewId = 'dashboard' | 'kanban' | 'gantt' | 'calendar' | 'routines' | 'skills' | 'people' | 'graph' | 'settings';
+type ViewId = 'today' | 'dashboard' | 'kanban' | 'gantt' | 'calendar' | 'routines' | 'skills' | 'people' | 'graph' | 'settings';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -19,6 +19,7 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: typeof Icons.LayoutDashboard }[] = [
+  { id: 'today', label: 'Today', icon: Icons.Target },
   { id: 'dashboard', label: 'Dashboard', icon: Icons.LayoutDashboard },
   { id: 'kanban', label: 'Kanban', icon: Icons.FolderKanban },
   { id: 'gantt', label: 'Gantt', icon: Icons.GanttChart },

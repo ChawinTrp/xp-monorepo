@@ -45,7 +45,7 @@ All XP nodes share the universal schema (`title`, `type`, `description`, `parent
 
 | Node Type | Fields | Where stored |
 | :--- | :--- | :--- |
-| **TASK** | `priority` (high/medium/low), `estimatedHours`, `actualHours`, `due` (ISO date string), `startDate` (ISO, set via Gantt), `sprint` (label, set via Kanban), `creditedHours`, `completedAt` (ISO), `completedDate` (YYYY-MM-DD, local), `timeEntries: [{start: ISO, end?: ISO}]`, `gcalEventId` | MongoDB `metadata` |
+| **TASK** | `priority` (high/medium/low), `estimatedHours`, `actualHours`, `due` (ISO date string), `startDate` (ISO, set via Gantt), `sprint` (label, set via Kanban), `skips: [YYYY-MM-DD]` (per-day "skip today" from the Focus deck / Today list — a status marker, not a reschedule), `creditedHours`, `completedAt` (ISO), `completedDate` (YYYY-MM-DD, local), `timeEntries: [{start: ISO, end?: ISO}]`, `gcalEventId` | MongoDB `metadata` |
 | **PROJECT** | `startDate`, `dueDate`, `gcalEventId` — `status` and `progress` on root schema | MongoDB `metadata` |
 | **SKILL** | `totalHours` (accumulated), `level` (unfamiliar/familiar/skilled/master/world_class), `hoursToNext` (hours remaining to next tier) — all computed, read-only | MongoDB `metadata` |
 | **PERSON** | `role`, `email`, `phone`, `initials`, `nextCatchup` (ISO date), `lastCatchup` (ISO date) — `catchupState` (upcoming/overdue/none) and `relativeDate` (human label e.g. "in 3 days") are **derived at render** from `nextCatchup` (`getPersonCatchup` in `apps/web/src/lib/queue.ts`), never stored. Circle membership is **not** metadata — it's a TAG node with `metadata.kind: 'circle'` linked via the PERSON's `parents` (single circle per person, UI-enforced). | MongoDB `metadata` |
