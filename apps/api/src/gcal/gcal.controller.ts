@@ -33,7 +33,7 @@ export class GCalController {
     try {
       await this.gcalService.handleCallback(code);
       // Redirect back to XP frontend settings
-      res.redirect('http://localhost:5173?gcal=connected');
+      res.redirect(`${process.env.WEB_URL ?? 'http://localhost:5173'}?gcal=connected`);
     } catch (err: any) {
       throw new HttpException(`OAuth failed: ${err.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
     }
