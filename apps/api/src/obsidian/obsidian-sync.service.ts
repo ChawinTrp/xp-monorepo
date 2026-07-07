@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { promises as fs } from 'fs';
@@ -20,7 +20,7 @@ function folderName(title: string): string {
 }
 
 @Injectable()
-export class ObsidianSyncService {
+export class ObsidianSyncService implements OnModuleInit {
   private readonly logger = new Logger(ObsidianSyncService.name);
   readonly vaultPath: string;
 
@@ -33,6 +33,14 @@ export class ObsidianSyncService {
 
   get enabled(): boolean {
     return !!this.vaultPath;
+  }
+
+  onModuleInit(): void {
+    if (!this.enabled) return;
+    // Fire-and-forget: boot must not block on a full vault sync.
+    void this.syncAll().catch((err: any) =>
+      this.logger.error(`Startup vault sync failed: ${err.message}`),
+    );
   }
 
   private fileName(node: Node): string {

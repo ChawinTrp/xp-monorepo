@@ -200,3 +200,39 @@ describe('ObsidianSyncService file lifecycle', () => {
     expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(false);
   });
 });
+
+describe('ObsidianSyncService lifecycle', () => {
+  let vault: string;
+
+  beforeEach(async () => {
+    vault = await fs.mkdtemp(path.join(os.tmpdir(), 'xp-vault-'));
+  });
+
+  afterEach(async () => {
+    await fs.rm(vault, { recursive: true, force: true });
+  });
+
+  const svcWith = (nodes: any[]) => {
+    process.env.OBSIDIAN_VAULT_PATH = vault;
+    const svc = new ObsidianSyncService(fakeModel(nodes));
+    delete process.env.OBSIDIAN_VAULT_PATH;
+    return svc;
+  };
+
+  it('onModuleInit triggers syncAll when enabled', async () => {
+    const svc = svcWith(allNodes);
+    jest.spyOn(svc, 'syncAll').mockResolvedValue(undefined);
+    svc.onModuleInit();
+    // Allow the promise to settle
+    await new Promise((r) => setTimeout(r, 0));
+    expect(svc.syncAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('onModuleInit does nothing when disabled', async () => {
+    delete process.env.OBSIDIAN_VAULT_PATH;
+    const svc = new ObsidianSyncService(fakeModel(allNodes));
+    jest.spyOn(svc, 'syncAll').mockResolvedValue(undefined);
+    svc.onModuleInit();
+    expect(svc.syncAll).not.toHaveBeenCalled();
+  });
+});
