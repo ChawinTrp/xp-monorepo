@@ -42,7 +42,9 @@ by changing the env var.
   `buildContent`, `resolveTagNames`.
 - **Enabled only when `OBSIDIAN_VAULT_PATH` is set** (local dev; Render has no vault → no-op).
 - Path rules per §12.3–12.5: mainParent DOMAIN chain → folders, `{slug}_{id}.md` filenames,
-  TAG nodes → `_tags/`, DOMAIN/PROJECT with children → folder + `_index_xp_{id}.md`.
+  TAG nodes → `_tags/`. Simplification from spec: only DOMAIN nodes become folders
+  (`_index_xp_{id}.md` inside); PROJECTs (and every other non-DOMAIN type) are flat files in
+  their nearest DOMAIN ancestor's folder — no project subfolders.
 - Frontmatter per §12.6 (only non-empty fields), body per §12.8 (title header, parent/tag
   wikilinks, plain-text description).
 - `obsidianPath` stored on the node; rename/move → delete old file, write new (§12.9).

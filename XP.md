@@ -265,8 +265,8 @@ npm run dev -w web
 - ✅ **Phase 8: The Orchestra** — Gantt chart (week/month/quarter zoom, drag-resize, today line), Calendar view (monthly grid, task chips, routine dots), Sprint planning (board/sprint toggle, create sprints, assign tasks, burndown bar), Google Calendar connector (OAuth2, event sync).
 - ✅ **Phase 8.5: Mobile Shell** — `MobileShell` (≤768px): swipe-card focus deck for TASK + ROUTINE, time-of-day queue ordering, shared timer state with persistent timer bar, Stats tab, FAB quick-capture. Desktop views unchanged and fully responsive via CSS `clamp()` / `auto-fit`.
 - ✅ **Phase 9: Deployment** — API on Render (free tier), frontend on Vercel. Dockerfile ready, env-var-based API URL (`VITE_API_URL`). Live at xp-monorepo-web.vercel.app.
-- 🔜 **Phase 10: Obsidian Sync** — `ObsidianSyncService` one-way push (§12). `obsidianPath` field already on schema.
-- 🔜 **Phase 11: Auth & Multi-user** — Authentication, collaborative access.
+- ✅ **Phase 10: Obsidian Sync** — ObsidianSyncService one-way push (§12), enabled via OBSIDIAN_VAULT_PATH (local only; Render no-op). Simplification: PROJECTs stay flat files (no project subfolders).
+- 🔜 **Phase 11: Multi-user** — JWT auth, collaborative access. (Interim: XP_API_KEY bearer guard shipped 2026-07-07.)
 
 ---
 
@@ -319,11 +319,11 @@ See `docs/DEPLOYMENT.md` for first-time setup and manual redeploy steps.
 
 ## 11. Audit Log (Known Issues)
 
-- **GCal token persistence:** OAuth tokens lost on Render restart (in-memory). Tokens must be re-authorized after cold start.
-- **Obsidian sync:** `ObsidianSyncService` is designed and documented (§12) but not yet implemented — `obsidianPath` field exists on schema for future use.
+- **GCal token persistence:** fixed — tokens and `calendarId` now persist in a single-doc `gcalstate` Mongo collection, loaded on boot and saved on callback/refresh. Survives Render restarts.
+- **Obsidian sync:** implemented — `ObsidianSyncService` (§12) one-way push, enabled via `OBSIDIAN_VAULT_PATH` (local only; no-op on Render). One deviation from spec: PROJECT nodes stay flat files, not folders (§12.3).
 - **Timezone edge:** All week/date math is centralised in `@xp/shared` (`localDateStr`, `getWeekStart` [Sunday, local], `getWeekDates`) and uses **local** dates everywhere — routine check-ins, task `completedDate`, `weekProgress`, and the Win-the-Week tracker. Consistent, but still assumes the server and client share a timezone. UTC+7 users: day/week cutoff is midnight Bangkok time.
 - **Graph view performance:** force-graph loads all nodes — performance degrades above ~500 nodes. No pagination or lazy loading yet.
-- **No auth:** Single-user personal OS; no authentication layer. All data is public to anyone with the API URL.
+- **No auth:** mitigated — static `XP_API_KEY` bearer guard (single-user shared secret; off when env unset). JWT/multi-user still Phase 11.
 - **Tag system dualism:** Two parallel tag mechanisms coexist — free-string `metadata.tags` (Node Detail "Tags" card) vs first-class TAG nodes linked via `parents` (graph / "Additional parents"). `NODE.md` §2 declares the parent-based model canonical, but the UI still writes free strings. Reconcile before reworking the tag UI. See `NODE.md` §3.3 and `docs/UAT_READINESS_PLAN.md` Phase 3.
 - **Metadata is unvalidated:** `metadata` is an opaque `GraphQLJSON` bag; its per-type shape is enforced only by the React forms + propagation engine, not the server. Discriminated-union refactor tracked in UAT Phase 3. Node-type property/editability spec: `NODE.md` §3.1–3.3.
 
@@ -376,6 +376,8 @@ Second Brain/
 - DOMAIN and PROJECT nodes with children → become folders. Their own file is `_index_xp_<id>.md` inside the folder (not `_xp_index.md`, which is the domain aggregate).
 - TAG nodes → `_tags/` subfolder.
 - Creating a new DOMAIN in XP auto-creates the folder and `_xp_index.md`.
+
+> **Implemented deviation (2026-07-07):** PROJECT nodes do **not** become folders. Only DOMAIN nodes become folders; all other node types (including PROJECT) are flat files in their nearest DOMAIN ancestor's folder.
 
 ### 12.4 Index Pages (Hybrid)
 
