@@ -47,6 +47,7 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://
 scalar JSON
 
 type Mutation {
+  archiveNode(id: ID!): Node!
   checkInRoutine(id: ID!): [Node!]!
   completeTask(completeTaskInput: CompleteTaskInput!): [Node!]!
   createNode(createNodeInput: CreateNodeInput!): Node!
@@ -54,6 +55,7 @@ type Mutation {
   reopenTask(id: ID!): [Node!]!
   startTaskTimer(id: ID!): Node!
   stopTaskTimer(id: ID!): Node!
+  unarchiveNode(id: ID!): Node!
   undoCheckInRoutine(id: ID!): [Node!]!
   updateNode(updateNodeInput: UpdateNodeInput!): Node!
   upsertDayPlan(input: UpsertDayPlanInput!): DayPlan!
@@ -61,6 +63,7 @@ type Mutation {
 
 type Node {
   _id: ID!
+  archived: Boolean
   children: [ID]
   createdAt: DateTime
   description: String
@@ -77,9 +80,9 @@ type Node {
 type Query {
   dayPlan(date: String!): DayPlan
   node(id: String!): Node!
-  nodes: [Node!]!
+  nodes(includeArchived: Boolean): [Node!]!
   ping: String!
-  searchNodes(allowedTypes: [String], term: String): [Node!]!
+  searchNodes(allowedTypes: [String], includeArchived: Boolean, term: String): [Node!]!
   weekProgress(weekStart: String): WeekProgress!
 }
 
