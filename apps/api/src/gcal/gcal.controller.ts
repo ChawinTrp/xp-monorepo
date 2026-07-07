@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Res, HttpException, HttpStatus } from '@nestjs/common';
 import type { Response } from 'express';
 import { GCalService } from './gcal.service';
+import { Public } from '../auth/public.decorator';
 
 @Controller('gcal')
 export class GCalController {
@@ -23,6 +24,7 @@ export class GCalController {
     return { url };
   }
 
+  @Public()
   @Get('callback')
   async handleCallback(@Query('code') code: string, @Res() res: Response) {
     if (!code) {
@@ -31,7 +33,7 @@ export class GCalController {
     try {
       await this.gcalService.handleCallback(code);
       // Redirect back to XP frontend settings
-      res.redirect('http://localhost:5173?gcal=connected');
+      res.redirect(`${process.env.WEB_URL ?? 'http://localhost:5173'}?gcal=connected`);
     } catch (err: any) {
       throw new HttpException(`OAuth failed: ${err.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
     }

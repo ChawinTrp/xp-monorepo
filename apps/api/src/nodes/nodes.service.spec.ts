@@ -5,6 +5,7 @@ import { NodesService } from './nodes.service';
 import { Node } from './node.entity';
 import { PropagationService } from './propagation.service';
 import { GCalService } from '../gcal/gcal.service';
+import { ObsidianSyncService } from '../obsidian/obsidian-sync.service';
 
 const execWith = <T>(value: T) => ({ exec: () => Promise.resolve(value) });
 
@@ -33,6 +34,15 @@ describe('NodesService', () => {
         { provide: getModelToken(Node.name), useValue: model },
         { provide: PropagationService, useValue: { onTaskCompleted: jest.fn() } },
         { provide: GCalService, useValue: { isConnected: () => false } },
+        {
+          provide: ObsidianSyncService,
+          useValue: {
+            upsertNode: jest.fn().mockResolvedValue(undefined),
+            upsertMany: jest.fn().mockResolvedValue(undefined),
+            deleteNode: jest.fn().mockResolvedValue(undefined),
+            syncAll: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 

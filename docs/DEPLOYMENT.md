@@ -52,11 +52,14 @@ MongoDB Atlas (M0 free tier)
 | `MONGO_URI` | `mongodb+srv://...` (Atlas connection string) |
 | `PORT` | `10000` |
 | `NODE_ENV` | `production` |
+| `XP_API_KEY` | Optional — enables the bearer-token auth guard. Paste the same key into the web Settings page and into the Claude Desktop MCP server's env. Unset = auth disabled. |
+| `WEB_URL` | `https://xp-monorepo-web.vercel.app` — used for the GCal OAuth redirect (defaults to `http://localhost:5173`). |
+| `OBSIDIAN_VAULT_PATH` | Local-dev only — do not set on Render (no vault to write to; sync is a no-op when unset). |
 
 ### Free Tier Behavior
 - Service sleeps after **15 minutes** of inactivity
 - Cold start takes **~30-50 seconds** (Docker container spin-up + MongoDB connection)
-- No persistent disk — GCal OAuth tokens are lost on restart (stored in-memory)
+- GCal OAuth tokens persist in MongoDB (`gcalstate` collection) and survive restarts/redeploys
 - 750 hours/month free (enough for one service running 24/7)
 
 ### Dockerfile Details

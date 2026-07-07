@@ -3,6 +3,11 @@ import { Icons } from '../components/ui';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
+const authHeaders = (): Record<string, string> => {
+  const k = localStorage.getItem('xp_api_key');
+  return k ? { authorization: `Bearer ${k}` } : {};
+};
+
 interface GCalStatus {
   configured: boolean;
   connected: boolean;
@@ -12,9 +17,19 @@ interface GCalStatus {
 export default function Settings() {
   const [gcalStatus, setGcalStatus] = useState<GCalStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [apiKey, setApiKey] = useState(localStorage.getItem('xp_api_key') ?? '');
+  const [keySaved, setKeySaved] = useState(false);
+
+  const saveKey = () => {
+    if (apiKey.trim()) localStorage.setItem('xp_api_key', apiKey.trim());
+    else localStorage.removeItem('xp_api_key');
+    setKeySaved(true);
+    // Apollo link captures the key at startup — reload to apply
+    setTimeout(() => window.location.reload(), 400);
+  };
 
   useEffect(() => {
-    fetch(`${API_BASE}/gcal/status`)
+    fetch(`${API_BASE}/gcal/status`, { headers: authHeaders() })
       .then(r => r.json())
       .then(setGcalStatus)
       .catch(() => setGcalStatus({ configured: false, connected: false, calendarId: null }))
@@ -23,7 +38,7 @@ export default function Settings() {
 
   const handleConnect = async () => {
     try {
-      const res = await fetch(`${API_BASE}/gcal/auth`);
+      const res = await fetch(`${API_BASE}/gcal/auth`, { headers: authHeaders() });
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
@@ -97,6 +112,31 @@ export default function Settings() {
           <strong>How it works:</strong> When connected, XP automatically creates and updates
           Google Calendar events for tasks with due dates and daily routines. Events appear in
           a dedicated "XP Tasks" calendar.
+        </div>
+      </section>
+
+      {/* API Key */}
+      <section className="rounded-xl mb-5" style={{ background: 'var(--surface0)', border: '1px solid var(--surface1)', padding: 20 }}>
+        <h2 className="m-0 font-bold mb-1" style={{ fontSize: 15 }}>API Key</h2>
+        <div className="text-ctp-subtext1 mb-3" style={{ fontSize: 12 }}>
+          Required when the API sets <code style={{ background: 'var(--surface1)', padding: '1px 4px', borderRadius: 3, fontSize: 10 }}>XP_API_KEY</code>. Stored in this browser only.
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Paste your XP API key"
+            className="flex-1 rounded-lg px-3 py-2"
+            style={{ background: 'var(--mantle)', border: '1px solid var(--surface1)', color: 'inherit', fontSize: 13, fontFamily: 'inherit' }}
+          />
+          <button
+            onClick={saveKey}
+            className="border-none cursor-pointer rounded-lg px-4 py-2 font-semibold"
+            style={{ fontSize: 13, fontFamily: 'inherit', background: 'var(--blue)', color: 'var(--base)' }}
+          >
+            {keySaved ? 'Saved ✓' : 'Save'}
+          </button>
         </div>
       </section>
 

@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { google, calendar_v3 } from 'googleapis';
 import { Node, NodeDocument } from '../nodes/node.entity';
+import { GCalState, GCalStateDocument } from './gcal-state.schema';
 import { logicalDateStr } from '@xp/shared';
 
 interface GCalTokens {
@@ -12,7 +13,7 @@ interface GCalTokens {
 }
 
 @Injectable()
-export class GCalService {
+export class GCalService implements OnModuleInit {
   private readonly logger = new Logger(GCalService.name);
   private oauth2Client: InstanceType<typeof google.auth.OAuth2> | null = null;
   private calendarId: string | null = null;
@@ -20,6 +21,7 @@ export class GCalService {
 
   constructor(
     @InjectModel(Node.name) private nodeModel: Model<NodeDocument>,
+    @InjectModel(GCalState.name) private stateModel: Model<GCalStateDocument>,
   ) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -30,6 +32,36 @@ export class GCalService {
       this.logger.log('Google Calendar OAuth2 client initialized');
     } else {
       this.logger.warn('GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set — GCal sync disabled');
+    }
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (!this.oauth2Client) return;
+
+    const state = await this.stateModel.findOne().exec().catch(() => null);
+    if (state?.tokens && (state.tokens as any).refresh_token) {
+      this.tokens = state.tokens as unknown as GCalTokens;
+      this.calendarId = state.calendarId ?? null;
+      this.oauth2Client.setCredentials(this.tokens);
+      this.logger.log('Restored Google Calendar tokens from DB');
+    }
+
+    // googleapis refreshes access tokens automatically — persist each refresh
+    this.oauth2Client.on('tokens', (t) => {
+      this.tokens = { ...(this.tokens ?? {}), ...t } as GCalTokens;
+      void this.saveState();
+    });
+  }
+
+  private async saveState(): Promise<void> {
+    try {
+      await this.stateModel.updateOne(
+        {},
+        { $set: { tokens: this.tokens, calendarId: this.calendarId } },
+        { upsert: true },
+      );
+    } catch (err: any) {
+      this.logger.error(`Failed to persist GCal state: ${err.message}`);
     }
   }
 
@@ -59,6 +91,7 @@ export class GCalService {
 
     // Ensure XP calendar exists
     await this.ensureXPCalendar();
+    await this.saveState();
   }
 
   private async ensureXPCalendar(): Promise<void> {

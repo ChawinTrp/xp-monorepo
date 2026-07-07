@@ -5,7 +5,11 @@ import { buildServer } from './server.js';
 
 async function main() {
   const endpoint = process.env.XP_API_URL ?? 'https://xp-monorepo.onrender.com/graphql';
-  const gql = new GraphQLClient(endpoint);
+  const apiKey = process.env.XP_API_KEY;
+  const gql = new GraphQLClient(
+    endpoint,
+    apiKey ? { headers: { authorization: `Bearer ${apiKey}` } } : undefined,
+  );
   const client = new XpClient(gql);
   const server = buildServer(client);
 
