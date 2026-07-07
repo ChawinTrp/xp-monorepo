@@ -16,7 +16,8 @@ export function slugify(title: string): string {
 
 /** Folder segment from a DOMAIN title — keep human-readable, strip fs-illegal chars. */
 function folderName(title: string): string {
-  return title.replace(/[\\/:*?"<>|]/g, '_').trim() || 'untitled';
+  const cleaned = title.replace(/[\\/:*?"<>|]/g, '_').trim();
+  return /^\.+$/.test(cleaned) || !cleaned ? 'untitled' : cleaned;
 }
 
 @Injectable()
@@ -117,7 +118,8 @@ export class ObsidianSyncService implements OnModuleInit {
 
     const meta = (node.metadata ?? {}) as Record<string, unknown>;
     const dueDate = (meta.due ?? meta.dueDate) as string | undefined;
-    const q = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    const q = (s: string) =>
+      `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r/g, '').replace(/\n/g, '\\n')}"`;
 
     const fm: string[] = ['---'];
     fm.push(`xp_id: ${node._id}`);
@@ -273,6 +275,10 @@ export class ObsidianSyncService implements OnModuleInit {
         const rel = await this.buildPath(node);
         await fs.mkdir(path.dirname(this.abs(rel)), { recursive: true });
         await fs.writeFile(this.abs(rel), await this.buildContent(node), 'utf8');
+        if (node.obsidianPath && node.obsidianPath !== rel) {
+          await fs.rm(this.abs(node.obsidianPath), { force: true });
+          folders.add(path.posix.dirname(node.obsidianPath) || '.');
+        }
         if (node.obsidianPath !== rel) {
           await this.nodeModel
             .updateOne({ _id: node._id }, { obsidianPath: rel }, { timestamps: false })

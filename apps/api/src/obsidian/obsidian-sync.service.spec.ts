@@ -58,6 +58,16 @@ describe('slugify', () => {
   });
 });
 
+describe('folderName traversal guard', () => {
+  it('DOMAIN titled ".." does not escape the vault', async () => {
+    const dotDomain = { _id: id('20'), title: '..', type: 'DOMAIN' };
+    const svc = makeService('/vault', [dotDomain]);
+    const p = await svc.buildPath(dotDomain as any);
+    expect(p.split('/')).not.toContain('..');
+    expect(p).toBe(`untitled/_index_xp_${id('20')}.md`);
+  });
+});
+
 describe('ObsidianSyncService builders', () => {
   it('is disabled when OBSIDIAN_VAULT_PATH is unset', () => {
     delete process.env.OBSIDIAN_VAULT_PATH;
@@ -112,6 +122,14 @@ describe('ObsidianSyncService builders', () => {
     expect(content).toContain(`[[urgent_${id('3')}|Urgent!]]`);
     expect(content).toContain('The life OS.');
     expect(content).not.toContain('undefined');
+  });
+
+  it('escapes newlines in the title so frontmatter is not corrupted', async () => {
+    const svc = makeService('/vault');
+    const node = { ...proj, title: 'line1\nline2' };
+    const content = await svc.buildContent(node as any);
+    const titleLine = content.split('\n').find((l) => l.startsWith('title: '))!;
+    expect(titleLine).toBe('title: "line1\\nline2"');
   });
 });
 
@@ -190,6 +208,16 @@ describe('ObsidianSyncService file lifecycle', () => {
     expect(await exists(`Work/Dev/_index_xp_${id('2')}.md`)).toBe(true);
     expect(await exists(`ghost_${'f'.repeat(24)}.md`)).toBe(false);
     expect(await exists('My handwritten note.md')).toBe(true);
+  });
+
+  it('syncAll removes the old file when a node\'s path changed (e.g. DOMAIN rename)', async () => {
+    const moved = { ...proj, obsidianPath: 'Old/project_xp_' + id('4') + '.md' };
+    await fs.mkdir(path.join(vault, 'Old'), { recursive: true });
+    await fs.writeFile(path.join(vault, moved.obsidianPath), 'stale');
+    const svc = svcWith([...allNodes.filter((n) => n !== proj), moved]);
+    await svc.syncAll();
+    expect(await exists(moved.obsidianPath)).toBe(false);
+    expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(true);
   });
 
   it('all operations are no-ops when disabled', async () => {
