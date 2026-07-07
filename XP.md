@@ -373,11 +373,10 @@ Second Brain/
 **Rules:**
 - Root DOMAIN nodes (no `mainParent`) → top-level folders under vault root.
 - Sub-DOMAIN nodes → subfolders mirroring the `mainParent` chain.
-- DOMAIN and PROJECT nodes with children → become folders. Their own file is `_index_xp_<id>.md` inside the folder (not `_xp_index.md`, which is the domain aggregate).
+- Only DOMAIN nodes become folders; DOMAIN's own file is `_index_xp_<id>.md` inside its folder (not `_xp_index.md`, which is the domain aggregate).
+- All non-DOMAIN nodes (PROJECT, TASK, SKILL, PERSON, ROUTINE) → flat `.md` files in their nearest DOMAIN ancestor's folder.
 - TAG nodes → `_tags/` subfolder.
 - Creating a new DOMAIN in XP auto-creates the folder and `_xp_index.md`.
-
-> **Implemented deviation (2026-07-07):** PROJECT nodes do **not** become folders. Only DOMAIN nodes become folders; all other node types (including PROJECT) are flat files in their nearest DOMAIN ancestor's folder.
 
 ### 12.4 Index Pages (Hybrid)
 

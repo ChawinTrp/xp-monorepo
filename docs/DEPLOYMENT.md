@@ -59,7 +59,7 @@ MongoDB Atlas (M0 free tier)
 ### Free Tier Behavior
 - Service sleeps after **15 minutes** of inactivity
 - Cold start takes **~30-50 seconds** (Docker container spin-up + MongoDB connection)
-- No persistent disk — GCal OAuth tokens are lost on restart (stored in-memory)
+- GCal OAuth tokens persist in MongoDB (`gcalstate` collection) and survive restarts/redeploys
 - 750 hours/month free (enough for one service running 24/7)
 
 ### Dockerfile Details
