@@ -11,8 +11,13 @@ import 'drag-drop-touch';
 
 const API_BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
+const API_KEY = localStorage.getItem('xp_api_key');
+
 const client = new ApolloClient({
-  link: new HttpLink({ uri: `${API_BASE}/graphql` }),
+  link: new HttpLink({
+    uri: `${API_BASE}/graphql`,
+    headers: API_KEY ? { authorization: `Bearer ${API_KEY}` } : undefined,
+  }),
   cache: new InMemoryCache(),
   // cache-and-network: render cached data instantly, but ALWAYS refetch in the
   // background so the Focus deck / queue never shows stale data after edits made
