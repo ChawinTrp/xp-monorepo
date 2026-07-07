@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { Node, NodeDocument } from '../nodes/node.entity';
 
 export function slugify(title: string): string {
@@ -143,5 +145,168 @@ export class ObsidianSyncService {
     body.push('');
 
     return fm.join('\n') + body.join('\n');
+  }
+
+  private abs(rel: string): string {
+    return path.join(this.vaultPath, rel);
+  }
+
+  async upsertNode(node: Node): Promise<void> {
+    if (!this.enabled) return;
+    try {
+      if (node.archived) return await this.deleteNode(node);
+
+      const newPath = await this.buildPath(node);
+      const oldPath = node.obsidianPath;
+      if (oldPath && oldPath !== newPath) {
+        await fs.rm(this.abs(oldPath), { force: true });
+        await this.regenerateIndex(path.posix.dirname(oldPath));
+      }
+
+      await fs.mkdir(path.dirname(this.abs(newPath)), { recursive: true });
+      await fs.writeFile(this.abs(newPath), await this.buildContent(node), 'utf8');
+
+      if (oldPath !== newPath) {
+        await this.nodeModel
+          .updateOne({ _id: node._id }, { obsidianPath: newPath }, { timestamps: false })
+          .exec();
+      }
+      await this.regenerateIndex(path.posix.dirname(newPath));
+    } catch (err: any) {
+      this.logger.error(`Obsidian upsert failed for "${node.title}": ${err.message}`);
+    }
+  }
+
+  async upsertMany(nodes: Node[]): Promise<void> {
+    for (const n of nodes) await this.upsertNode(n);
+  }
+
+  async deleteNode(node: Node): Promise<void> {
+    if (!this.enabled) return;
+    try {
+      const rel = node.obsidianPath ?? (await this.buildPath(node));
+      await fs.rm(this.abs(rel), { force: true });
+      await this.regenerateIndex(path.posix.dirname(rel));
+    } catch (err: any) {
+      this.logger.error(`Obsidian delete failed for "${node.title}": ${err.message}`);
+    }
+  }
+
+  /** Rebuild _xp_index.md from the xp files actually present in the folder. */
+  async regenerateIndex(domainFolder: string): Promise<void> {
+    if (!this.enabled) return;
+    const folder = domainFolder === '.' ? '' : domainFolder;
+    if (folder === '_tags') return; // tag pages don't get an index
+    let files: string[];
+    try {
+      files = await fs.readdir(this.abs(folder));
+    } catch {
+      return;
+    }
+    const idRe = /_([0-9a-f]{24})\.md$/;
+    const ids = files
+      .map((f) => idRe.exec(f)?.[1])
+      .filter((x): x is string => !!x);
+    if (ids.length === 0) {
+      await fs.rm(this.abs(path.posix.join(folder, '_xp_index.md')), { force: true });
+      return;
+    }
+    const nodes = await this.nodeModel
+      .find({ _id: { $in: ids }, archived: { $ne: true } })
+      .exec();
+
+    const groups = new Map<string, Node[]>();
+    for (const n of nodes) {
+      const list = groups.get(n.type) ?? [];
+      list.push(n);
+      groups.set(n.type, list);
+    }
+    const heading: Record<string, string> = {
+      DOMAIN: 'Domains', SKILL: 'Skills', PROJECT: 'Projects', TASK: 'Tasks',
+      PERSON: 'People', TAG: 'Tags', ROUTINE: 'Routines',
+    };
+    const lines = [
+      '---',
+      'auto_generated: true',
+      `domain: ${folder.split('/').pop() || 'Vault Root'}`,
+      `updated: ${new Date().toISOString()}`,
+      '---',
+      '',
+      `# XP Index — ${folder.split('/').pop() || 'Vault Root'}`,
+    ];
+    for (const type of Object.keys(heading)) {
+      const list = groups.get(type);
+      if (!list?.length) continue;
+      lines.push('', `## ${heading[type]}`);
+      for (const n of list.sort((a, b) => a.title.localeCompare(b.title))) {
+        const file = (await this.buildPath(n)).split('/').pop()!.replace(/\.md$/, '');
+        const extras = [
+          n.status,
+          (n.metadata as any)?.due ?? (n.metadata as any)?.dueDate
+            ? `due ${(n.metadata as any).due ?? (n.metadata as any).dueDate}`
+            : undefined,
+        ].filter(Boolean);
+        lines.push(`- [[${file}|${n.title}]]${extras.length ? ' · ' + extras.join(' · ') : ''}`);
+      }
+    }
+    lines.push('');
+    await fs.writeFile(this.abs(path.posix.join(folder, '_xp_index.md')), lines.join('\n'), 'utf8');
+  }
+
+  /** Full vault rebuild — bootstrap + recovery. Safe for hand-written notes. */
+  async syncAll(): Promise<void> {
+    if (!this.enabled) return;
+    const nodes = await this.nodeModel.find({ archived: { $ne: true } }).exec();
+    const liveIds = new Set(nodes.map((n) => String(n._id)));
+    const folders = new Set<string>();
+
+    for (const node of nodes) {
+      try {
+        const rel = await this.buildPath(node);
+        await fs.mkdir(path.dirname(this.abs(rel)), { recursive: true });
+        await fs.writeFile(this.abs(rel), await this.buildContent(node), 'utf8');
+        if (node.obsidianPath !== rel) {
+          await this.nodeModel
+            .updateOne({ _id: node._id }, { obsidianPath: rel }, { timestamps: false })
+            .exec();
+        }
+        folders.add(path.posix.dirname(rel));
+      } catch (err: any) {
+        this.logger.error(`syncAll failed for "${node.title}": ${err.message}`);
+      }
+    }
+
+    // Remove stale xp files ({anything}_{24hex}.md with a dead id). Hand-written
+    // notes never match the pattern, so they are never touched.
+    await this.removeStale('', liveIds, folders);
+    for (const f of folders) await this.regenerateIndex(f);
+    this.logger.log(`Obsidian vault synced: ${nodes.length} nodes`);
+  }
+
+  private async removeStale(
+    relFolder: string,
+    liveIds: Set<string>,
+    touchedFolders: Set<string>,
+  ): Promise<void> {
+    let entries;
+    try {
+      entries = await fs.readdir(this.abs(relFolder), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    const idRe = /_([0-9a-f]{24})\.md$/;
+    for (const e of entries) {
+      const rel = relFolder ? path.posix.join(relFolder, e.name) : e.name;
+      if (e.isDirectory()) {
+        if (e.name.startsWith('.')) continue;
+        await this.removeStale(rel, liveIds, touchedFolders);
+      } else {
+        const m = idRe.exec(e.name);
+        if (m && !liveIds.has(m[1])) {
+          await fs.rm(this.abs(rel), { force: true });
+          touchedFolders.add(relFolder === '' ? '.' : relFolder);
+        }
+      }
+    }
   }
 }

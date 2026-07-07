@@ -1,4 +1,7 @@
 import { ObsidianSyncService, slugify } from './obsidian-sync.service';
+import { promises as fs } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 // Minimal in-memory stand-in for the Mongoose Node model.
 export function fakeModel(nodes: any[]) {
@@ -21,7 +24,7 @@ export function fakeModel(nodes: any[]) {
   } as any;
 }
 
-const id = (hex: string) => hex.padStart(24, '0');
+export const id = (hex: string) => hex.padStart(24, '0');
 
 export const work = { _id: id('1'), title: 'Work', type: 'DOMAIN' };
 export const dev = { _id: id('2'), title: 'Dev', type: 'DOMAIN', mainParent: id('1') };
@@ -109,5 +112,91 @@ describe('ObsidianSyncService builders', () => {
     expect(content).toContain(`[[urgent_${id('3')}|Urgent!]]`);
     expect(content).toContain('The life OS.');
     expect(content).not.toContain('undefined');
+  });
+});
+
+describe('ObsidianSyncService file lifecycle', () => {
+  let vault: string;
+
+  beforeEach(async () => {
+    vault = await fs.mkdtemp(path.join(os.tmpdir(), 'xp-vault-'));
+  });
+
+  afterEach(async () => {
+    await fs.rm(vault, { recursive: true, force: true });
+  });
+
+  const svcWith = (nodes: any[]) => {
+    process.env.OBSIDIAN_VAULT_PATH = vault;
+    const svc = new ObsidianSyncService(fakeModel(nodes));
+    delete process.env.OBSIDIAN_VAULT_PATH;
+    return svc;
+  };
+
+  const exists = (rel: string) =>
+    fs.access(path.join(vault, rel)).then(() => true, () => false);
+
+  it('upsertNode writes the file and regenerates the index', async () => {
+    const svc = svcWith(allNodes);
+    await svc.upsertNode(proj as any);
+    expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(true);
+    const index = await fs.readFile(path.join(vault, 'Work/Dev/_xp_index.md'), 'utf8');
+    expect(index).toContain('auto_generated: true');
+    expect(index).toContain(`[[project_xp_${id('4')}|Project XP]]`);
+  });
+
+  it('upsertNode moves the file when the path changed', async () => {
+    const moved = { ...proj, obsidianPath: 'Old/project_xp_' + id('4') + '.md' };
+    await fs.mkdir(path.join(vault, 'Old'), { recursive: true });
+    await fs.writeFile(path.join(vault, moved.obsidianPath), 'stale');
+    const svc = svcWith([...allNodes.filter((n) => n !== proj), moved]);
+    await svc.upsertNode(moved as any);
+    expect(await exists(moved.obsidianPath)).toBe(false);
+    expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(true);
+  });
+
+  it('upsertNode of an archived node deletes its file', async () => {
+    const svc = svcWith(allNodes);
+    await svc.upsertNode(proj as any);
+    await svc.upsertNode({ ...proj, archived: true } as any);
+    expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(false);
+  });
+
+  it('deleteNode removes the file', async () => {
+    const svc = svcWith(allNodes);
+    await svc.upsertNode(proj as any);
+    await svc.deleteNode(proj as any);
+    expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(false);
+  });
+
+  it('never touches the manual _index.md', async () => {
+    await fs.mkdir(path.join(vault, 'Work/Dev'), { recursive: true });
+    await fs.writeFile(path.join(vault, 'Work/Dev/_index.md'), 'my MOC');
+    const svc = svcWith(allNodes);
+    await svc.upsertNode(proj as any);
+    expect(await fs.readFile(path.join(vault, 'Work/Dev/_index.md'), 'utf8')).toBe('my MOC');
+  });
+
+  it('syncAll writes every live node and removes stale xp files', async () => {
+    await fs.writeFile(
+      path.join(vault, `ghost_${'f'.repeat(24)}.md`),
+      'stale xp file',
+    );
+    await fs.writeFile(path.join(vault, 'My handwritten note.md'), 'keep me');
+    const svc = svcWith(allNodes);
+    await svc.syncAll();
+    expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(true);
+    expect(await exists(`_tags/urgent_${id('3')}.md`)).toBe(true);
+    expect(await exists(`Work/Dev/_index_xp_${id('2')}.md`)).toBe(true);
+    expect(await exists(`ghost_${'f'.repeat(24)}.md`)).toBe(false);
+    expect(await exists('My handwritten note.md')).toBe(true);
+  });
+
+  it('all operations are no-ops when disabled', async () => {
+    delete process.env.OBSIDIAN_VAULT_PATH;
+    const svc = new ObsidianSyncService(fakeModel(allNodes));
+    await svc.upsertNode(proj as any);
+    await svc.syncAll();
+    expect(await exists(`Work/Dev/project_xp_${id('4')}.md`)).toBe(false);
   });
 });
