@@ -83,6 +83,16 @@ describe('ObsidianSyncService builders', () => {
     expect(await svc.buildPath(orphan as any)).toBe(`loose_task_${id('9')}.md`);
   });
 
+  it('warns and still produces a path when the mainParent chain cycles', async () => {
+    const a = { _id: id('10'), title: 'A', type: 'DOMAIN', mainParent: id('11') };
+    const b = { _id: id('11'), title: 'B', type: 'DOMAIN', mainParent: id('10') };
+    const svc = makeService('/vault', [a, b]);
+    const warnSpy = jest.spyOn((svc as any).logger, 'warn').mockImplementation(() => {});
+
+    expect(await svc.buildPath(a as any)).toBe(`B/A/_index_xp_${id('10')}.md`);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Cycle detected'));
+  });
+
   it('builds frontmatter + wikilinks + description', async () => {
     const svc = makeService('/vault');
     const content = await svc.buildContent(proj as any);

@@ -37,37 +37,45 @@ export class ObsidianSyncService {
     return `${slugify(node.title)}_${node._id}.md`;
   }
 
-  /** Folder chain for a DOMAIN node, e.g. "Work/Dev". */
-  private async domainFolder(domain: Node): Promise<string> {
-    const segments = [folderName(domain.title)];
-    let cur: Node | null = domain;
-    const seen = new Set<string>([String(domain._id)]);
-    while (cur?.mainParent) {
+  /** Walks the mainParent chain upward from (but excluding) `start`. Stops at a
+   *  missing parent, and warns + stops on a revisited id (cycle guard). */
+  private async walkParents(start: Node): Promise<Node[]> {
+    const chain: Node[] = [];
+    let cur: Node = start;
+    const seen = new Set<string>([String(start._id)]);
+    while (cur.mainParent) {
       const parent: Node | null = await this.nodeModel
         .findById(cur.mainParent)
         .exec();
-      if (!parent || parent.type !== 'DOMAIN' || seen.has(String(parent._id))) break;
+      if (!parent) break;
+      if (seen.has(String(parent._id))) {
+        this.logger.warn(
+          `Cycle detected in mainParent chain at node ${String(parent._id)} (started from ${String(start._id)})`,
+        );
+        break;
+      }
       seen.add(String(parent._id));
-      segments.unshift(folderName(parent.title));
+      chain.push(parent);
       cur = parent;
+    }
+    return chain;
+  }
+
+  /** Folder chain for a DOMAIN node, e.g. "Work/Dev". */
+  private async domainFolder(domain: Node): Promise<string> {
+    const chain = await this.walkParents(domain);
+    const segments = [folderName(domain.title)];
+    for (const parent of chain) {
+      if (parent.type !== 'DOMAIN') break;
+      segments.unshift(folderName(parent.title));
     }
     return segments.join('/');
   }
 
   /** Nearest DOMAIN ancestor via the mainParent chain, or null. */
   private async nearestDomain(node: Node): Promise<Node | null> {
-    let cur: Node | null = node;
-    const seen = new Set<string>([String(node._id)]);
-    while (cur?.mainParent) {
-      const parent: Node | null = await this.nodeModel
-        .findById(cur.mainParent)
-        .exec();
-      if (!parent || seen.has(String(parent._id))) return null;
-      if (parent.type === 'DOMAIN') return parent;
-      seen.add(String(parent._id));
-      cur = parent;
-    }
-    return null;
+    const chain = await this.walkParents(node);
+    return chain.find((n) => n.type === 'DOMAIN') ?? null;
   }
 
   /** Vault-relative path ("/" separators) for a node's .md file. */
