@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NodesResolver } from './nodes.resolver';
 import { NodesService } from './nodes.service';
 import { PropagationService } from './propagation.service';
+import { ObsidianSyncService } from '../obsidian/obsidian-sync.service';
 
 describe('NodesResolver', () => {
   let resolver: NodesResolver;
@@ -15,6 +16,15 @@ describe('NodesResolver', () => {
         NodesResolver,
         { provide: NodesService, useValue: nodesService },
         { provide: PropagationService, useValue: {} },
+        {
+          provide: ObsidianSyncService,
+          useValue: {
+            upsertNode: jest.fn().mockResolvedValue(undefined),
+            upsertMany: jest.fn().mockResolvedValue(undefined),
+            deleteNode: jest.fn().mockResolvedValue(undefined),
+            syncAll: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 

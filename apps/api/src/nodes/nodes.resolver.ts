@@ -6,12 +6,14 @@ import { CreateNodeInput } from './dto/create-node.input';
 import { UpdateNodeInput } from './dto/update-node.input';
 import { CompleteTaskInput } from './dto/complete-task.input';
 import { WeekProgress } from './week-progress.types';
+import { ObsidianSyncService } from '../obsidian/obsidian-sync.service';
 
 @Resolver(() => Node)
 export class NodesResolver {
   constructor(
     private readonly nodesService: NodesService,
     private readonly propagationService: PropagationService,
+    private readonly obsidianSync: ObsidianSyncService,
   ) {}
 
   @Mutation(() => Node)
@@ -68,33 +70,45 @@ export class NodesResolver {
   }
 
   @Mutation(() => [Node])
-  completeTask(@Args('completeTaskInput') completeTaskInput: CompleteTaskInput) {
-    return this.propagationService.onTaskCompleted(completeTaskInput);
+  async completeTask(@Args('completeTaskInput') completeTaskInput: CompleteTaskInput) {
+    const nodes = await this.propagationService.onTaskCompleted(completeTaskInput);
+    void this.obsidianSync.upsertMany(nodes).catch(() => {});
+    return nodes;
   }
 
   @Mutation(() => [Node])
-  checkInRoutine(@Args('id', { type: () => ID }) id: string) {
-    return this.propagationService.checkInRoutine(id);
+  async checkInRoutine(@Args('id', { type: () => ID }) id: string) {
+    const nodes = await this.propagationService.checkInRoutine(id);
+    void this.obsidianSync.upsertMany(nodes).catch(() => {});
+    return nodes;
   }
 
   @Mutation(() => [Node])
-  undoCheckInRoutine(@Args('id', { type: () => ID }) id: string) {
-    return this.propagationService.undoCheckInRoutine(id);
+  async undoCheckInRoutine(@Args('id', { type: () => ID }) id: string) {
+    const nodes = await this.propagationService.undoCheckInRoutine(id);
+    void this.obsidianSync.upsertMany(nodes).catch(() => {});
+    return nodes;
   }
 
   @Mutation(() => [Node])
-  reopenTask(@Args('id', { type: () => ID }) id: string) {
-    return this.propagationService.reopenTask(id);
+  async reopenTask(@Args('id', { type: () => ID }) id: string) {
+    const nodes = await this.propagationService.reopenTask(id);
+    void this.obsidianSync.upsertMany(nodes).catch(() => {});
+    return nodes;
   }
 
   @Mutation(() => Node)
-  startTaskTimer(@Args('id', { type: () => ID }) id: string) {
-    return this.propagationService.startTimer(id);
+  async startTaskTimer(@Args('id', { type: () => ID }) id: string) {
+    const node = await this.propagationService.startTimer(id);
+    void this.obsidianSync.upsertNode(node).catch(() => {});
+    return node;
   }
 
   @Mutation(() => Node)
-  stopTaskTimer(@Args('id', { type: () => ID }) id: string) {
-    return this.propagationService.stopTimer(id);
+  async stopTaskTimer(@Args('id', { type: () => ID }) id: string) {
+    const node = await this.propagationService.stopTimer(id);
+    void this.obsidianSync.upsertNode(node).catch(() => {});
+    return node;
   }
 
   @Query(() => WeekProgress)

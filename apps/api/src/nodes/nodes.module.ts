@@ -4,6 +4,7 @@ import { NodesResolver } from './nodes.resolver';
 import { PropagationService } from './propagation.service';
 import { Node, NodeSchema } from './node.entity';
 import { GCalModule } from '../gcal/gcal.module';
+import { ObsidianModule } from '../obsidian/obsidian.module';
 
 import { MongooseModule } from '@nestjs/mongoose';
 
@@ -11,6 +12,7 @@ import { MongooseModule } from '@nestjs/mongoose';
   imports: [
     MongooseModule.forFeature([{ name: Node.name, schema: NodeSchema }]),
     GCalModule,
+    ObsidianModule,
   ],
   providers: [NodesService, NodesResolver, PropagationService],
 })

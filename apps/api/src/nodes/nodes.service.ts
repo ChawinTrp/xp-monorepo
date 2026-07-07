@@ -6,6 +6,7 @@ import { CreateNodeInput } from './dto/create-node.input';
 import { UpdateNodeInput } from './dto/update-node.input';
 import { PropagationService } from './propagation.service';
 import { GCalService } from '../gcal/gcal.service';
+import { ObsidianSyncService } from '../obsidian/obsidian-sync.service';
 
 @Injectable()
 export class NodesService {
@@ -13,6 +14,7 @@ export class NodesService {
     @InjectModel(Node.name) private nodeModel: Model<NodeDocument>,
     private propagationService: PropagationService,
     private gcalService: GCalService,
+    private obsidianSync: ObsidianSyncService,
   ) {}
 
   async create(input: CreateNodeInput): Promise<Node> {
@@ -24,6 +26,8 @@ export class NodesService {
     if (this.gcalService.isConnected()) {
       this.gcalService.upsertEvent(node as NodeDocument).catch(() => {});
     }
+
+    void this.obsidianSync.upsertNode(node).catch(() => {});
 
     return node;
   }
@@ -113,6 +117,16 @@ export class NodesService {
       this.gcalService.upsertEvent(updatedNode as NodeDocument).catch(() => {});
     }
 
+    if (
+      updatedNode.type === 'DOMAIN' &&
+      (input.title !== undefined || input.mainParent !== undefined)
+    ) {
+      // Domain rename/move shifts every descendant path — brute-force full resync.
+      void this.obsidianSync.syncAll().catch(() => {});
+    } else {
+      void this.obsidianSync.upsertNode(updatedNode).catch(() => {});
+    }
+
     return updatedNode;
   }
 
@@ -151,6 +165,8 @@ export class NodesService {
 
     await this.nodeModel.findByIdAndDelete(id).exec();
 
+    void this.obsidianSync.deleteNode(node).catch(() => {});
+
     return node;
   }
 
@@ -161,6 +177,7 @@ export class NodesService {
     if (!node) {
       throw new NotFoundException(`Node with ID ${id} not found`);
     }
+    void this.obsidianSync.upsertNode(node).catch(() => {});
     return node;
   }
 
@@ -171,6 +188,7 @@ export class NodesService {
     if (!node) {
       throw new NotFoundException(`Node with ID ${id} not found`);
     }
+    void this.obsidianSync.upsertNode(node).catch(() => {});
     return node;
   }
 
