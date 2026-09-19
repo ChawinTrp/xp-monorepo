@@ -307,7 +307,7 @@ export default function Kanban({ onOpen, onCreate }: KanbanProps) {
               onDrop={() => handleDrop(col.key)}
               className="flex flex-col overflow-hidden rounded-[10px] transition-all duration-200"
               style={{
-                background: 'var(--mantle)',
+                background: `color-mix(in srgb, ${col.color} 15%, var(--mantle))`,
                 border: `1px ${isOver ? 'dashed' : 'solid'} ${isOver ? 'var(--accent)' : 'var(--border)'}`,
                 boxShadow: isOver ? 'inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent)' : 'none',
               }}

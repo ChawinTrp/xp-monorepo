@@ -129,8 +129,8 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
     setDrag(null); setOverIdx(null); setOverCol(null);
   };
 
-  const colShell = (isOver: boolean): React.CSSProperties => ({
-    background: 'var(--mantle)',
+  const colShell = (isOver: boolean, color: string): React.CSSProperties => ({
+    background: `color-mix(in srgb, ${color} 15%, var(--mantle))`,
     border: `1px ${isOver ? 'dashed' : 'solid'} ${isOver ? 'var(--accent)' : 'var(--surface1)'}`,
   });
 
@@ -145,7 +145,7 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
       onDragLeave={() => setOverCol((c) => (c === key ? null : c))}
       onDrop={() => dropOnStatusCol()}
       className="flex flex-col overflow-hidden rounded-[10px] transition-all duration-200"
-      style={colShell(overCol === key)}
+      style={colShell(overCol === key, color)}
     >
       <div className="flex items-center gap-2 px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface1)' }}>
         <span className="w-2 h-2 rounded-full" style={{ background: color }} />
@@ -213,7 +213,7 @@ export default function PlanMode({ onOpen }: { onOpen: (id: string) => void }) {
         onDragLeave={() => setOverCol((c) => (c === 'TOMORROW' ? null : c))}
         onDrop={dropOnTomorrow}
         className="flex flex-col overflow-hidden rounded-[10px] transition-all duration-200"
-        style={colShell(overCol === 'TOMORROW')}
+        style={colShell(overCol === 'TOMORROW', 'var(--accent)')}
       >
         <div className="flex items-center gap-2 px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface1)' }}>
           <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }} />
