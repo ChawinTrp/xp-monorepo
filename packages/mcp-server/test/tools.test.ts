@@ -25,6 +25,7 @@ describe('toolDefinitions', () => {
         'stop_task_timer',
         'unarchive_node',
         'update_node',
+        'week_progress',
       ].sort(),
     );
     expect(names).not.toContain('delete_node');

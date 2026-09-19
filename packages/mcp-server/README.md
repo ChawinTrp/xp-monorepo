@@ -6,6 +6,7 @@ A local MCP (stdio) server that lets Claude read and safely mutate live XP data.
 - **Read:** `search_nodes`, `get_node`
 - **Write:** `create_node`, `update_node`, `archive_node`, `unarchive_node`
 - **Actions:** `complete_task`, `check_in_routine`, `start_task_timer`, `stop_task_timer`
+- **Read-only status:** `week_progress` — Win-the-Day / Win-the-Week + Habit Contract penalty (`lostDays`, `weekLost`, `penaltyOwed`)
 
 No hard-delete tool — removal is soft (archive) only. Hard delete stays a human action in the web UI.
 

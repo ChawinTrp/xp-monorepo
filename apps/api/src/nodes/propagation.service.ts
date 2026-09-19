@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
-import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, getWeekDates, getWeekStart, localDateStr, logicalDateStr, parseLocalDate } from '@xp/shared';
+import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, weekPenalty, getWeekDates, getWeekStart, localDateStr, logicalDateStr, parseLocalDate } from '@xp/shared';
 import { CompleteTaskInput } from './dto/complete-task.input';
 
 @Injectable()
@@ -525,7 +525,8 @@ export class PropagationService {
       cursor = this.prevWeekStart(cursor);
     }
 
-    return { ...week, weekWinStreak: streak };
+    const { lostDays, weekLost, owed } = weekPenalty(week.days, today);
+    return { ...week, weekWinStreak: streak, lostDays, weekLost, penaltyOwed: owed };
   }
 
   /** Derive a week's day-wins + verdict from already-loaded nodes (pure). */

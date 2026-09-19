@@ -176,6 +176,7 @@ Handles all XP logic triggered by mutations:
 - `checkInRoutine(id)` — appends `{date, hours}` to `checkIns[]`, updates streak, credits SKILL hours
 - `undoCheckInRoutine(id)` — reverses today's check-in and debits skill hours
 - `startTimer(id)` / `stopTimer(id)` — push/close entries in `metadata.timeEntries[]`; `stopTimer` recalculates `actualHours`
+- `getWeekProgress(weekStart?)` — Win-the-Day / Win-the-Week (`WIN_RULES` in `@xp/shared`: day = ≥3 daily routines + ≥1 task, week = ≥4/7, Sunday start) **plus the Habit Contract penalty** (`PENALTY_RULES` + `weekPenalty()` in `@xp/shared`): `lostDays` (past days not won, from `startDate` 2026-09-19), `weekLost` (remaining days can't reach `weekTarget`), `penaltyOwed` (฿100/lost day + ฿300 if week lost). **Derived, never stored** — payments are tracked outside XP (vault `Habit Contract.md`). Shown on Today (`ContractStrip`) and exposed to agents via the MCP `week_progress` tool.
 
 ---
 

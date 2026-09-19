@@ -106,6 +106,14 @@ export class XpClient {
     return r.startTaskTimer;
   }
 
+  async weekProgress(weekStart?: string): Promise<unknown> {
+    const doc = `query($weekStart:String){ weekProgress(weekStart:$weekStart){
+      weekStart wonDays weekTarget weekWon weekWinStreak lostDays weekLost penaltyOwed
+      days { date won routinesCheckedIn routineTarget tasksCompleted taskTarget } } }`;
+    const r = await this.gql.request<{ weekProgress: unknown }>(doc, { weekStart });
+    return r.weekProgress;
+  }
+
   async stopTaskTimer(id: string): Promise<XpNode> {
     const doc = `mutation($id:ID!){ stopTaskTimer(id:$id){ ${NODE_FIELDS} } }`;
     const r = await this.gql.request<{ stopTaskTimer: XpNode }>(doc, { id });

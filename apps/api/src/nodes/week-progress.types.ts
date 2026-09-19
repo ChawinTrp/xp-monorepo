@@ -18,4 +18,8 @@ export class WeekProgress {
   @Field(() => Int) weekTarget: number;
   @Field() weekWon: boolean;
   @Field(() => Int) weekWinStreak: number;
+  // Habit Contract — derived by weekPenalty() in @xp/shared, never stored.
+  @Field(() => Int) lostDays: number;
+  @Field() weekLost: boolean;
+  @Field(() => Int) penaltyOwed: number;
 }

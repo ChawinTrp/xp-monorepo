@@ -117,6 +117,14 @@ export const toolDefinitions: ToolDef[] = [
     handler: async (client, args) => json(await client.checkInRoutine(args.id)),
   },
   {
+    name: 'week_progress',
+    description:
+      'Win-the-Day / Win-the-Week status for the Sunday-start week containing weekStart (default: current week), ' +
+      'plus the Habit Contract penalty (lostDays, weekLost, penaltyOwed in ฿) derived from it.',
+    inputSchema: { weekStart: z.string().optional() },
+    handler: async (client, args) => json(await client.weekProgress(args.weekStart)),
+  },
+  {
     name: 'start_task_timer',
     description: 'Start the work timer on a TASK.',
     inputSchema: { id: z.string() },

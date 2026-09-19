@@ -94,6 +94,37 @@ export function weekWon(wonDaysCount: number): boolean {
   return wonDaysCount >= WIN_RULES.weekTarget;
 }
 
+// ── Habit Contract (penalty layer over Win-the-Week) ──
+// Derived, never stored: a lost day is a past day that wasn't won; the week is
+// lost once the remaining days can't reach weekTarget. Payments live outside XP.
+
+export const PENALTY_RULES = {
+  perLostDay: 100,   // ฿ per past day not won
+  lostWeek: 300,     // ฿ once the week can no longer be won
+  startDate: '2026-09-19', // contract signed; days before it never count
+} as const;
+
+export type WeekPenalty = {
+  lostDays: number;
+  weekLost: boolean;
+  owed: number;
+};
+
+/** `days` are the week's 7 DayWinResults; `today` is the logical date. */
+export function weekPenalty(days: Pick<DayWinResult, 'date' | 'won'>[], today: string): WeekPenalty {
+  if (today < PENALTY_RULES.startDate) return { lostDays: 0, weekLost: false, owed: 0 };
+  const wonSoFar = days.filter((d) => d.won).length;
+  const lostDays = days.filter((d) => d.date >= PENALTY_RULES.startDate && d.date < today && !d.won).length;
+  const remaining = days.filter((d) => d.date >= today && !d.won).length;
+  // A week that began before the contract can't be "lost" — nothing to defend.
+  const weekLost = days[0].date >= PENALTY_RULES.startDate && wonSoFar + remaining < WIN_RULES.weekTarget;
+  return {
+    lostDays,
+    weekLost,
+    owed: lostDays * PENALTY_RULES.perLostDay + (weekLost ? PENALTY_RULES.lostWeek : 0),
+  };
+}
+
 // ── Date helpers (single source of truth) ──
 // All week math is Sunday-start and operates on LOCAL calendar dates so that
 // derived wins/streaks line up with the user's real day. Single-user app:

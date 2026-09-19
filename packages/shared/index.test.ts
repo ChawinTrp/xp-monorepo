@@ -7,7 +7,7 @@ import {
   addDays,
   DAY_CUTOFF_HOUR,
   dayWon,
-  weekWon,
+  weekWon, weekPenalty,
   WIN_RULES,
 } from './index';
 
@@ -141,5 +141,33 @@ describe('win rules', () => {
   it('weekWon requires the week target of won days', () => {
     expect(weekWon(WIN_RULES.weekTarget)).toBe(true);
     expect(weekWon(WIN_RULES.weekTarget - 1)).toBe(false);
+  });
+});
+
+describe('weekPenalty', () => {
+  const wk = (won: boolean[]) =>
+    ['2026-09-20','2026-09-21','2026-09-22','2026-09-23','2026-09-24','2026-09-25','2026-09-26']
+      .map((date, i) => ({ date, won: won[i] }));
+
+  it('charges 100 per past lost day, nothing for today or the future', () => {
+    const r = weekPenalty(wk([true, false, true, false, false, false, false]), '2026-09-23');
+    expect(r).toEqual({ lostDays: 1, weekLost: false, owed: 100 });
+  });
+
+  it('locks the 300 the moment the week can no longer reach 4 wins', () => {
+    // Sun–Wed lost, Thu today: max reachable = 3 < 4
+    const r = weekPenalty(wk([false, false, false, false, false, false, false]), '2026-09-24');
+    expect(r).toEqual({ lostDays: 4, weekLost: true, owed: 700 });
+  });
+
+  it('ignores days before the contract start and never loses a pre-contract week', () => {
+    // week of 09-13 with contract starting 09-19: no past day counts, no week penalty
+    const pre = ['2026-09-13','2026-09-14','2026-09-15','2026-09-16','2026-09-17','2026-09-18','2026-09-19']
+      .map((date) => ({ date, won: false }));
+    expect(weekPenalty(pre, '2026-09-19')).toEqual({ lostDays: 0, weekLost: false, owed: 0 });
+  });
+
+  it('owes nothing on a clean week', () => {
+    expect(weekPenalty(wk([true, true, true, true, true, true, true]), '2026-09-26').owed).toBe(0);
   });
 });

@@ -1,14 +1,14 @@
-import { useMutation } from '@apollo/client/react';
+import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { useDayQueue, type DayQueueItem } from '../lib/dayQueue';
 import { TypeIcon, RingGauge, Icons, useToast } from '../components/ui';
 import { logicalDateStr } from '../lib/queue';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE,
-  UPDATE_NODE, GET_NODES,
+  UPDATE_NODE, GET_NODES, WEEK_PROGRESS,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
-import { parseLocalDate } from '@xp/shared';
+import { parseLocalDate, PENALTY_RULES, WIN_RULES } from '@xp/shared';
 
 interface TodayProps {
   onOpen: (id: string) => void;
@@ -89,6 +89,8 @@ export default function Today({ onOpen }: TodayProps) {
         </div>
       </div>
 
+      <ContractStrip today={today} />
+
       {/* list */}
       {!ready ? (
         <EmptyState glyph="✦" text="Loading your plan…" />
@@ -109,6 +111,35 @@ export default function Today({ onOpen }: TodayProps) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Habit Contract: win the day (routines + a task), win the week. Penalty is
+// derived server-side from weekProgress — nothing here is stored.
+function ContractStrip({ today }: { today: string }) {
+  const { data } = useQuery<{ weekProgress: any }>(WEEK_PROGRESS);
+  const wp = data?.weekProgress;
+  if (!wp) return null;
+  const day = wp.days.find((d: any) => d.date === today);
+  const routinesLeft = day ? Math.max(0, day.routineTarget - day.routinesCheckedIn) : 0;
+  const tasksLeft = day ? Math.max(0, day.taskTarget - day.tasksCompleted) : 0;
+  const dayState = !day ? '' : day.won ? 'Day won'
+    : `To win today: ${routinesLeft} routine${routinesLeft === 1 ? '' : 's'} + ${tasksLeft} task${tasksLeft === 1 ? '' : 's'}`;
+  const owedColor = wp.penaltyOwed > 0 ? 'var(--red)' : 'var(--green)';
+
+  return (
+    <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl mb-4"
+      style={{ padding: '10px 14px', background: 'var(--surface0)', border: '1px solid var(--surface1)', fontSize: 12 }}>
+      <span style={{ color: day?.won ? 'var(--green)' : 'var(--text)', fontWeight: 600 }}>{dayState}</span>
+      <span className="text-ctp-subtext1">
+        Week {wp.wonDays}/{WIN_RULES.weekTarget} won · {wp.lostDays} lost
+        {wp.weekLost && <span style={{ color: 'var(--red)', fontWeight: 600 }}> · week lost (+฿{PENALTY_RULES.lostWeek})</span>}
+        {wp.weekWon && ' · week won 🎉'}
+      </span>
+      <span className="mono font-bold" style={{ color: owedColor }} title={`฿${PENALTY_RULES.perLostDay} per lost day`}>
+        ฿{wp.penaltyOwed} owed
+      </span>
     </div>
   );
 }
