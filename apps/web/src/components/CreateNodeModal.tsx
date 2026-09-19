@@ -169,7 +169,7 @@ export default function CreateNodeModal({
       metadata.streak = 0;
       metadata.bestStreak = 0;
       metadata.thisWeek = 0;
-      metadata.weekTarget = cadence === 'daily' ? 7 : cadence === 'weekly' ? 1 : 1;
+      metadata.weekTarget = cadence === 'daily' ? 7 : 1; // N×/week is set in the detail panel
     }
     if (type === 'PERSON') {
       metadata.initials = deriveInitials(title);

@@ -74,6 +74,19 @@ describe('toolDefinitions', () => {
     expect(client.updateNode).toHaveBeenCalledWith({ _id: '1', status: 'DONE' });
   });
 
+  it('update_node merges metadata over the existing node, drops nulls, never touches engine fields', async () => {
+    const routine = { _id: 'r1', type: 'ROUTINE', metadata: { cadence: 'daily', target: '30 min', checkIns: [{ date: '2026-09-19', hours: 0.5 }], streak: 1 } };
+    const client = {
+      getNode: vi.fn().mockResolvedValue(routine),
+      updateNode: vi.fn().mockResolvedValue(routine),
+    } as unknown as XpClient;
+    await findTool('update_node').handler(client, { id: 'r1', metadata: { core: '2026-09-19', target: null, streak: 99 } });
+    expect(client.updateNode).toHaveBeenCalledWith({
+      _id: 'r1',
+      metadata: { cadence: 'daily', checkIns: [{ date: '2026-09-19', hours: 0.5 }], streak: 1, core: '2026-09-19' },
+    });
+  });
+
   it('archive_node calls the client archive method', async () => {
     const client = { archiveNode: vi.fn().mockResolvedValue(node) } as unknown as XpClient;
     await findTool('archive_node').handler(client, { id: '1' });

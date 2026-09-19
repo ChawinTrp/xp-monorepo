@@ -51,7 +51,7 @@ All XP nodes share the universal schema (`title`, `type`, `description`, `parent
 | **PERSON** | `role`, `email`, `phone`, `initials`, `nextCatchup` (ISO date), `lastCatchup` (ISO date) — `catchupState` (upcoming/overdue/none) and `relativeDate` (human label e.g. "in 3 days") are **derived at render** from `nextCatchup` (`getPersonCatchup` in `apps/web/src/lib/queue.ts`), never stored. Circle membership is **not** metadata — it's a TAG node with `metadata.kind: 'circle'` linked via the PERSON's `parents` (single circle per person, UI-enforced). | MongoDB `metadata` |
 | **DOMAIN** | _(none — progress computed from children)_ | — |
 | **TAG** | `color` hex — UI chip rendering. `kind` (optional) — `'circle'` marks a People-view circle grouping; for circle tags, `color` is optional and the web falls back to name-based default colors when absent. | MongoDB `metadata` |
-| **ROUTINE** | `cadence` (daily/weekly/monthly), `target` (string e.g. "30 min"), `timeOfDay` (morning/afternoon/evening/night), `group` (optional label), `skips: [YYYY-MM-DD]` (per-day "not today" dismissals from the Focus deck — always daily regardless of cadence), `checkIns: [{date: YYYY-MM-DD, hours: number}]`, `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate` (YYYY-MM-DD), `creditedHours`, `timeEntries: [{start: ISO, end?: ISO}]` | MongoDB `metadata` |
+| **ROUTINE** | `cadence` (daily/weekly/monthly), `target` (string e.g. "30 min"), `timeOfDay` (morning/afternoon/evening/night), `group` (optional label), `skips: [YYYY-MM-DD]` (per-day "not today" dismissals from the Focus deck — always daily regardless of cadence), `checkIns: [{date: YYYY-MM-DD, hours: number, at?: ISO}]` (`at` = tap time, since 2026-09-19), `core?: YYYY-MM-DD` (date this daily routine started counting toward Win-the-Day; unset = tracked but not required — see XP.md §6.3), `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate` (YYYY-MM-DD), `creditedHours`, `timeEntries: [{start: ISO, end?: ISO}]` | MongoDB `metadata` |
 | **NOTE** ★ | `domain`, `source` (optional), `xp_link` (optional wikilink to related XP node) | Obsidian frontmatter |
 | **IDEA** ★ | `domain`, `idea_status` (raw / evaluating / developed / shelved), `xp_link` (optional) | Obsidian frontmatter |
 
@@ -90,7 +90,8 @@ Where each **user-set** property can be edited, and where it is surfaced read-on
 | | `startDate` | ✖ | ✅ date | Gantt (drag), Calendar |
 | | `progress` | ✖ | ✅ slider (manual; auto→100 on complete) | — |
 | | `sprint` | ✖ | 👁 read-only (set via Kanban) | Kanban sprint board |
-| **ROUTINE** | `cadence` | ✅ | ✅ select (recomputes `weekTarget`) | Routines |
+| **ROUTINE** | `cadence` | ✅ | ✅ select (recomputes `weekTarget`: daily → 7, weekly → **Times per week** input 1–7, monthly → 1) | Routines |
+| | `core` | ✅ | ✅ checkbox "Core habit" (daily only; stores the date it was ticked) | Today ContractStrip, `weekProgress` |
 | | `target` | ✅ | ✅ input | Routines, Focus deck |
 | | `timeOfDay` | ✅ | ✅ select | Routines grouping, Mobile/Plan queue order |
 | | `group` | ✅ | ✅ input | Routines section header |

@@ -83,11 +83,33 @@ export type DayWinResult = {
   taskTarget: number;
 };
 
-export function dayWon(routinesCheckedIn: number, tasksCompleted: number): boolean {
-  return (
-    routinesCheckedIn >= WIN_RULES.routineThreshold &&
-    tasksCompleted >= WIN_RULES.taskThreshold
-  );
+export function dayWon(
+  routinesCheckedIn: number,
+  tasksCompleted: number,
+  routineTarget: number = WIN_RULES.routineThreshold,
+): boolean {
+  return routinesCheckedIn >= routineTarget && tasksCompleted >= WIN_RULES.taskThreshold;
+}
+
+// ── Core habits (graduation) ──
+// A daily ROUTINE with `metadata.core = 'YYYY-MM-DD'` counts toward Win-the-Day
+// from that date on. New habits start non-core (tracked, not required) and are
+// promoted by setting `core` once they've stuck. If no routine is flagged, the
+// legacy fixed threshold applies, so existing data behaves exactly as before.
+type CoreRoutineLike = { metadata?: { cadence?: string; core?: string } | null };
+
+/** Which daily routines are required to win `date`. */
+export function coreRoutinesOn<T extends CoreRoutineLike>(routines: T[], date: string): T[] {
+  return routines.filter((r) => {
+    const m = r.metadata ?? {};
+    return m.cadence === 'daily' && typeof m.core === 'string' && m.core <= date;
+  });
+}
+
+/** Routines needed to win `date`: all core ones, or the legacy threshold if none are flagged. */
+export function routineTargetOn(routines: CoreRoutineLike[], date: string): number {
+  const anyFlagged = routines.some((r) => typeof r.metadata?.core === 'string');
+  return anyFlagged ? coreRoutinesOn(routines, date).length : WIN_RULES.routineThreshold;
 }
 
 export function weekWon(wonDaysCount: number): boolean {

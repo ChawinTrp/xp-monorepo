@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
-import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, weekPenalty, getWeekDates, getWeekStart, localDateStr, logicalDateStr, parseLocalDate } from '@xp/shared';
+import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, weekPenalty, routineTargetOn, coreRoutinesOn, getWeekDates, getWeekStart, localDateStr, logicalDateStr, parseLocalDate } from '@xp/shared';
 import { CompleteTaskInput } from './dto/complete-task.input';
 
 @Injectable()
@@ -258,7 +258,9 @@ export class PropagationService {
     const creditedHours =
       (meta.actualHours as number) ?? this.parseTarget(meta.target as string) ?? 0;
 
-    checkIns.push({ date: today, hours: creditedHours });
+    // `at` = wall-clock of the tap. For evening routines (Shutdown) this is the
+    // lights-out sensor the Habit Contract reads — measured, not self-reported.
+    checkIns.push({ date: today, hours: creditedHours, at: new Date().toISOString() } as any);
     checkIns.sort((a, b) => a.date.localeCompare(b.date));
     meta.checkIns = checkIns;
     meta.lastCheckInDate = today;
@@ -531,8 +533,13 @@ export class PropagationService {
 
   /** Derive a week's day-wins + verdict from already-loaded nodes (pure). */
   private computeWeek(start: string, routines: any[], tasks: any[]) {
+    const anyCore = routines.some((r: any) => typeof (r.metadata as any)?.core === 'string');
     const days = getWeekDates(start).map((date) => {
-      const routinesCheckedIn = routines.filter((r: any) => {
+      // Core-flagged routines are the requirement once any exist; otherwise every
+      // daily routine counts against the legacy fixed threshold (see @xp/shared).
+      const pool = anyCore ? coreRoutinesOn(routines, date) : routines;
+      const routineTarget = routineTargetOn(routines, date);
+      const routinesCheckedIn = pool.filter((r: any) => {
         const checkIns: Array<{ date: string }> = (r.metadata as any)?.checkIns ?? [];
         return (r.metadata as any)?.cadence === 'daily' && checkIns.some((c) => c.date === date);
       }).length;
@@ -543,9 +550,9 @@ export class PropagationService {
 
       return {
         date,
-        won: dayWon(routinesCheckedIn, tasksCompleted),
+        won: dayWon(routinesCheckedIn, tasksCompleted, routineTarget),
         routinesCheckedIn,
-        routineTarget: WIN_RULES.routineThreshold,
+        routineTarget,
         tasksCompleted,
         taskTarget: WIN_RULES.taskThreshold,
       };

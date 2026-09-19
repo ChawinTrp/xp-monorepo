@@ -177,6 +177,8 @@ Handles all XP logic triggered by mutations:
 - `undoCheckInRoutine(id)` — reverses today's check-in and debits skill hours
 - `startTimer(id)` / `stopTimer(id)` — push/close entries in `metadata.timeEntries[]`; `stopTimer` recalculates `actualHours`
 - `getWeekProgress(weekStart?)` — Win-the-Day / Win-the-Week (`WIN_RULES` in `@xp/shared`: day = ≥3 daily routines + ≥1 task, week = ≥4/7, Sunday start) **plus the Habit Contract penalty** (`PENALTY_RULES` + `weekPenalty()` in `@xp/shared`): `lostDays` (past days not won, from `startDate` 2026-09-19), `weekLost` (remaining days can't reach `weekTarget`), `penaltyOwed` (฿100/lost day + ฿300 if week lost). **Derived, never stored** — payments are tracked outside XP (vault `Habit Contract.md`). Shown on Today (`ContractStrip`) and exposed to agents via the MCP `week_progress` tool.
+  - **Core habits (graduation):** once any daily ROUTINE has `metadata.core` (a date), Win-the-Day requires *every* core routine whose `core` date ≤ that day (`coreRoutinesOn` / `routineTargetOn` in `@xp/shared`); the fixed `routineThreshold: 3` is only the fallback when nothing is flagged. New habits are created non-core (tracked on Routines, not required) and promoted by ticking "Core habit" in NodeDetail. Roadmap that drives this: vault `02 - Areas/Personal/Habit Roadmap Q4 2026.md`.
+  - **MCP `update_node` merges `metadata`** (server replaces it wholesale); engine-computed keys are ignored in the patch.
 
 ---
 

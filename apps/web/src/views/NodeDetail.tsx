@@ -57,6 +57,8 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const [cadence, setCadence] = useState<string>('');
   const [target, setTarget] = useState<string>('');
   const [group, setGroup] = useState<string>('');
+  const [timesPerWeek, setTimesPerWeek] = useState<string>('');
+  const [core, setCore] = useState<boolean>(false);
   const [tagColor, setTagColor] = useState<string>('');
   const [mainParentId, setMainParentId] = useState<string>('');
 
@@ -90,6 +92,8 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       setCadence(meta.cadence ?? '');
       setTarget(meta.target ?? '');
       setGroup(meta.group ?? '');
+      setTimesPerWeek(meta.weekTarget != null ? String(meta.weekTarget) : '');
+      setCore(typeof meta.core === 'string');
       setTagColor(meta.color ?? '');
       setMainParentId(n.mainParent ?? '');
       setTags(meta.tags ?? []);
@@ -211,11 +215,14 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         if (timeOfDay) newMeta.timeOfDay = timeOfDay; else delete newMeta.timeOfDay;
         if (cadence) {
           newMeta.cadence = cadence;
-          // weekTarget is derived from cadence — keep them in sync.
-          newMeta.weekTarget = cadence === 'daily' ? 7 : 1;
+          // weekTarget: daily is always 7; weekly is the user's N×/week (default 1).
+          const n = parseInt(timesPerWeek, 10);
+          newMeta.weekTarget = cadence === 'daily' ? 7 : cadence === 'weekly' && n >= 1 && n <= 7 ? n : 1;
         }
         if (target.trim()) newMeta.target = target.trim(); else delete newMeta.target;
         if (group.trim()) newMeta.group = group.trim(); else delete newMeta.group;
+        // core = date it started counting toward Win-the-Day; keep the original date on re-save.
+        if (core) { if (typeof newMeta.core !== 'string') newMeta.core = _TODAY; } else delete newMeta.core;
       }
       if (n.type === 'TAG') {
         if (tagColor) newMeta.color = tagColor; else delete newMeta.color;
@@ -742,6 +749,30 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                       }}
                     />
                   </Field>
+                  {cadence === 'weekly' && (
+                    <Field label="Times per week">
+                      <input
+                        type="number" min={1} max={7}
+                        value={timesPerWeek}
+                        onChange={(e) => setTimesPerWeek(e.target.value)}
+                        placeholder="e.g. 3"
+                        className="rounded-md w-full"
+                        style={{
+                          padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                          background: 'var(--base)', border: '1px solid var(--surface1)',
+                          color: 'var(--text)', outline: 'none',
+                        }}
+                      />
+                    </Field>
+                  )}
+                  {cadence === 'daily' && (
+                    <Field label="Win the Day">
+                      <label className="flex items-center gap-2 cursor-pointer" style={{ fontSize: 13 }}>
+                        <input type="checkbox" checked={core} onChange={(e) => setCore(e.target.checked)} />
+                        <span>Core habit — required to win the day{typeof m.core === 'string' && ` (since ${m.core})`}</span>
+                      </label>
+                    </Field>
+                  )}
                 </>
               )}
               {n.type === 'PERSON' && (() => {

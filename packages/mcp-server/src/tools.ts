@@ -12,6 +12,12 @@ export interface ToolDef {
 
 const json = (value: unknown) => JSON.stringify(value, null, 2);
 
+// Written only by PropagationService — agents may read, never set (NODE.md §3.1).
+const ENGINE_FIELDS = new Set([
+  'checkIns', 'streak', 'bestStreak', 'thisWeek', 'lastCheckInDate', 'creditedHours',
+  'totalHours', 'level', 'hoursToNext', 'actualHours', 'completedAt', 'completedDate', 'timeEntries',
+]);
+
 export const toolDefinitions: ToolDef[] = [
   {
     name: 'search_nodes',
@@ -66,7 +72,9 @@ export const toolDefinitions: ToolDef[] = [
     name: 'update_node',
     description:
       'Update editable fields of a node by id. Whitelisted fields only: title, description, status, ' +
-      'mainParent, parents, metadata. Cannot delete — use archive_node for removal.',
+      'mainParent, parents, metadata. `metadata` is MERGED into the existing metadata (pass a key with ' +
+      'null to remove it); engine-computed fields (checkIns, streak, totalHours, ...) are never overwritten. ' +
+      'Cannot delete — use archive_node for removal.',
     inputSchema: {
       id: z.string(),
       title: z.string().optional(),
@@ -84,8 +92,15 @@ export const toolDefinitions: ToolDef[] = [
       if (args.mainParent !== undefined) patch.mainParent = args.mainParent;
       if (args.parents !== undefined) patch.parents = args.parents;
       if (args.metadata !== undefined) {
+        // The API replaces `metadata` wholesale, so merge here: keep everything the
+        // node already has (incl. engine-computed fields), apply the patch, drop nulls.
         const node = await client.getNode(args.id);
-        patch.metadata = validateMetadata(node.type, args.metadata);
+        const merged: Record<string, unknown> = { ...(node.metadata ?? {}) };
+        for (const [k, v] of Object.entries(args.metadata as Record<string, unknown>)) {
+          if (ENGINE_FIELDS.has(k)) continue;
+          if (v === null) delete merged[k]; else merged[k] = v;
+        }
+        patch.metadata = validateMetadata(node.type, merged);
       }
       return json(await client.updateNode(patch));
     },

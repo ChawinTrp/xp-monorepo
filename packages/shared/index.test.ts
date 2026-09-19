@@ -7,7 +7,7 @@ import {
   addDays,
   DAY_CUTOFF_HOUR,
   dayWon,
-  weekWon, weekPenalty,
+  weekWon, weekPenalty, coreRoutinesOn, routineTargetOn,
   WIN_RULES,
 } from './index';
 
@@ -138,9 +138,30 @@ describe('win rules', () => {
     expect(dayWon(WIN_RULES.routineThreshold, WIN_RULES.taskThreshold - 1)).toBe(false);
   });
 
+  it('dayWon honours an explicit routine target', () => {
+    expect(dayWon(2, 1, 2)).toBe(true);
+    expect(dayWon(2, 1, 4)).toBe(false);
+  });
+
   it('weekWon requires the week target of won days', () => {
     expect(weekWon(WIN_RULES.weekTarget)).toBe(true);
     expect(weekWon(WIN_RULES.weekTarget - 1)).toBe(false);
+  });
+});
+
+describe('core routines', () => {
+  const r = (cadence: string, core?: string) => ({ metadata: { cadence, core } });
+  const set = [r('daily', '2026-09-19'), r('daily', '2026-10-10'), r('daily'), r('weekly', '2026-09-19')];
+
+  it('counts only daily routines whose core date has arrived', () => {
+    expect(coreRoutinesOn(set, '2026-09-19')).toHaveLength(1);
+    expect(coreRoutinesOn(set, '2026-10-10')).toHaveLength(2);
+    expect(coreRoutinesOn(set, '2026-09-01')).toHaveLength(0);
+  });
+
+  it('falls back to the legacy threshold when nothing is flagged', () => {
+    expect(routineTargetOn([r('daily'), r('daily')], '2026-09-19')).toBe(WIN_RULES.routineThreshold);
+    expect(routineTargetOn(set, '2026-10-10')).toBe(2);
   });
 });
 
