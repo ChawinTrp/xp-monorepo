@@ -121,10 +121,21 @@ export function weekWon(wonDaysCount: number): boolean {
 // lost once the remaining days can't reach weekTarget. Payments live outside XP.
 
 export const PENALTY_RULES = {
-  perLostDay: 100,   // ฿ per past day not won
+  perLostDay: 100,   // ฿ per past weekday not won
   lostWeek: 300,     // ฿ once the week can no longer be won
   startDate: '2026-09-19', // contract signed; days before it never count
+  // From this date Sat/Sun carry no per-day penalty. They still count toward
+  // Win-the-Week, so a weekend is upside-only: winnable, never billable.
+  // Dated so settled weeks (09-20 -> 26, ฿800) do not move.
+  weekendsFreeFrom: '2026-09-27',
 } as const;
+
+/** Whether a lost `date` is charged for. Weekends stop billing from 2026-09-27. */
+export function penalisedDay(date: string): boolean {
+  if (date < PENALTY_RULES.weekendsFreeFrom) return true;
+  const wd = parseLocalDate(date).getDay();
+  return wd >= 1 && wd <= 5;
+}
 
 export type WeekPenalty = {
   lostDays: number;
@@ -136,7 +147,9 @@ export type WeekPenalty = {
 export function weekPenalty(days: Pick<DayWinResult, 'date' | 'won'>[], today: string): WeekPenalty {
   if (today < PENALTY_RULES.startDate) return { lostDays: 0, weekLost: false, owed: 0 };
   const wonSoFar = days.filter((d) => d.won).length;
-  const lostDays = days.filter((d) => d.date >= PENALTY_RULES.startDate && d.date < today && !d.won).length;
+  const lostDays = days.filter(
+    (d) => d.date >= PENALTY_RULES.startDate && d.date < today && !d.won && penalisedDay(d.date),
+  ).length;
   const remaining = days.filter((d) => d.date >= today && !d.won).length;
   // A week that began before the contract can't be "lost" — nothing to defend.
   const weekLost = days[0].date >= PENALTY_RULES.startDate && wonSoFar + remaining < WIN_RULES.weekTarget;

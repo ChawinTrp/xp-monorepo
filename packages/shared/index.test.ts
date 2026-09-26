@@ -188,6 +188,18 @@ describe('weekPenalty', () => {
     expect(weekPenalty(pre, '2026-09-19')).toEqual({ lostDays: 0, weekLost: false, owed: 0 });
   });
 
+  it('bills weekends before the cutover and not after', () => {
+    // 09-20 -> 26: Sun 09-20 and Sat 09-26 still bill (settled history stays put)
+    expect(weekPenalty(wk([false, true, true, true, true, true, false]), '2026-09-27').lostDays).toBe(2);
+    // 09-27 -> 10-03: Sun 09-27 and Sat 10-03 lost, every weekday won -> nothing owed
+    const next = ['2026-09-27','2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03']
+      .map((date, i) => ({ date, won: i !== 0 && i !== 6 }));
+    expect(weekPenalty(next, '2026-10-04')).toEqual({ lostDays: 0, weekLost: false, owed: 0 });
+    // one lost weekday in that same week is still ฿100
+    next[1].won = false;
+    expect(weekPenalty(next, '2026-10-04').owed).toBe(100);
+  });
+
   it('owes nothing on a clean week', () => {
     expect(weekPenalty(wk([true, true, true, true, true, true, true]), '2026-09-26').owed).toBe(0);
   });
