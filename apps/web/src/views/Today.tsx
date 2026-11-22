@@ -32,19 +32,27 @@ const BLOCKS: Block[] = [
   { label: 'Lunch + reset', start: hm(12, 30), end: hm(14), tod: ['afternoon'], tasks: false },
   { label: 'Afternoon', start: hm(14), end: hm(18), tod: ['afternoon'], tasks: true },
   { label: 'Evening', start: hm(19), end: hm(22), tod: ['evening'], tasks: true },
-  { label: 'Shutdown', start: hm(22, 45), end: hm(24), tod: ['night'], tasks: false },
+  { label: 'Shutdown', start: hm(23, 45), end: hm(24), tod: ['night'], tasks: false },
 ];
 
+/** Shutdown starts at the Shutdown routine's metadata.time ("HH:MM") when set, else the default above. */
+export function blocksFor(nodes: XPNode[]): Block[] {
+  const t = String((nodes.find((n) => n.type === 'ROUTINE' && /shutdown/i.test(n.title))?.metadata as any)?.time ?? '');
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
+  if (!m) return BLOCKS;
+  return BLOCKS.map((b) => (b.label === 'Shutdown' ? { ...b, start: hm(+m[1], +m[2]) } : b));
+}
+
 const fmt = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-const range = (b: Block) => (b === BLOCKS[BLOCKS.length - 1] ? fmt(b.start) : `${fmt(b.start)}–${fmt(b.end)}`);
+const range = (b: Block) => (b.label === 'Shutdown' ? fmt(b.start) : `${fmt(b.start)}–${fmt(b.end)}`);
 
 /** Block in progress, or the next one if between blocks. Before 05:00 still counts as Shutdown (logical day). */
-export function blockAt(min: number): { index: number; upcoming: boolean } {
-  if (min < hm(5)) return { index: BLOCKS.length - 1, upcoming: false };
-  const i = BLOCKS.findIndex((b) => min >= b.start && min < b.end);
+export function blockAt(min: number, blocks: Block[] = BLOCKS): { index: number; upcoming: boolean } {
+  if (min < hm(5)) return { index: blocks.length - 1, upcoming: false };
+  const i = blocks.findIndex((b) => min >= b.start && min < b.end);
   if (i >= 0) return { index: i, upcoming: false };
-  const next = BLOCKS.findIndex((b) => b.start > min);
-  return next >= 0 ? { index: next, upcoming: true } : { index: BLOCKS.length - 1, upcoming: false };
+  const next = blocks.findIndex((b) => b.start > min);
+  return next >= 0 ? { index: next, upcoming: true } : { index: blocks.length - 1, upcoming: false };
 }
 
 function useNowMinutes() {
@@ -144,8 +152,9 @@ export default function Today({ onOpen }: TodayProps) {
   const otherTasks = tasks.filter((i) => !top3Ids.has(i.node._id));
 
   // Now: the current block's menu — pending items that belong to it, plan order, first = default.
-  const { index: nowIdx, upcoming } = blockAt(now);
-  const block = BLOCKS[nowIdx];
+  const blocks = blocksFor(nodes);
+  const { index: nowIdx, upcoming } = blockAt(now, blocks);
+  const block = blocks[nowIdx];
   const pending = items.filter((i) => i.status === 'pending');
   const fits = (i: DayQueueItem) =>
     i.node.type === 'ROUTINE'
@@ -185,7 +194,7 @@ export default function Today({ onOpen }: TodayProps) {
           <div className="flex flex-col gap-6 min-w-0">
             <Section title={upcoming ? `Next · ${block.label} at ${fmt(block.start)}` : `Now · ${block.label}`}>
               <div className="flex gap-1.5 flex-wrap mb-3">
-                {BLOCKS.map((b, i) => (
+                {blocks.map((b, i) => (
                   <span key={b.label} className="rounded-md"
                     style={{
                       padding: '5px 9px', fontSize: 11,
@@ -200,7 +209,7 @@ export default function Today({ onOpen }: TodayProps) {
               </div>
               {block.label === 'Shutdown' && !upcoming && (
                 <p style={{ fontSize: 13, margin: '0 0 10px', color: 'var(--text)' }}>
-                  Work is over for today. What's left moves to tomorrow.
+                  Work is over. Dictate the 3 things done + tomorrow's first step, then bed. What's left moves to tomorrow.
                 </p>
               )}
               {menu.length ? (
