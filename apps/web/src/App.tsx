@@ -39,7 +39,7 @@ function useIsMobile() {
 export default function App() {
   const { byId, breadcrumb, loading, nodes } = useNodes();
   const isMobile = useIsMobile();
-  const [view, setView] = useState<ViewId>('dashboard');
+  const [view, setView] = useState<ViewId>('today');
   const [openId, setOpenId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

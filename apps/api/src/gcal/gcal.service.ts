@@ -201,6 +201,31 @@ export class GCalService implements OnModuleInit {
     }
   }
 
+  // Read-only: the day's events from CT's primary calendar (the XP Tasks
+  // calendar is skipped — those are XP's own items, already on the Today page).
+  async dayEvents(date: string): Promise<{ title: string; start: string | null; end: string | null; allDay: boolean }[]> {
+    const cal = this.getCalendar();
+    if (!cal) return [];
+    const next = new Date(`${date}T00:00:00+07:00`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    const res = await cal.events.list({
+      calendarId: 'primary',
+      timeMin: `${date}T00:00:00+07:00`,
+      timeMax: next.toISOString(),
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 20,
+    });
+    return (res.data.items ?? [])
+      .filter((e) => e.status !== 'cancelled')
+      .map((e) => ({
+        title: e.summary ?? '(no title)',
+        start: e.start?.dateTime ?? e.start?.date ?? null,
+        end: e.end?.dateTime ?? e.end?.date ?? null,
+        allDay: !e.start?.dateTime,
+      }));
+  }
+
   getStatus(): { configured: boolean; connected: boolean; calendarId: string | null } {
     return {
       configured: this.isConfigured(),

@@ -12,6 +12,18 @@ export class GCalController {
     return this.gcalService.getStatus();
   }
 
+  @Get('events')
+  async getEvents(@Query('date') date: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? '')) {
+      throw new HttpException('date must be YYYY-MM-DD', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      return { connected: this.gcalService.isConnected(), events: await this.gcalService.dayEvents(date) };
+    } catch (err: any) {
+      throw new HttpException(`Calendar read failed: ${err.message}`, HttpStatus.BAD_GATEWAY);
+    }
+  }
+
   @Get('auth')
   getAuthUrl() {
     const url = this.gcalService.getAuthUrl();

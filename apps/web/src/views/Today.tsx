@@ -1,23 +1,86 @@
-import { useMutation, useQuery } from '@apollo/client/react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useMutation } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { useDayQueue, type DayQueueItem } from '../lib/dayQueue';
-import { TypeIcon, RingGauge, Icons, useToast } from '../components/ui';
-import { logicalDateStr } from '../lib/queue';
+import { TypeIcon, Icons, useToast } from '../components/ui';
+import { logicalDateStr, addDays, getPersonCatchup } from '../lib/queue';
+import { API_BASE, authHeaders } from '../lib/api';
 import {
   COMPLETE_TASK, CHECK_IN_ROUTINE, REOPEN_TASK, UNDO_CHECK_IN_ROUTINE,
-  UPDATE_NODE, GET_NODES, WEEK_PROGRESS,
+  UPDATE_NODE, GET_NODES,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
-import { parseLocalDate, PENALTY_RULES, WIN_RULES } from '@xp/shared';
+import { parseLocalDate } from '@xp/shared';
+
+// PC Today: the whole day on one screen, opened first thing (CT, 2026-11-22).
+// Order: Now → Today's 3 → Routines | Calendar → Reminders.
+// Not here yet: yesterday's numbers + "from last night" — they need the daily-numbers table.
+
+interface Block {
+  label: string;
+  start: number; // minutes after midnight
+  end: number;
+  tod: string[]; // routine timeOfDay values that belong to this block
+  tasks: boolean; // tasks are worked in this block
+}
+
+const hm = (h: number, m = 0) => h * 60 + m;
+// The day's blocks (approved sketch). Edit here to change the day's shape.
+const BLOCKS: Block[] = [
+  { label: 'Morning', start: hm(7), end: hm(9), tod: ['morning'], tasks: false },
+  { label: 'Deep work', start: hm(9, 30), end: hm(12, 30), tod: [], tasks: true },
+  { label: 'Lunch + reset', start: hm(12, 30), end: hm(14), tod: ['afternoon'], tasks: false },
+  { label: 'Afternoon', start: hm(14), end: hm(18), tod: ['afternoon'], tasks: true },
+  { label: 'Evening', start: hm(19), end: hm(22), tod: ['evening'], tasks: true },
+  { label: 'Shutdown', start: hm(22, 45), end: hm(24), tod: ['night'], tasks: false },
+];
+
+const fmt = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+const range = (b: Block) => (b === BLOCKS[BLOCKS.length - 1] ? fmt(b.start) : `${fmt(b.start)}–${fmt(b.end)}`);
+
+/** Block in progress, or the next one if between blocks. Before 05:00 still counts as Shutdown (logical day). */
+export function blockAt(min: number): { index: number; upcoming: boolean } {
+  if (min < hm(5)) return { index: BLOCKS.length - 1, upcoming: false };
+  const i = BLOCKS.findIndex((b) => min >= b.start && min < b.end);
+  if (i >= 0) return { index: i, upcoming: false };
+  const next = BLOCKS.findIndex((b) => b.start > min);
+  return next >= 0 ? { index: next, upcoming: true } : { index: BLOCKS.length - 1, upcoming: false };
+}
+
+function useNowMinutes() {
+  const read = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+  const [min, setMin] = useState(read);
+  useEffect(() => {
+    const t = setInterval(() => setMin(read()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return min;
+}
+
+interface CalEvent { title: string; start: string | null; end: string | null; allDay: boolean }
+
+function useDayEvents(date: string) {
+  const [state, setState] = useState<{ connected: boolean; events: CalEvent[]; error?: boolean } | null>(null);
+  useEffect(() => {
+    fetch(`${API_BASE}/gcal/events?date=${date}`, { headers: authHeaders() })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then(setState)
+      .catch(() => setState({ connected: false, events: [], error: true }));
+  }, [date]);
+  return state;
+}
 
 interface TodayProps {
   onOpen: (id: string) => void;
 }
 
 export default function Today({ onOpen }: TodayProps) {
-  const { breadcrumb } = useNodes();
+  const { breadcrumb, nodes } = useNodes();
   const { items, summary, ready } = useDayQueue();
   const { toast } = useToast();
+  const now = useNowMinutes();
+  const today = logicalDateStr();
+  const events = useDayEvents(today);
 
   const refetch = { refetchQueries: [{ query: GET_NODES }] };
   const [completeTask] = useMutation(COMPLETE_TASK, refetch);
@@ -26,7 +89,8 @@ export default function Today({ onOpen }: TodayProps) {
   const [undoCheckIn] = useMutation(UNDO_CHECK_IN_ROUTINE, refetch);
   const [updateNode] = useMutation(UPDATE_NODE, refetch);
 
-  const today = logicalDateStr();
+  const skipsOf = (node: XPNode): string[] =>
+    Array.isArray((node.metadata as any)?.skips) ? (node.metadata as any).skips : [];
 
   const markDone = async (node: XPNode) => {
     try {
@@ -38,7 +102,7 @@ export default function Today({ onOpen }: TodayProps) {
   };
 
   const skip = async (node: XPNode) => {
-    const prev: string[] = Array.isArray((node.metadata as any)?.skips) ? (node.metadata as any).skips : [];
+    const prev = skipsOf(node);
     if (prev.some((d) => d.slice(0, 10) === today)) return;
     try {
       await updateNode({ variables: { input: { _id: node._id, metadata: { ...(node.metadata as any), skips: [...prev, today] } } } });
@@ -54,93 +118,185 @@ export default function Today({ onOpen }: TodayProps) {
         if (node.type === 'ROUTINE') await undoCheckIn({ variables: { id: node._id } });
         else await reopenTask({ variables: { id: node._id } });
       } else if (status === 'skipped') {
-        const prev: string[] = Array.isArray((node.metadata as any)?.skips) ? (node.metadata as any).skips : [];
-        await updateNode({ variables: { input: { _id: node._id, metadata: { ...(node.metadata as any), skips: prev.filter((d) => d.slice(0, 10) !== today) } } } });
+        await updateNode({ variables: { input: { _id: node._id, metadata: { ...(node.metadata as any), skips: skipsOf(node).filter((d) => d.slice(0, 10) !== today) } } } });
       }
     } catch (err: any) {
       toast({ message: 'Could not undo', variant: 'error', details: err.message });
     }
   };
 
-  const dateLabel = parseLocalDate(today).toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric',
-  });
-  const pct = summary.total ? Math.round((summary.resolved / summary.total) * 100) : 0;
+  const row = (item: DayQueueItem) => (
+    <TodayRow
+      key={item.node._id}
+      item={item}
+      crumb={breadcrumb(item.node._id).map((n) => n.title).join(' › ')}
+      onOpen={onOpen}
+      onDone={() => markDone(item.node)}
+      onSkip={() => skip(item.node)}
+      onUndo={() => undo(item)}
+    />
+  );
+
+  const tasks = items.filter((i) => i.node.type === 'TASK');
+  const routines = items.filter((i) => i.node.type === 'ROUTINE');
+  const top3 = tasks.filter((i) => i.status === 'pending').slice(0, 3);
+  const top3Ids = new Set(top3.map((i) => i.node._id));
+  const otherTasks = tasks.filter((i) => !top3Ids.has(i.node._id));
+
+  // Now: the current block's menu — pending items that belong to it, plan order, first = default.
+  const { index: nowIdx, upcoming } = blockAt(now);
+  const block = BLOCKS[nowIdx];
+  const pending = items.filter((i) => i.status === 'pending');
+  const fits = (i: DayQueueItem) =>
+    i.node.type === 'ROUTINE'
+      ? block.tod.includes((i.node.metadata as any)?.timeOfDay)
+      : block.tasks;
+  const menu = (pending.filter(fits).length ? pending.filter(fits) : pending).slice(0, 3);
+
+  // Reminders: catch-ups due or overdue, tasks due in the next 3 days.
+  const soon = addDays(today, 3);
+  const catchups = nodes
+    .filter((n) => n.type === 'PERSON')
+    .map((p) => ({ p, c: getPersonCatchup(p, today) }))
+    .filter(({ c }) => c.catchupState === 'overdue' || c.relativeDate === 'today');
+  const dueSoon = nodes
+    .filter((n) => n.type === 'TASK' && n.status !== 'DONE')
+    .map((n) => ({ n, due: String((n.metadata as any)?.due ?? '').slice(0, 10) }))
+    .filter(({ due }) => due > today && due <= soon)
+    .sort((a, b) => a.due.localeCompare(b.due));
+
+  const dateLabel = parseLocalDate(today).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   return (
-    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 880, margin: '0 auto' }}>
-      {/* header */}
-      <div className="flex items-center justify-between mb-7 gap-4 flex-wrap">
+    <div className="fade-in" style={{ padding: 'clamp(16px, 3vw, 32px)', maxWidth: 1180, margin: '0 auto' }}>
+      <div className="flex items-end justify-between mb-6 gap-4 flex-wrap">
         <div>
-          <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>Today</h1>
-          <div className="mono text-ctp-subtext1 mt-1.5" style={{ fontSize: 12 }}>{dateLabel}</div>
-        </div>
-        <div className="flex items-center gap-3.5 rounded-xl" style={{ padding: '12px 18px', background: 'var(--surface0)', border: '1px solid var(--surface1)' }}>
-          <RingGauge pct={pct} color="var(--accent)" size={56} stroke={5} />
-          <div>
-            <div className="flex items-baseline gap-1">
-              <span className="font-bold" style={{ fontSize: 28, letterSpacing: -0.5 }}>{summary.resolved}</span>
-              <span className="text-ctp-overlay1 font-semibold" style={{ fontSize: 18 }}>/ {summary.total}</span>
-            </div>
-            <div className="text-ctp-subtext1" style={{ fontSize: 11 }}>
-              {summary.done} done · {summary.skipped} skipped · {summary.pending} left
-            </div>
+          <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>{dateLabel}</h1>
+          <div className="mono text-ctp-subtext1 mt-1.5" style={{ fontSize: 12 }}>
+            {fmt(now)} · {summary.done} done · {summary.skipped} skipped · {summary.pending} left
           </div>
         </div>
       </div>
 
-      <ContractStrip today={today} />
-
-      {/* list */}
       {!ready ? (
-        <EmptyState glyph="✦" text="Loading your plan…" />
-      ) : items.length === 0 ? (
-        <EmptyState glyph="✦" text="Nothing planned today." sub="Add a task or routine, or plan ahead in Plan mode." />
+        <EmptyState glyph="✦" text="Loading your day…" />
       ) : (
-        <div className="flex flex-col gap-2">
-          {items.map((item) => (
-            <TodayRow
-              key={item.node._id}
-              item={item}
-              crumb={breadcrumb(item.node._id).map((n) => n.title).join(' › ')}
-              onOpen={onOpen}
-              onDone={() => markDone(item.node)}
-              onSkip={() => skip(item.node)}
-              onUndo={() => undo(item)}
-            />
-          ))}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="flex flex-col gap-6 min-w-0">
+            <Section title={upcoming ? `Next · ${block.label} at ${fmt(block.start)}` : `Now · ${block.label}`}>
+              <div className="flex gap-1.5 flex-wrap mb-3">
+                {BLOCKS.map((b, i) => (
+                  <span key={b.label} className="rounded-md"
+                    style={{
+                      padding: '5px 9px', fontSize: 11,
+                      background: i === nowIdx ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'var(--surface1)',
+                      color: i === nowIdx ? 'var(--accent)' : 'var(--subtext1)',
+                      fontWeight: i === nowIdx ? 700 : 500,
+                      opacity: i < nowIdx ? 0.55 : 1,
+                    }}>
+                    {b.label} <span className="mono">{range(b)}</span>
+                  </span>
+                ))}
+              </div>
+              {block.label === 'Shutdown' && !upcoming && (
+                <p style={{ fontSize: 13, margin: '0 0 10px', color: 'var(--text)' }}>
+                  Work is over for today. What's left moves to tomorrow.
+                </p>
+              )}
+              {menu.length ? (
+                <div className="flex flex-col gap-2">{menu.map(row)}</div>
+              ) : (
+                <Muted>Nothing left on today's plan.</Muted>
+              )}
+            </Section>
+
+            <Section title="Today's 3">
+              {top3.length ? <div className="flex flex-col gap-2">{top3.map(row)}</div> : <Muted>No open tasks today.</Muted>}
+              {otherTasks.length > 0 && (
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-ctp-subtext1" style={{ fontSize: 12 }}>
+                    {otherTasks.length} more task{otherTasks.length === 1 ? '' : 's'} (done, skipped or after the 3)
+                  </summary>
+                  <div className="flex flex-col gap-2 mt-2">{otherTasks.map(row)}</div>
+                </details>
+              )}
+            </Section>
+
+            <Section title="Routines today">
+              {routines.length ? <div className="flex flex-col gap-2">{routines.map(row)}</div> : <Muted>No routines planned.</Muted>}
+            </Section>
+          </div>
+
+          <div className="flex flex-col gap-6 min-w-0">
+            <Section title="Calendar">
+              {!events ? (
+                <Muted>Loading…</Muted>
+              ) : events.error ? (
+                <Muted>Couldn't read the calendar.</Muted>
+              ) : !events.connected ? (
+                <Muted>Google Calendar isn't connected. Settings → Connect.</Muted>
+              ) : events.events.length === 0 ? (
+                <Muted>No events today.</Muted>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {events.events.map((e, i) => (
+                    <div key={i} className="flex gap-3 items-baseline rounded-lg" style={{ padding: '8px 12px', background: 'var(--surface0)', border: '1px solid var(--border)' }}>
+                      <span className="mono text-ctp-subtext1 shrink-0" style={{ fontSize: 12, width: 44 }}>
+                        {e.allDay || !e.start ? 'all day' : new Date(e.start).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className="truncate" style={{ fontSize: 13 }}>{e.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <Section title="Reminders">
+              {catchups.length + dueSoon.length === 0 ? (
+                <Muted>Nothing coming up in the next 3 days.</Muted>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {catchups.map(({ p, c }) => (
+                    <Reminder key={p._id} type="PERSON" onClick={() => onOpen(p._id)}
+                      text={`Catch up: ${p.title}`} meta={c.catchupState === 'overdue' ? `due ${c.relativeDate}` : 'today'}
+                      urgent={c.catchupState === 'overdue'} />
+                  ))}
+                  {dueSoon.map(({ n, due }) => (
+                    <Reminder key={n._id} type="TASK" onClick={() => onOpen(n._id)} text={n.title}
+                      meta={`due ${parseLocalDate(due).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })}`} />
+                  ))}
+                </div>
+              )}
+            </Section>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// Habit Contract: win the day (routines + a task), win the week. Penalty is
-// derived server-side from weekProgress — nothing here is stored.
-function ContractStrip({ today }: { today: string }) {
-  const { data } = useQuery<{ weekProgress: any }>(WEEK_PROGRESS);
-  const wp = data?.weekProgress;
-  if (!wp) return null;
-  const day = wp.days.find((d: any) => d.date === today);
-  const routinesLeft = day ? Math.max(0, day.routineTarget - day.routinesCheckedIn) : 0;
-  const tasksLeft = day ? Math.max(0, day.taskTarget - day.tasksCompleted) : 0;
-  const dayState = !day ? '' : day.won ? 'Day won'
-    : `To win today: ${routinesLeft} routine${routinesLeft === 1 ? '' : 's'} + ${tasksLeft} task${tasksLeft === 1 ? '' : 's'}`;
-  const owedColor = wp.penaltyOwed > 0 ? 'var(--red)' : 'var(--green)';
-
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-3 flex-wrap rounded-xl mb-4"
-      style={{ padding: '10px 14px', background: 'var(--surface0)', border: '1px solid var(--surface1)', fontSize: 12 }}>
-      <span style={{ color: day?.won ? 'var(--green)' : 'var(--text)', fontWeight: 600 }}>{dayState}</span>
-      <span className="text-ctp-subtext1">
-        Week {wp.wonDays}/{WIN_RULES.weekTarget} won · {wp.lostDays} lost
-        {wp.weekLost && <span style={{ color: 'var(--red)', fontWeight: 600 }}> · week lost (+฿{PENALTY_RULES.lostWeek})</span>}
-        {wp.weekWon && ' · week won 🎉'}
-      </span>
-      <span className="mono font-bold" style={{ color: owedColor }} title={`฿${PENALTY_RULES.perLostDay} per lost day`}>
-        ฿{wp.penaltyOwed} owed
-      </span>
-    </div>
+    <section className="rounded-xl" style={{ padding: 16, background: 'var(--surface0)', border: '1px solid var(--border)' }}>
+      <h2 className="m-0 mb-3 font-semibold" style={{ fontSize: 15 }}>{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function Muted({ children }: { children: ReactNode }) {
+  return <p className="text-ctp-subtext1 m-0" style={{ fontSize: 13 }}>{children}</p>;
+}
+
+function Reminder({ type, text, meta, urgent, onClick }: { type: string; text: string; meta: string; urgent?: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+      className="flex items-center gap-2.5 rounded-lg text-left cursor-pointer w-full"
+      style={{ padding: '8px 12px', background: 'var(--surface0)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'inherit' }}>
+      <TypeIcon type={type} size={14} />
+      <span className="truncate flex-1" style={{ fontSize: 13 }}>{text}</span>
+      <span className="mono shrink-0" style={{ fontSize: 11, color: urgent ? 'var(--red)' : 'var(--subtext1)' }}>{meta}</span>
+    </button>
   );
 }
 

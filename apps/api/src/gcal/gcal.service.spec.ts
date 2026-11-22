@@ -74,4 +74,34 @@ describe('GCalService state persistence', () => {
       { upsert: true },
     );
   });
+
+  it('dayEvents reads the Bangkok day from primary and drops cancelled', async () => {
+    stateModel.findOne.mockReturnValue({
+      exec: jest.fn().mockResolvedValue({ tokens: storedTokens, calendarId: 'cal_1' }),
+    });
+    const service = await makeService();
+    await service.onModuleInit();
+    const list = jest.fn().mockResolvedValue({
+      data: {
+        items: [
+          { summary: 'Dentist', start: { dateTime: '2026-11-23T14:00:00+07:00' }, end: { dateTime: '2026-11-23T15:00:00+07:00' } },
+          { summary: 'Holiday', start: { date: '2026-11-23' }, end: { date: '2026-11-24' } },
+          { summary: 'Gone', status: 'cancelled', start: { date: '2026-11-23' } },
+        ],
+      },
+    });
+    jest.spyOn(service as any, 'getCalendar').mockReturnValue({ events: { list } });
+
+    const events = await service.dayEvents('2026-11-23');
+
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({
+      calendarId: 'primary',
+      timeMin: '2026-11-23T00:00:00+07:00',
+      timeMax: '2026-11-23T17:00:00.000Z', // = 11-24 00:00 Bangkok
+    }));
+    expect(events).toEqual([
+      { title: 'Dentist', start: '2026-11-23T14:00:00+07:00', end: '2026-11-23T15:00:00+07:00', allDay: false },
+      { title: 'Holiday', start: '2026-11-23', end: '2026-11-24', allDay: true },
+    ]);
+  });
 });
