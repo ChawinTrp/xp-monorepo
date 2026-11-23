@@ -1,8 +1,15 @@
+import { useState } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { routineGoal, progressOn, progressLabel, logicalDateStr } from '@xp/shared';
 import { GET_NODES, SET_ROUTINE_PROGRESS } from '../lib/graphql';
-import { useToast } from './ui';
+import { Icons, useToast } from './ui';
 import type { XPNode } from '../lib/types';
+
+// Which routines have their steps open, remembered on this device (collapsed by default).
+const openKey = (id: string) => `xp_steps_open_${id}`;
+function readOpen(id: string): boolean {
+  try { return localStorage.getItem(openKey(id)) === '1'; } catch { return false; }
+}
 
 // Partial credit on a scored routine: tick steps, or add hours toward the goal.
 // Renders nothing for plain done / not-done routines.
@@ -14,6 +21,7 @@ export function RoutineProgress({ node, onCard = false, onGoalMet }: {
 }) {
   const { toast } = useToast();
   const [save, { loading }] = useMutation(SET_ROUTINE_PROGRESS, { refetchQueries: [{ query: GET_NODES }] });
+  const [open, setOpen] = useState(() => readOpen(node._id));
   const today = logicalDateStr();
   const goal = routineGoal(node.metadata);
   if (!goal) return null;
@@ -27,6 +35,11 @@ export function RoutineProgress({ node, onCard = false, onGoalMet }: {
     } catch (err: any) {
       toast({ message: 'Could not save progress', variant: 'error', details: err.message });
     }
+  };
+
+  const toggle = () => {
+    try { localStorage.setItem(openKey(node._id), open ? '0' : '1'); } catch { /* not remembered */ }
+    setOpen(!open);
   };
 
   const ink = onCard ? '#FFFFFF' : 'var(--text)';
@@ -45,6 +58,12 @@ export function RoutineProgress({ node, onCard = false, onGoalMet }: {
       : on ? 'color-mix(in srgb, var(--green) 14%, transparent)' : 'var(--surface1)',
     border: onCard ? '1px solid rgba(255,255,255,0.4)' : '1px solid var(--border)',
   });
+
+  const label = (
+    <span className="mono font-semibold shrink-0" style={{ fontSize: onCard ? 15 : 12, color: ink, marginRight: 4 }}>
+      {progressLabel(node.metadata, today)}
+    </span>
+  );
 
   let controls;
   if (goal.kind === 'steps') {
@@ -72,13 +91,13 @@ export function RoutineProgress({ node, onCard = false, onGoalMet }: {
     const hours = entry?.hours ?? 0;
     const by = goal.goal > 1 ? 0.5 : 0.25;
     const set = (h: number) => put({ hours: h }, h >= goal.goal);
-    const label = by === 0.5 ? '30 min' : '15 min';
+    const step = by === 0.5 ? '30 min' : '15 min';
     controls = (
       <>
-        <button type="button" disabled={loading || hours <= 0} style={chip(false)} aria-label={`Remove ${label}`}
+        <button type="button" disabled={loading || hours <= 0} style={chip(false)} aria-label={`Remove ${step}`}
           onClick={() => set(Math.max(0, hours - by))}>−</button>
-        <button type="button" disabled={loading || hours + by > 24} style={chip(false)} aria-label={`Add ${label}`}
-          onClick={() => set(Math.min(24, hours + by))}>+ {label}</button>
+        <button type="button" disabled={loading || hours + by > 24} style={chip(false)} aria-label={`Add ${step}`}
+          onClick={() => set(Math.min(24, hours + by))}>+ {step}</button>
       </>
     );
   }
@@ -87,10 +106,19 @@ export function RoutineProgress({ node, onCard = false, onGoalMet }: {
     // Stop pointer events here so the phone card doesn't start a swipe (it captures the pointer).
     <div className="flex items-center gap-1.5 flex-wrap" onPointerDown={(e) => e.stopPropagation()}
       style={onCard ? { marginTop: 12, maxHeight: '34vh', overflowY: 'auto', touchAction: 'pan-y' } : undefined}>
-      <span className="mono font-semibold" style={{ fontSize: onCard ? 15 : 12, color: ink, marginRight: 4 }}>
-        {progressLabel(node.metadata, today)}
-      </span>
-      {controls}
+      {goal.kind === 'steps' ? (
+        <button type="button" onClick={toggle} aria-expanded={open}
+          className="flex items-center gap-1.5 bg-transparent border-none cursor-pointer w-full text-left"
+          style={{ padding: 0, minHeight: onCard ? 36 : 24, color: ink, fontFamily: 'inherit' }}>
+          {open ? <Icons.ChevronDown size={onCard ? 18 : 14} /> : <Icons.ChevronRight size={onCard ? 18 : 14} />}
+          {label}
+          {/* Collapsed: name what's already done. */}
+          <span className="truncate" style={{ fontSize: onCard ? 13 : 12, opacity: 0.85 }}>
+            {open ? '' : entry?.steps?.join(' · ') || `${goal.steps.length} steps`}
+          </span>
+        </button>
+      ) : label}
+      {(goal.kind === 'hours' || open) && controls}
     </div>
   );
 }

@@ -159,7 +159,7 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
 
       {isRoutine && (
         <div style={{ marginBottom: 14 }}>
-          <RoutineProgress node={node} onCard onGoalMet={onGoalMet} />
+          <RoutineProgress key={node._id} node={node} onCard onGoalMet={onGoalMet} />
         </div>
       )}
 
