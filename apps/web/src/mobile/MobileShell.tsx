@@ -1,3 +1,4 @@
+import { RoutineProgress } from '../components/RoutineProgress';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
@@ -13,7 +14,7 @@ import {
   isOverdue, isCheckedOn, logicalDateStr,
 } from '../lib/queue';
 import { useDayQueue } from '../lib/dayQueue';
-import { getWeekStart, parseLocalDate } from '@xp/shared';
+import { getWeekStart, parseLocalDate, progressOn, progressLabel } from '@xp/shared';
 
 // ── Today (5am logical-day boundary; helpers live in ../lib/queue)
 const TODAY = logicalDateStr();
@@ -69,9 +70,10 @@ interface FocusCardProps {
   onStartTimer: () => void;
   onPauseTimer: () => void;
   breadcrumbStr: string;
+  onGoalMet: () => void;
 }
 
-function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, onPauseTimer, breadcrumbStr }: FocusCardProps) {
+function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, onPauseTimer, breadcrumbStr, onGoalMet }: FocusCardProps) {
   const isRoutine = node.type === 'ROUTINE';
   const running   = runningId === node._id;
   const m = (node.metadata as any) ?? {};
@@ -154,6 +156,12 @@ function FocusCard({ node, runningId, elapsed, dragDx, dragging, onStartTimer, o
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {isRoutine && (
+        <div style={{ marginBottom: 14 }}>
+          <RoutineProgress node={node} onCard onGoalMet={onGoalMet} />
+        </div>
+      )}
 
       {/* timer panel */}
       <div style={{ ...S.timerPanel, background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)' }}>
@@ -275,7 +283,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
   const { breadcrumb } = useNodes();
   // The solid daily queue: frozen plan + derived per-item status. `pending` is the
   // swipe rotation; `summary` drives the persistent progress counter.
-  const { pending, summary, ready } = useDayQueue();
+  const { pending, summary, points, ready } = useDayQueue();
   const [theme, setThemeState] = useState(getTheme());
   useEffect(() => {
     const handler = (e: Event) => {
@@ -329,6 +337,14 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
       setCurrentId(queue[0]._id);
     }
   }, [showDone, currentId, queue.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The current card left the queue without a swipe (its goal was met by ticking steps or
+  // banking hours): move on, instead of falling through to the "all caught up" screen.
+  useEffect(() => {
+    if (!showDone && !undoing && currentId !== null && idx < 0 && queue.length > 0) {
+      setCurrentId(queue[0]._id);
+    }
+  }, [showDone, undoing, currentId, idx, queue]);
 
   // Clear the undo placeholder once the un-done card reappears as the current node.
   useEffect(() => {
@@ -459,6 +475,8 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
 
   const crumbStr = breadcrumb(node._id).map(n => n.title).join(' › ');
   const nextNode = queue[idx + 1];
+  // Partial work on a scored routine: Skip keeps it instead of reading as a miss.
+  const partial = progressOn(node.metadata, logicalDateStr()) ? progressLabel(node.metadata, logicalDateStr()) : null;
 
   return (
     <div style={S.viewport}>
@@ -489,7 +507,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
               {resolved}<span style={{ color: 'var(--overlay0)' }}>/{total}</span>
             </div>
             <div style={{ fontSize: 10.5, letterSpacing: 1, color: 'var(--subtext1)', textTransform: 'uppercase' }}>
-              {summary.pending} left
+              {points} pts · {summary.pending} left
             </div>
           </div>
           <button
@@ -544,6 +562,7 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
           onStartTimer={() => onStartTimer(node._id)}
           onPauseTimer={onPauseTimer}
           breadcrumbStr={crumbStr}
+          onGoalMet={() => setLastAction({ kind: 'finish', node })}
         />
         {bursting && <FireBurst key={burstKey} />}
       </div>
@@ -564,8 +583,8 @@ function FocusView({ runningId, elapsed, onStartTimer, onPauseTimer, onFinish, o
         {(node.type === 'TASK' || node.type === 'ROUTINE') && (
           <ActionBtn
             tone="dismiss"
-            label="Skip"
-            hint="not today"
+            label={partial ? 'Keep' : 'Skip'}
+            hint={partial ?? 'not today'}
             onClick={() => advance('dismiss')}
             icon={
               <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ID, Float } from '@nestjs/graphql';
 import { NodesService } from './nodes.service';
 import { PropagationService } from './propagation.service';
 import { Node } from './node.entity';
@@ -86,6 +86,17 @@ export class NodesResolver {
   @Mutation(() => [Node])
   async undoCheckInRoutine(@Args('id', { type: () => ID }) id: string) {
     const nodes = await this.propagationService.undoCheckInRoutine(id);
+    void this.obsidianSync.upsertMany(nodes).catch(() => {});
+    return nodes;
+  }
+
+  @Mutation(() => [Node])
+  async setRoutineProgress(
+    @Args('id', { type: () => ID }) id: string,
+    @Args('steps', { type: () => [String], nullable: true }) steps?: string[],
+    @Args('hours', { type: () => Float, nullable: true }) hours?: number,
+  ) {
+    const nodes = await this.propagationService.setRoutineProgress(id, { steps, hours });
     void this.obsidianSync.upsertMany(nodes).catch(() => {});
     return nodes;
   }

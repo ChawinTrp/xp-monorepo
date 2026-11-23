@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Node, NodeDocument } from './node.entity';
-import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, weekPenalty, routineTargetOn, coreRoutinesOn, getWeekDates, getWeekStart, localDateStr, logicalDateStr, parseLocalDate } from '@xp/shared';
+import { getMasteryTier, getNextTierThreshold, WIN_RULES, dayWon, weekWon, weekPenalty, routineTargetOn, coreRoutinesOn, getWeekDates, getWeekStart, localDateStr, logicalDateStr, parseLocalDate, parseTargetHours, routineGoal, progressOn, type ProgressEntry } from '@xp/shared';
 import { CompleteTaskInput } from './dto/complete-task.input';
+
+type CheckIn = { date: string; hours: number; at?: string };
 
 @Injectable()
 export class PropagationService {
@@ -222,6 +224,23 @@ export class PropagationService {
     }
     meta.timeEntries = entries;
     meta.actualHours = Math.round((totalMs / 3_600_000) * 100) / 100;
+
+    // Scored routines: an hours goal banks the session toward it; a steps goal is only
+    // met by ticking steps, so the timer there just stops.
+    const goal = task.type === 'ROUTINE' ? routineGoal(meta) : null;
+    if (goal) {
+      const session = meta.actualHours as number;
+      meta.timeEntries = [];
+      delete meta.actualHours;
+      task.metadata = meta;
+      task.markModified('metadata');
+      await task.save();
+      if (goal.kind === 'steps') return task;
+      const logged = progressOn(meta, logicalDateStr())?.hours ?? 0;
+      const [routine] = await this.setRoutineProgress(taskId, { hours: Math.min(24, logged + session) });
+      return routine;
+    }
+
     task.metadata = meta;
     task.markModified('metadata');
     await task.save();
@@ -254,21 +273,98 @@ export class PropagationService {
     // Idempotent: already checked in today
     if (checkIns.some(c => c.date === today)) return [routine];
 
-    // Hours for today: actualHours (timer) ?? parseTarget(target) ?? 0
+    // Hours for today: timer, else hours logged toward an hours goal, else the target
+    const partial = progressOn(meta, today);
     const creditedHours =
-      (meta.actualHours as number) ?? this.parseTarget(meta.target as string) ?? 0;
+      (meta.actualHours as number) ?? (partial?.hours || parseTargetHours(meta.target as string));
 
     // `at` = wall-clock of the tap. For evening routines (Shutdown) this is the
     // lights-out sensor the Habit Contract reads — measured, not self-reported.
-    checkIns.push({ date: today, hours: creditedHours, at: new Date().toISOString() } as any);
+    checkIns.push({ date: today, hours: creditedHours, at: new Date().toISOString() });
+    this.writeCheckIns(meta, checkIns, today);
+
+    // Clear timer data for next session
+    meta.timeEntries = [];
+    delete (meta as Record<string, unknown>).actualHours;
+
+    routine.metadata = meta;
+    routine.markModified('metadata');
+    await routine.save();
+
+    // Partial work may already have credited some of these hours.
+    return [routine, ...(await this.creditSkills(routine, creditedHours - (partial?.credited ?? 0)))];
+  }
+
+  /**
+   * Replace today's progress on a scored routine (steps ticked, or hours logged).
+   * Reaching the goal checks the routine in; dropping below it removes the check-in.
+   * Skills get the difference in hours, so partial work counts exactly once.
+   */
+  async setRoutineProgress(
+    routineId: string,
+    input: { steps?: string[]; hours?: number },
+  ): Promise<Node[]> {
+    const routine = await this.nodeModel.findById(routineId).exec();
+    if (!routine) throw new NotFoundException(`Node ${routineId} not found`);
+    if (routine.type !== 'ROUTINE')
+      throw new BadRequestException('setRoutineProgress called on non-ROUTINE node');
+
+    const meta = { ...(routine.metadata ?? {}) } as Record<string, unknown>;
+    const goal = routineGoal(meta);
+    if (!goal) throw new BadRequestException('Routine has no steps or hours goal');
+
+    const today = logicalDateStr();
+    let checkIns = this.readCheckIns(meta);
+    const todayCheckIn = checkIns.find(c => c.date === today);
+    const before = todayCheckIn?.hours ?? progressOn(meta, today)?.credited ?? 0;
+
+    const entry: ProgressEntry = { date: today, score: 0, credited: 0 };
+    if (goal.kind === 'steps') {
+      if (!input.steps) throw new BadRequestException('This routine is scored by steps');
+      const ticked = new Set(input.steps);
+      entry.steps = goal.steps.filter(step => ticked.has(step));
+      entry.score = Math.min(1, entry.steps.length / goal.goal);
+      entry.credited = entry.score * parseTargetHours(meta.target as string);
+    } else {
+      const hours = input.hours;
+      if (hours == null || !Number.isFinite(hours) || hours < 0 || hours > 24)
+        throw new BadRequestException('hours must be between 0 and 24');
+      entry.hours = Math.round(hours * 100) / 100;
+      // 1-minute tolerance: 25 min logged as 0.42 h (timer rounding) must still meet a 25 min goal
+      entry.score = entry.hours >= goal.goal - 1 / 60 ? 1 : entry.hours / goal.goal;
+      entry.credited = entry.hours;
+    }
+
+    const log = ((meta.progressLog as ProgressEntry[]) ?? []).filter(e => e.date !== today);
+    if (entry.score > 0) log.push(entry);
+    meta.progressLog = log;
+
+    if (entry.score >= 1) {
+      if (todayCheckIn) todayCheckIn.hours = entry.credited;
+      else checkIns.push({ date: today, hours: entry.credited, at: new Date().toISOString() });
+    } else {
+      checkIns = checkIns.filter(c => c.date !== today);
+    }
+    this.writeCheckIns(meta, checkIns, today);
+
+    routine.metadata = meta;
+    routine.markModified('metadata');
+    await routine.save();
+
+    return [routine, ...(await this.creditSkills(routine, entry.credited - before))];
+  }
+
+  /** Store the check-in log and the fields derived from it (streak, thisWeek, lastCheckInDate). */
+  private writeCheckIns(meta: Record<string, unknown>, checkIns: CheckIn[], today: string): void {
     checkIns.sort((a, b) => a.date.localeCompare(b.date));
     meta.checkIns = checkIns;
-    meta.lastCheckInDate = today;
+    meta.lastCheckInDate = checkIns.length ? checkIns[checkIns.length - 1].date : null;
 
-    // Current streak: count consecutive days ending today
+    // Current streak: consecutive days ending today, or yesterday while today is still open
     const dateSet = new Set(checkIns.map(c => c.date));
     let streak = 0;
     const cursor = new Date(today + 'T00:00:00');
+    if (!dateSet.has(today)) cursor.setDate(cursor.getDate() - 1);
     while (dateSet.has(localDateStr(cursor))) {
       streak++;
       cursor.setDate(cursor.getDate() - 1);
@@ -279,46 +375,36 @@ export class PropagationService {
     // This week (Sun-start): count check-ins since the week's Sunday
     const weekStart = getWeekStart(today);
     meta.thisWeek = checkIns.filter(c => c.date >= weekStart).length;
+  }
 
-    // Clear timer data for next session
-    meta.timeEntries = [];
-    delete (meta as Record<string, unknown>).actualHours;
+  /** Add (or, when negative, take back) hours on the routine's linked SKILLs; returns the affected nodes. */
+  private async creditSkills(routine: NodeDocument, hours: number): Promise<Node[]> {
+    const affected: Node[] = [];
+    if (Math.abs(hours) < 1e-9) return affected;
+    const visited = new Set<string>([routine._id.toString()]);
 
-    routine.metadata = meta;
-    routine.markModified('metadata');
-    await routine.save();
+    for (const pid of (routine.parents ?? []).map(p => p.toString())) {
+      if (visited.has(pid)) continue;
+      const parentNode = await this.nodeModel.findById(pid).exec();
+      if (!parentNode || parentNode.type !== 'SKILL') continue;
+      visited.add(pid);
+      if (hours > 0) await this.addHoursToSkill(parentNode, hours);
+      else await this.subtractHoursFromSkill(parentNode, -hours);
+      affected.push(parentNode);
 
-    const affected: Node[] = [routine];
-
-    // Credit hours to linked SKILLs
-    if (creditedHours > 0) {
-      const visited = new Set<string>([routineId]);
-      const parentIds = (routine.parents ?? [])
-        .map(p => p.toString())
-        .filter(pid => !visited.has(pid));
-
-      for (const pid of parentIds) {
-        const parentNode = await this.nodeModel.findById(pid).exec();
-        if (!parentNode || parentNode.type !== 'SKILL') continue;
-        visited.add(pid);
-        await this.addHoursToSkill(parentNode, creditedHours);
-        affected.push(parentNode);
-
-        // Walk skill's ancestors to update domain progress
-        let ancestorId = parentNode.mainParent?.toString();
-        while (ancestorId && !visited.has(ancestorId)) {
-          visited.add(ancestorId);
-          const ancestor = await this.nodeModel.findById(ancestorId).exec();
-          if (!ancestor) break;
-          if (ancestor.type === 'DOMAIN') {
-            await this.recalcDomainProgress(ancestor);
-            affected.push(ancestor);
-          }
-          ancestorId = ancestor.mainParent?.toString();
+      // Walk skill's ancestors to update domain progress
+      let ancestorId = parentNode.mainParent?.toString();
+      while (ancestorId && !visited.has(ancestorId)) {
+        visited.add(ancestorId);
+        const ancestor = await this.nodeModel.findById(ancestorId).exec();
+        if (!ancestor) break;
+        if (ancestor.type === 'DOMAIN') {
+          await this.recalcDomainProgress(ancestor);
+          affected.push(ancestor);
         }
+        ancestorId = ancestor.mainParent?.toString();
       }
     }
-
     return affected;
   }
 
@@ -328,9 +414,10 @@ export class PropagationService {
    */
   private readCheckIns(
     meta: Record<string, unknown>,
-  ): { date: string; hours: number }[] {
-    const raw = meta.checkIns as { date: string; hours: number }[] | undefined;
-    if (Array.isArray(raw)) return raw.map(c => ({ date: c.date, hours: c.hours ?? 0 }));
+  ): CheckIn[] {
+    const raw = meta.checkIns as CheckIn[] | undefined;
+    // Spread keeps `at` (tap time); rebuilding the entry used to erase it on the next check-in.
+    if (Array.isArray(raw)) return raw.map(c => ({ ...c, hours: c.hours ?? 0 }));
     const legacy = meta.checkInDates as string[] | undefined;
     if (Array.isArray(legacy)) return legacy.map(d => ({ date: d, hours: 0 }));
     return [];
@@ -352,65 +439,20 @@ export class PropagationService {
       return [routine];
     }
 
-    // Reverse exactly the hours logged for today (not a stale scalar)
-    const toReverse = todayEntry.hours ?? 0;
+    // Partial work under the goal survives the undo (and stays credited); a met goal is reset.
+    const partial = progressOn(meta, today);
+    const keep = partial && partial.score < 1 ? partial : undefined;
+    if (partial && !keep)
+      meta.progressLog = (meta.progressLog as ProgressEntry[]).filter(e => e.date !== today);
 
-    // Remove today's check-in
-    const newCheckIns = checkIns.filter(c => c.date !== today);
-    meta.checkIns = newCheckIns;
-
-    // Recompute current streak relative to today: today was just removed,
-    // so count consecutive days ending YESTERDAY (0 if yesterday wasn't done).
-    const dateSet = new Set(newCheckIns.map(c => c.date));
-    let streak = 0;
-    const cursor = new Date(today + 'T00:00:00');
-    cursor.setDate(cursor.getDate() - 1); // start at yesterday
-    while (dateSet.has(localDateStr(cursor))) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    }
-    meta.streak = streak;
-    meta.lastCheckInDate = newCheckIns.length
-      ? newCheckIns[newCheckIns.length - 1].date
-      : null;
-
-    // Recompute thisWeek (Sun-start)
-    const weekStart = getWeekStart(today);
-    meta.thisWeek = newCheckIns.filter(c => c.date >= weekStart).length;
+    this.writeCheckIns(meta, checkIns.filter(c => c.date !== today), today);
 
     routine.metadata = meta;
     routine.markModified('metadata');
     await routine.save();
 
-    const affected: Node[] = [routine];
-
-    if (toReverse > 0) {
-      const visited = new Set<string>([routineId]);
-      const parentIds = (routine.parents ?? []).map(p => p.toString());
-      for (const pid of parentIds) {
-        if (visited.has(pid)) continue;
-        const parentNode = await this.nodeModel.findById(pid).exec();
-        if (!parentNode || parentNode.type !== 'SKILL') continue;
-        visited.add(pid);
-        await this.subtractHoursFromSkill(parentNode, toReverse);
-        affected.push(parentNode);
-
-        // Walk skill's ancestors to update domain progress
-        let ancestorId = parentNode.mainParent?.toString();
-        while (ancestorId && !visited.has(ancestorId)) {
-          visited.add(ancestorId);
-          const ancestor = await this.nodeModel.findById(ancestorId).exec();
-          if (!ancestor) break;
-          if (ancestor.type === 'DOMAIN') {
-            await this.recalcDomainProgress(ancestor);
-            affected.push(ancestor);
-          }
-          ancestorId = ancestor.mainParent?.toString();
-        }
-      }
-    }
-
-    return affected;
+    // Reverse exactly the hours logged for today (not a stale scalar)
+    return [routine, ...(await this.creditSkills(routine, (keep?.credited ?? 0) - (todayEntry.hours ?? 0)))];
   }
 
   private async subtractHoursFromSkill(
@@ -429,22 +471,6 @@ export class PropagationService {
     skill.metadata = meta;
     skill.markModified('metadata');
     await skill.save();
-  }
-
-  private parseTarget(target?: string): number {
-    if (!target) return 0;
-    const lower = target.toLowerCase().trim();
-
-    // "30 min" | "30 minutes" | "30m"
-    const minMatch = lower.match(/^(\d+)\s*(min|minutes?|m)$/);
-    if (minMatch) return parseFloat(minMatch[1]) / 60;
-
-    // "2 hours" | "2h" | "1.5 hours"
-    const hourMatch = lower.match(/^([\d.]+)\s*(hours?|h|hr|hrs)$/);
-    if (hourMatch) return parseFloat(hourMatch[1]);
-
-    // "1x/week", "daily", etc. — no fixed hours
-    return 0;
   }
 
   private async recalcTaskProgress(parent: NodeDocument): Promise<void> {

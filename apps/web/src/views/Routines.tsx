@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@apollo/client/react';
 import { useNodes } from '../lib/hooks';
 import { Icons, RingGauge, Dropdown, Button, useToast } from '../components/ui';
 import { CHECK_IN_ROUTINE, UNDO_CHECK_IN_ROUTINE, START_TIMER, STOP_TIMER, GET_NODES, WEEK_PROGRESS } from '../lib/graphql';
-import { localDateStr, logicalDateStr, addDays } from '@xp/shared';
+import { localDateStr, logicalDateStr, addDays, routineScoreOn, progressLabel } from '@xp/shared';
 
 interface RoutinesProps {
   onOpen: (id: string) => void;
@@ -34,11 +34,8 @@ function datesOf(meta: any): string[] {
   return checkInsOf(meta).map(c => c.date);
 }
 function consistency30(meta: any): number {
-  const set = new Set(datesOf(meta));
-  if (set.size === 0) return 0;
   const window = last30Dates();
-  const hit = window.filter(d => set.has(d)).length;
-  return hit / window.length;
+  return window.reduce((sum, d) => sum + routineScoreOn(meta, d), 0) / window.length;
 }
 function isCheckedToday(meta: any): boolean {
   return datesOf(meta).includes(TODAY_STR);
@@ -138,7 +135,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
       const doneToday = isCheckedToday(meta);
       const credited = hoursToday(meta);
       toast({
-        message: doneToday ? 'Checked in for today' : 'Timer stopped',
+        message: doneToday ? 'Checked in for today' : progressLabel(meta, TODAY_STR) ?? 'Timer stopped',
         variant: 'success',
         details: credited > 0 ? `${credited}h tracked` : undefined,
       });
@@ -188,7 +185,7 @@ export default function Routines({ onOpen, onCreate }: RoutinesProps) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="m-0 font-semibold uppercase text-ctp-subtext0" style={{ fontSize: 14, letterSpacing: 0.8 }}>30-day consistency</h2>
-            <div className="text-ctp-subtext1 mt-1" style={{ fontSize: 12 }}>Each cell is a day. Green = done · gray = missed.</div>
+            <div className="text-ctp-subtext1 mt-1" style={{ fontSize: 12 }}>Each cell is a day. Green = done · light green = part of the goal · gray = missed.</div>
           </div>
         </div>
         <HeatmapGrid
@@ -349,26 +346,26 @@ function HeatmapGrid({ routines, onOpen, onCheckIn, onStartTimer, onStopTimer }:
               {/* Routine rows */}
               {routines.map((r) => {
                 const m = r.metadata as any ?? {};
-                const checkInSet = new Set<string>(datesOf(m));
                 return (
                   <div key={r._id} className="flex" style={{ height: 36 }}>
                     {week.map((d, di) => {
                       const dateStr = localDateStr(d);
-                      const val = checkInSet.has(dateStr);
+                      const score = routineScoreOn(m, dateStr);
+                      const val = score >= 1;
                       const isToday = dateStr === todayStr;
                       return (
                         <div key={di} className="grid place-items-center" style={{ width: 28, height: 28 }}>
                           <div
                             style={{
                               width: 20, height: 20, borderRadius: 4,
-                              background: val ? 'var(--green)' : 'var(--surface1)',
-                              opacity: val ? 1 : 0.5,
+                              background: score > 0 ? 'var(--green)' : 'var(--surface1)',
+                              opacity: val ? 1 : score > 0 ? 0.2 + 0.5 * score : 0.5,
                               border: isToday ? '2px solid var(--accent)' : 'none',
                               cursor: isToday ? 'pointer' : 'default',
                             }}
                             title={isToday
                               ? (val ? 'Click to undo today’s check-in' : 'Click to check in')
-                              : `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${val ? ' ✓' : ''}`}
+                              : `${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}${val ? ' ✓' : score > 0 ? ` ${Math.round(score * 100)}%` : ''}`}
                             onClick={() => { if (isToday) onCheckIn(r._id); }}
                           />
                         </div>

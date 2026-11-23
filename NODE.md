@@ -51,7 +51,7 @@ All XP nodes share the universal schema (`title`, `type`, `description`, `parent
 | **PERSON** | `role`, `email`, `phone`, `initials`, `nextCatchup` (ISO date), `lastCatchup` (ISO date) — `catchupState` (upcoming/overdue/none) and `relativeDate` (human label e.g. "in 3 days") are **derived at render** from `nextCatchup` (`getPersonCatchup` in `apps/web/src/lib/queue.ts`), never stored. Circle membership is **not** metadata — it's a TAG node with `metadata.kind: 'circle'` linked via the PERSON's `parents` (single circle per person, UI-enforced). | MongoDB `metadata` |
 | **DOMAIN** | _(none — progress computed from children)_ | — |
 | **TAG** | `color` hex — UI chip rendering. `kind` (optional) — `'circle'` marks a People-view circle grouping; for circle tags, `color` is optional and the web falls back to name-based default colors when absent. | MongoDB `metadata` |
-| **ROUTINE** | `cadence` (daily/weekly/monthly), `target` (string e.g. "30 min"), `timeOfDay` (morning/afternoon/evening/night), `group` (optional label), `skips: [YYYY-MM-DD]` (per-day "not today" dismissals from the Focus deck — always daily regardless of cadence), `checkIns: [{date: YYYY-MM-DD, hours: number, at?: ISO}]` (`at` = tap time, since 2026-09-19), `core?: YYYY-MM-DD` (date this daily routine started counting toward Win-the-Day; unset = tracked but not required — see XP.md §6.3), `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate` (YYYY-MM-DD), `creditedHours`, `timeEntries: [{start: ISO, end?: ISO}]` | MongoDB `metadata` |
+| **ROUTINE** | `cadence` (daily/weekly/monthly), `target` (string e.g. "30 min"), `timeOfDay` (morning/afternoon/evening/night), `group` (optional label), `time` (HH:MM; on Slow Morning and Shutdown it sets that block's start on the Today page), `scoring` (`steps` / `hours`; unset = done / not done), `steps: string[]` + `stepGoal` (steps scoring; goal defaults to all), `progressLog: [{date, steps?, hours?, score 0–1, credited}]` (partial work per day; only a met goal becomes a check-in), `skips: [YYYY-MM-DD]` (per-day "not today" dismissals from the Focus deck — always daily regardless of cadence), `checkIns: [{date: YYYY-MM-DD, hours: number, at?: ISO}]` (`at` = tap time, since 2026-09-19), `core?: YYYY-MM-DD` (date this daily routine started counting toward Win-the-Day; unset = tracked but not required — see XP.md §6.3), `streak`, `bestStreak`, `thisWeek`, `weekTarget`, `lastCheckInDate` (YYYY-MM-DD), `creditedHours`, `timeEntries: [{start: ISO, end?: ISO}]` | MongoDB `metadata` |
 | **NOTE** ★ | `domain`, `source` (optional), `xp_link` (optional wikilink to related XP node) | Obsidian frontmatter |
 | **IDEA** ★ | `domain`, `idea_status` (raw / evaluating / developed / shelved), `xp_link` (optional) | Obsidian frontmatter |
 
@@ -70,7 +70,7 @@ Every property is one of three classes. This is the lens for "should it be edita
 | Class | Meaning | Editable? | Examples |
 | :--- | :--- | :--- | :--- |
 | **User-set** | Entered by the user | ✅ editable wherever it matters | `priority`, `due`, `role`, `cadence`, `timeOfDay`, TAG `color` |
-| **Engine-computed** | Written by `propagation.service.ts` on `completeTask` / `checkInRoutine` / timer stop | ❌ read-only always | SKILL `totalHours`/`level`/`hoursToNext`; ROUTINE `streak`/`bestStreak`/`thisWeek`/`checkIns`/`lastCheckInDate`; TASK `actualHours`/`creditedHours`/`completedAt`/`completedDate`; PROJECT & DOMAIN `progress` |
+| **Engine-computed** | Written by `propagation.service.ts` on `completeTask` / `checkInRoutine` / timer stop | ❌ read-only always | SKILL `totalHours`/`level`/`hoursToNext`; ROUTINE `streak`/`bestStreak`/`thisWeek`/`checkIns`/`progressLog`/`lastCheckInDate`; TASK `actualHours`/`creditedHours`/`completedAt`/`completedDate`; PROJECT & DOMAIN `progress` |
 | **Derived-at-render** | Never stored; computed in `apps/web/src/lib/queue.ts` | ❌ not a stored field | PERSON `catchupState`/`relativeDate`; PERSON circle (read from TAG parent); PERSON `initials` (derived on save) |
 
 > **No server-side validation.** `CreateNodeInput` / `UpdateNodeInput` accept `metadata` as opaque `GraphQLJSON`. The shape of `metadata` is enforced only by the React forms and the propagation engine. A discriminated-union refactor is tracked in `docs/UAT_READINESS_PLAN.md` Phase 3.
@@ -93,6 +93,7 @@ Where each **user-set** property can be edited, and where it is surfaced read-on
 | **ROUTINE** | `cadence` | ✅ | ✅ select (recomputes `weekTarget`: daily → 7, weekly → **Times per week** input 1–7, monthly → 1) | Routines |
 | | `core` | ✅ | ✅ checkbox "Core habit" (daily only; stores the date it was ticked) | Today ContractStrip, `weekProgress` |
 | | `target` | ✅ | ✅ input | Routines, Focus deck |
+| | `scoring` / `steps` / `stepGoal` | ✖ | ✅ select, textarea, number | Today row, Focus card, Routines heatmap |
 | | `timeOfDay` | ✅ | ✅ select | Routines grouping, Mobile/Plan queue order |
 | | `group` | ✅ | ✅ input | Routines section header |
 | **PROJECT** | `status` | ✅ | ✅ segmented | Kanban, Dashboard |

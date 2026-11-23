@@ -53,6 +53,7 @@ type Mutation {
   createNode(createNodeInput: CreateNodeInput!): Node!
   deleteNode(id: ID!): Node!
   reopenTask(id: ID!): [Node!]!
+  setRoutineProgress(hours: Float, id: ID!, steps: [String!]): [Node!]!
   startTaskTimer(id: ID!): Node!
   stopTaskTimer(id: ID!): Node!
   unarchiveNode(id: ID!): Node!

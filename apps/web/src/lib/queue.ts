@@ -1,5 +1,5 @@
 import type { XPNode } from './types';
-import { localDateStr, logicalDateStr, addDays, getWeekStart, getWeekDates } from '@xp/shared';
+import { localDateStr, logicalDateStr, addDays, getWeekStart, getWeekDates, routineScoreOn } from '@xp/shared';
 
 // Re-export so existing view imports keep one entry point for queue+date utils.
 // logicalDateStr is the 5am-cutoff "today" — prefer it over bare localDateStr()
@@ -246,6 +246,12 @@ export function itemStatus(node: XPNode, day: string): ItemStatus {
     return 'pending';
   }
   return 'pending';
+}
+
+/** Points an item earned on `day`: a task is 0 or 1, a scored routine can be in between. */
+export function itemScore(node: XPNode, day: string): number {
+  if (node.type === 'ROUTINE') return routineScoreOn(node.metadata, day);
+  return itemStatus(node, day) === 'done' ? 1 : 0;
 }
 
 export interface DaySummary {

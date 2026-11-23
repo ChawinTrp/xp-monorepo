@@ -6,7 +6,7 @@ import { TYPE_COLORS } from '../lib/types';
 import { CREATE_NODE, UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
 import { getPersonCatchup } from '../lib/queue';
 import { circleTagsOf, circleOfPerson, isCircleTag } from '../lib/circles';
-import { ALLOWED_MAIN_PARENTS, logicalDateStr, addDays, type NodeType } from '@xp/shared';
+import { ALLOWED_MAIN_PARENTS, logicalDateStr, addDays, type NodeType, parseTargetHours } from '@xp/shared';
 
 // ── Streak visual helpers ──
 const _TODAY = logicalDateStr();
@@ -56,6 +56,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
   const [dueDate, setDueDate] = useState<string>('');
   const [cadence, setCadence] = useState<string>('');
   const [target, setTarget] = useState<string>('');
+  const [scoring, setScoring] = useState<string>('');
+  const [steps, setSteps] = useState<string>(''); // one per line
+  const [stepGoal, setStepGoal] = useState<string>('');
   const [group, setGroup] = useState<string>('');
   const [timesPerWeek, setTimesPerWeek] = useState<string>('');
   const [core, setCore] = useState<boolean>(false);
@@ -91,6 +94,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       setDueDate(meta.dueDate ?? '');
       setCadence(meta.cadence ?? '');
       setTarget(meta.target ?? '');
+      setScoring(meta.scoring ?? '');
+      setSteps(Array.isArray(meta.steps) ? meta.steps.join('\n') : '');
+      setStepGoal(meta.stepGoal != null ? String(meta.stepGoal) : '');
       setGroup(meta.group ?? '');
       setTimesPerWeek(meta.weekTarget != null ? String(meta.weekTarget) : '');
       setCore(typeof meta.core === 'string');
@@ -220,6 +226,12 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
           newMeta.weekTarget = cadence === 'daily' ? 7 : cadence === 'weekly' && n >= 1 && n <= 7 ? n : 1;
         }
         if (target.trim()) newMeta.target = target.trim(); else delete newMeta.target;
+        if (scoring) newMeta.scoring = scoring; else delete newMeta.scoring;
+        if (scoring === 'steps') {
+          newMeta.steps = [...new Set(steps.split('\n').map((x) => x.trim()).filter(Boolean))];
+          const g = parseInt(stepGoal, 10);
+          if (g >= 1) newMeta.stepGoal = g; else delete newMeta.stepGoal;
+        }
         if (group.trim()) newMeta.group = group.trim(); else delete newMeta.group;
         // core = date it started counting toward Win-the-Day; keep the original date on re-save.
         if (core) { if (typeof newMeta.core !== 'string') newMeta.core = _TODAY; } else delete newMeta.core;
@@ -698,6 +710,55 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                       }}
                     />
                   </Field>
+                  <Field label="Scoring">
+                    <select
+                      value={scoring}
+                      onChange={(e) => setScoring(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                    >
+                      <option value="">Done / not done</option>
+                      <option value="steps">Steps (2 of 3 counts)</option>
+                      <option value="hours">Time toward the target (2h of 3h counts)</option>
+                    </select>
+                    {scoring === 'hours' && parseTargetHours(target) === 0 && (
+                      <div className="mt-1 text-ctp-yellow" style={{ fontSize: 11 }}>Set a target such as "3 hours" or "30 min".</div>
+                    )}
+                  </Field>
+                  {scoring === 'steps' && (
+                    <>
+                      <Field label="Steps (one per line)">
+                        <textarea
+                          value={steps} rows={5}
+                          onChange={(e) => setSteps(e.target.value)}
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                        />
+                      </Field>
+                      <Field label="Steps to count as done">
+                        <input
+                          type="number" min={1}
+                          value={stepGoal}
+                          onChange={(e) => setStepGoal(e.target.value)}
+                          placeholder="all of them"
+                      className="rounded-md w-full"
+                      style={{
+                        padding: '7px 10px', fontSize: 13, fontFamily: 'inherit',
+                        background: 'var(--base)', border: '1px solid var(--surface1)',
+                        color: 'var(--text)', outline: 'none',
+                      }}
+                        />
+                      </Field>
+                    </>
+                  )}
                   <Field label="Time of day">
                     <select
                       value={timeOfDay}

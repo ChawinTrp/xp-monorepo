@@ -107,6 +107,15 @@ export const UNDO_CHECK_IN_ROUTINE = gql`
   }
 `;
 
+export const SET_ROUTINE_PROGRESS = gql`
+  ${NODE_FIELDS}
+  mutation SetRoutineProgress($id: ID!, $steps: [String!], $hours: Float) {
+    setRoutineProgress(id: $id, steps: $steps, hours: $hours) {
+      ...NodeFields
+    }
+  }
+`;
+
 export const REOPEN_TASK = gql`
   ${NODE_FIELDS}
   mutation ReopenTask($id: ID!) {

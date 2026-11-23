@@ -100,6 +100,12 @@ export class XpClient {
     return r.checkInRoutine;
   }
 
+  async setRoutineProgress(id: string, steps?: string[], hours?: number): Promise<XpNode[]> {
+    const doc = `mutation($id:ID!,$steps:[String!],$hours:Float){ setRoutineProgress(id:$id,steps:$steps,hours:$hours){ ${NODE_FIELDS} } }`;
+    const r = await this.gql.request<{ setRoutineProgress: XpNode[] }>(doc, { id, steps, hours });
+    return r.setRoutineProgress;
+  }
+
   async startTaskTimer(id: string): Promise<XpNode> {
     const doc = `mutation($id:ID!){ startTaskTimer(id:$id){ ${NODE_FIELDS} } }`;
     const r = await this.gql.request<{ startTaskTimer: XpNode }>(doc, { id });

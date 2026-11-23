@@ -4,7 +4,7 @@ import { useNodes } from './hooks';
 import { DAY_PLAN, UPSERT_DAY_PLAN } from './graphql';
 import type { XPNode } from './types';
 import {
-  buildQueue, itemStatus, summarizeDay, logicalDateStr,
+  buildQueue, itemStatus, itemScore, summarizeDay, logicalDateStr,
   type ItemStatus, type DaySummary,
 } from './queue';
 
@@ -24,6 +24,7 @@ export interface DayQueue {
   items: DayQueueItem[];      // every planned item, in plan order, with derived status
   pending: XPNode[];          // items still to do (drives the mobile swipe rotation)
   summary: DaySummary;        // total / done / skipped / pending / resolved
+  points: number;             // done items + partial scores, out of summary.total
   today: string;              // logical date (5am boundary) this queue is for
   ready: boolean;             // false while the plan is loading / snapshotting
 }
@@ -96,6 +97,10 @@ export function useDayQueue(): DayQueue {
   }, [dayPlan, byId, today]);
 
   const summary = useMemo(() => summarizeDay(items.map((i) => i.status)), [items]);
+  const points = useMemo(
+    () => Math.round(items.reduce((sum, i) => sum + itemScore(i.node, today), 0) * 10) / 10,
+    [items, today],
+  );
   const pending = useMemo(
     () => items.filter((i) => i.status === 'pending').map((i) => i.node),
     [items],
@@ -103,5 +108,5 @@ export function useDayQueue(): DayQueue {
 
   const ready = planReady && !nodesLoading && (dayPlan != null || error != null || emptyDay);
 
-  return { items, pending, summary, today, ready };
+  return { items, pending, summary, points, today, ready };
 }

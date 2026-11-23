@@ -167,14 +167,15 @@ export class Node {
 ### 6.2 `NodesResolver` (GraphQL)
 
 - **Queries:** `nodes`, `node(id)`, `searchNodes(term, allowedTypes)`
-- **Mutations:** `createNode`, `updateNode`, `deleteNode`, `completeTask`, `checkInRoutine`, `undoCheckInRoutine`, `startTaskTimer`, `stopTaskTimer`
+- **Mutations:** `createNode`, `updateNode`, `deleteNode`, `completeTask`, `checkInRoutine`, `undoCheckInRoutine`, `setRoutineProgress`, `startTaskTimer`, `stopTaskTimer`
 
 ### 6.3 `PropagationService`
 
 Handles all XP logic triggered by mutations:
 - `onTaskCompleted(id)` — marks DONE, credits hours, walks mainParent chain (PROJECT → DOMAIN) and parents[] (SKILLs)
 - `checkInRoutine(id)` — appends `{date, hours}` to `checkIns[]`, updates streak, credits SKILL hours
-- `undoCheckInRoutine(id)` — reverses today's check-in and debits skill hours
+- `undoCheckInRoutine(id)` — reverses today's check-in and debits skill hours; partial work under the goal is kept
+- `setRoutineProgress(id, steps | hours)` — partial credit (2026-11-23) for routines with `metadata.scoring`: replaces today's `progressLog` entry. A met goal becomes a normal check-in (streak, Win-the-Day unchanged); below it, the day earns a fraction of a point. Skills get the difference in hours, once. A timer stop on an `hours` routine adds the session; on a `steps` routine it checks nothing in. MCP: `set_routine_progress`
 - `startTimer(id)` / `stopTimer(id)` — push/close entries in `metadata.timeEntries[]`; `stopTimer` recalculates `actualHours`
 - `getWeekProgress(weekStart?)` — Win-the-Day / Win-the-Week (`WIN_RULES` in `@xp/shared`: day = ≥3 daily routines + ≥1 task, week = ≥4/7, Sunday start) **plus the Habit Contract penalty** (`PENALTY_RULES` + `weekPenalty()` in `@xp/shared`): `lostDays` (past days not won, from `startDate` 2026-09-19), `weekLost` (remaining days can't reach `weekTarget`), `penaltyOwed` (฿100/lost day + ฿300 if week lost). **Derived, never stored** — payments are tracked outside XP (vault `Habit Contract.md`). Exposed to agents via the MCP `week_progress` tool. (The Today `ContractStrip` was removed 2026-11-22: CT ended the Habit Contract 2026-10-16.)
   - **Core habits (graduation):** once any daily ROUTINE has `metadata.core` (a date), Win-the-Day requires *every* core routine whose `core` date ≤ that day (`coreRoutinesOn` / `routineTargetOn` in `@xp/shared`); the fixed `routineThreshold: 3` is only the fallback when nothing is flagged. New habits are created non-core (tracked on Routines, not required) and promoted by ticking "Core habit" in NodeDetail. Roadmap that drives this: vault `02 - Areas/Personal/Habit Roadmap Q4 2026.md`.
@@ -269,7 +270,7 @@ npm run dev -w web
 - ✅ **Phase 8.5: Mobile Shell** — `MobileShell` (≤768px): swipe-card focus deck for TASK + ROUTINE, time-of-day queue ordering, shared timer state with persistent timer bar, Stats tab, FAB quick-capture. Desktop views unchanged and fully responsive via CSS `clamp()` / `auto-fit`.
 - ✅ **Phase 9: Deployment** — API on Render (free tier), frontend on Vercel. Dockerfile ready, env-var-based API URL (`VITE_API_URL`). Live at xp-monorepo-web.vercel.app.
 - ✅ **Phase 10: Obsidian Sync** — ObsidianSyncService one-way push (§12), enabled via OBSIDIAN_VAULT_PATH (local only; Render no-op). Simplification: PROJECTs stay flat files (no project subfolders).
-- ✅ **Phase 10.5: Agent-operated Today (2026-11-22)** — PC Today page is the default desktop view (Now block timeline with Shutdown time from the routine's `metadata.time`, Today's 3, Routines, Calendar, Reminders); `KeyGate` asks for the key on any device when the guard refuses; read-only `GET /gcal/events?date=`. `XP_API_KEY` switched ON in production the same night. Next: daily-numbers collection (`date · metric · value · source`) + MCP write tool, written by the agent from CT's nightly dictation. Gate 2026-11-29: Today page opened ≥5 of 7 mornings, else delete it.
+- ✅ **Phase 10.5: Agent-operated Today (2026-11-22)** — PC Today page is the default desktop view (Now block timeline; Morning and Shutdown start at the Slow Morning / Shutdown routine's `metadata.time`, Today's 3, Routines, Calendar, Reminders); `KeyGate` asks for the key on any device when the guard refuses; read-only `GET /gcal/events?date=`. `XP_API_KEY` switched ON in production the same night. Next: daily-numbers collection (`date · metric · value · source`) + MCP write tool, written by the agent from CT's nightly dictation. Gate 2026-11-29: Today page opened ≥5 of 7 mornings, else delete it.
 - 🔜 **Phase 11: Multi-user** — JWT auth, collaborative access. (Interim: XP_API_KEY bearer guard shipped 2026-07-07.)
 
 ---

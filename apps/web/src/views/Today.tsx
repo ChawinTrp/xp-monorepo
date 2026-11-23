@@ -10,7 +10,8 @@ import {
   UPDATE_NODE, GET_NODES,
 } from '../lib/graphql';
 import type { XPNode } from '../lib/types';
-import { parseLocalDate } from '@xp/shared';
+import { parseLocalDate, progressOn, progressLabel, routineGoal } from '@xp/shared';
+import { RoutineProgress } from '../components/RoutineProgress';
 
 // PC Today: the whole day on one screen, opened first thing (CT, 2026-11-22).
 // Order: Now → Today's 3 → Routines | Calendar → Reminders.
@@ -35,12 +36,28 @@ const BLOCKS: Block[] = [
   { label: 'Shutdown', start: hm(23, 45), end: hm(24), tod: ['night'], tasks: false },
 ];
 
-/** Shutdown starts at the Shutdown routine's metadata.time ("HH:MM") when set, else the default above. */
+/** A routine's metadata.time ("HH:MM") in minutes, or null when missing or invalid. */
+function routineTime(nodes: XPNode[], title: RegExp): number | null {
+  const t = String((nodes.find((n) => n.type === 'ROUTINE' && title.test(n.title))?.metadata as any)?.time ?? '');
+  const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(t);
+  return m ? hm(+m[1], +m[2]) : null;
+}
+
+/**
+ * Morning starts at the Slow Morning routine's metadata.time and Shutdown at the Shutdown
+ * routine's, else the defaults above. A set Morning lasts 90 min and Deep work follows it directly.
+ */
 export function blocksFor(nodes: XPNode[]): Block[] {
-  const t = String((nodes.find((n) => n.type === 'ROUTINE' && /shutdown/i.test(n.title))?.metadata as any)?.time ?? '');
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t);
-  if (!m) return BLOCKS;
-  return BLOCKS.map((b) => (b.label === 'Shutdown' ? { ...b, start: hm(+m[1], +m[2]) } : b));
+  const wake = routineTime(nodes, /slow morning/i);
+  const shutdown = routineTime(nodes, /shutdown/i);
+  // ponytail: wake times after 10:30 are capped so Deep work keeps 30 min; shift Lunch too if that becomes normal
+  const start = wake === null ? null : Math.min(wake, hm(10, 30));
+  return BLOCKS.map((b) => {
+    if (b.label === 'Morning' && start !== null) return { ...b, start, end: start + 90 };
+    if (b.label === 'Deep work' && start !== null) return { ...b, start: start + 90 };
+    if (b.label === 'Shutdown' && shutdown !== null) return { ...b, start: shutdown };
+    return b;
+  });
 }
 
 const fmt = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -84,7 +101,7 @@ interface TodayProps {
 
 export default function Today({ onOpen }: TodayProps) {
   const { breadcrumb, nodes } = useNodes();
-  const { items, summary, ready } = useDayQueue();
+  const { items, summary, points, ready } = useDayQueue();
   const { toast } = useToast();
   const now = useNowMinutes();
   const today = logicalDateStr();
@@ -182,7 +199,7 @@ export default function Today({ onOpen }: TodayProps) {
         <div>
           <h1 className="font-bold m-0" style={{ fontSize: 'clamp(20px, 4vw, 28px)', letterSpacing: -0.4 }}>{dateLabel}</h1>
           <div className="mono text-ctp-subtext1 mt-1.5" style={{ fontSize: 12 }}>
-            {fmt(now)} · {summary.done} done · {summary.skipped} skipped · {summary.pending} left
+            {fmt(now)} · {points}/{summary.total} points · {summary.done} done · {summary.skipped} skipped · {summary.pending} left
           </div>
         </div>
       </div>
@@ -320,10 +337,14 @@ function TodayRow({ item, crumb, onOpen, onDone, onSkip, onUndo }: {
   const { node, status } = item;
   const resolved = status !== 'pending';
   const color = node.type === 'ROUTINE' ? 'var(--c-routine)' : 'var(--c-task)';
+  // Scored routines (steps / hours): partial work shows as "2/3" and is kept when the rest is let go.
+  const day = logicalDateStr();
+  const scored = node.type === 'ROUTINE' && !!routineGoal(node.metadata);
+  const partial = scored && status !== 'done' && progressOn(node.metadata, day) ? progressLabel(node.metadata, day) : null;
 
   return (
     <div
-      className="flex items-center gap-3 rounded-xl"
+      className="rounded-xl"
       style={{
         padding: '12px 14px',
         background: 'var(--surface0)',
@@ -331,6 +352,7 @@ function TodayRow({ item, crumb, onOpen, onDone, onSkip, onUndo }: {
         opacity: resolved ? 0.6 : 1,
       }}
     >
+     <div className="flex items-center gap-3">
       <span
         className="grid place-items-center rounded-lg shrink-0"
         style={{ width: 30, height: 30, background: `color-mix(in srgb, ${color} 14%, transparent)` }}
@@ -352,14 +374,14 @@ function TodayRow({ item, crumb, onOpen, onDone, onSkip, onUndo }: {
         {crumb && <div className="truncate text-ctp-subtext1" style={{ fontSize: 11 }}>{crumb}</div>}
       </div>
 
-      <StatusPill status={status} />
+      <StatusPill status={status} partial={partial} />
 
       <div className="flex items-center gap-1.5 shrink-0">
         {status === 'pending' ? (
           <>
             <RowBtn label="Done" tone="done" onClick={onDone}
               icon={<Icons.CheckCircle size={14} />} />
-            <RowBtn label="Skip" tone="muted" onClick={onSkip}
+            <RowBtn label={partial ? `Keep ${partial}` : 'Skip'} tone="muted" onClick={onSkip}
               icon={<svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4" /><line x1="19" y1="5" x2="19" y2="19" /></svg>} />
           </>
         ) : (
@@ -367,12 +389,18 @@ function TodayRow({ item, crumb, onOpen, onDone, onSkip, onUndo }: {
             icon={<svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6" /><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" /></svg>} />
         )}
       </div>
+     </div>
+      {scored && (
+        <div style={{ marginTop: 10, paddingLeft: 42 }}>
+          <RoutineProgress node={node} />
+        </div>
+      )}
     </div>
   );
 }
 
-function StatusPill({ status }: { status: DayQueueItem['status'] }) {
-  const cfg = {
+function StatusPill({ status, partial }: { status: DayQueueItem['status']; partial: string | null }) {
+  const cfg = partial ? { label: partial, color: 'var(--yellow)' } : {
     done: { label: 'Done', color: 'var(--green)' },
     skipped: { label: 'Skipped', color: 'var(--overlay1)' },
     pending: { label: 'To do', color: 'var(--accent)' },

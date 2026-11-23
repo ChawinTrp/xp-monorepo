@@ -21,6 +21,7 @@ describe('toolDefinitions', () => {
         'create_node',
         'get_node',
         'search_nodes',
+        'set_routine_progress',
         'start_task_timer',
         'stop_task_timer',
         'unarchive_node',

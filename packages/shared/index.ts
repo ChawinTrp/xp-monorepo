@@ -160,6 +160,68 @@ export function weekPenalty(days: Pick<DayWinResult, 'date' | 'won'>[], today: s
   };
 }
 
+// ── Partial credit for routines (opt-in) ──
+// `metadata.scoring` unset → done / not done. 'steps' → tick items of `steps`, goal
+// `stepGoal` (default: all of them). 'hours' → log hours against `target`.
+// Each day's work lives in `metadata.progressLog`, separate from `checkIns`: only
+// reaching the goal checks the routine in, so streaks and Win-the-Day still mean "goal met".
+
+export type RoutineGoal =
+  | { kind: 'steps'; steps: string[]; goal: number }
+  | { kind: 'hours'; goal: number };
+
+export type ProgressEntry = {
+  date: string;      // YYYY-MM-DD logical
+  steps?: string[];  // ticked steps
+  hours?: number;    // hours logged
+  score: number;     // 0..1 of the goal as it was that day
+  credited: number;  // hours already credited to linked skills
+};
+
+/** "30 min" | "2 hours" | "1.5h" → hours; anything else → 0. */
+export function parseTargetHours(target?: string): number {
+  const lower = (target ?? '').toLowerCase().trim();
+  const min = lower.match(/^(\d+)\s*(min|minutes?|m)$/);
+  if (min) return parseFloat(min[1]) / 60;
+  const hour = lower.match(/^([\d.]+)\s*(hours?|h|hr|hrs)$/);
+  return hour ? parseFloat(hour[1]) || 0 : 0;
+}
+
+export function routineGoal(meta: any): RoutineGoal | null {
+  if (meta?.scoring === 'steps' && Array.isArray(meta.steps) && meta.steps.length > 0) {
+    const n = Number(meta.stepGoal);
+    const goal = n >= 1 ? Math.min(Math.floor(n), meta.steps.length) : meta.steps.length;
+    return { kind: 'steps', steps: meta.steps, goal };
+  }
+  if (meta?.scoring === 'hours') {
+    const goal = parseTargetHours(meta.target);
+    if (goal > 0) return { kind: 'hours', goal };
+  }
+  return null;
+}
+
+export function progressOn(meta: any, date: string): ProgressEntry | undefined {
+  const log: ProgressEntry[] = Array.isArray(meta?.progressLog) ? meta.progressLog : [];
+  return log.find((e) => e.date === date);
+}
+
+/** Points a routine earned on `date`: 1 when checked in, else its partial score, else 0. */
+export function routineScoreOn(meta: any, date: string): number {
+  const checked = Array.isArray(meta?.checkIns)
+    ? meta.checkIns.some((c: any) => c.date === date)
+    : Array.isArray(meta?.checkInDates) && meta.checkInDates.includes(date);
+  return checked ? 1 : progressOn(meta, date)?.score ?? 0;
+}
+
+/** "2/3" or "2/3h" for a scored routine; null when it is plain done / not done. */
+export function progressLabel(meta: any, date: string): string | null {
+  const g = routineGoal(meta);
+  if (!g) return null;
+  const e = progressOn(meta, date);
+  const r = (n: number) => Math.round(n * 100) / 100;
+  return g.kind === 'steps' ? `${e?.steps?.length ?? 0}/${g.goal}` : `${r(e?.hours ?? 0)}/${r(g.goal)}h`;
+}
+
 // ── Date helpers (single source of truth) ──
 // All week math is Sunday-start and operates on LOCAL calendar dates so that
 // derived wins/streaks line up with the user's real day. Single-user app:

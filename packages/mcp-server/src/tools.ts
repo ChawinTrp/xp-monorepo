@@ -14,7 +14,7 @@ const json = (value: unknown) => JSON.stringify(value, null, 2);
 
 // Written only by PropagationService — agents may read, never set (NODE.md §3.1).
 const ENGINE_FIELDS = new Set([
-  'checkIns', 'streak', 'bestStreak', 'thisWeek', 'lastCheckInDate', 'creditedHours',
+  'checkIns', 'progressLog', 'streak', 'bestStreak', 'thisWeek', 'lastCheckInDate', 'creditedHours',
   'totalHours', 'level', 'hoursToNext', 'actualHours', 'completedAt', 'completedDate', 'timeEntries',
 ]);
 
@@ -130,6 +130,18 @@ export const toolDefinitions: ToolDef[] = [
     description: 'Check in a ROUTINE for today (updates streak and credits skill hours).',
     inputSchema: { id: z.string() },
     handler: async (client, args) => json(await client.checkInRoutine(args.id)),
+  },
+  {
+    name: 'set_routine_progress',
+    description:
+      "Replace today's partial progress on a scored ROUTINE (metadata.scoring 'steps' | 'hours'): pass ALL steps " +
+      'ticked so far today, or the total hours so far today. Reaching the goal checks the routine in.',
+    inputSchema: {
+      id: z.string(),
+      steps: z.array(z.string()).optional(),
+      hours: z.number().min(0).max(24).optional(),
+    },
+    handler: async (client, args) => json(await client.setRoutineProgress(args.id, args.steps, args.hours)),
   },
   {
     name: 'week_progress',

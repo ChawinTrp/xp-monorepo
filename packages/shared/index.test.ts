@@ -8,7 +8,7 @@ import {
   DAY_CUTOFF_HOUR,
   dayWon,
   weekWon, weekPenalty, coreRoutinesOn, routineTargetOn,
-  WIN_RULES,
+  WIN_RULES, routineGoal, routineScoreOn, progressLabel, parseTargetHours,
 } from './index';
 
 describe('parseLocalDate', () => {
@@ -202,5 +202,28 @@ describe('weekPenalty', () => {
 
   it('owes nothing on a clean week', () => {
     expect(weekPenalty(wk([true, true, true, true, true, true, true]), '2026-09-26').owed).toBe(0);
+  });
+});
+
+describe('partial credit', () => {
+  const steps = { scoring: 'steps', steps: ['a', 'b', 'c', 'd'], stepGoal: 3 };
+  const d = '2026-11-23';
+  it('reads the goal, and leaves plain routines unscored', () => {
+    expect(routineGoal({ target: '3 hours' })).toBeNull();
+    expect(routineGoal({ scoring: 'steps', steps: [] })).toBeNull();
+    expect(routineGoal({ scoring: 'hours', target: '1x/week' })).toBeNull();
+    expect(routineGoal(steps)).toMatchObject({ kind: 'steps', goal: 3 });
+    expect(routineGoal({ ...steps, stepGoal: 9 })).toMatchObject({ goal: 4 });
+    expect(routineGoal({ ...steps, stepGoal: undefined })).toMatchObject({ goal: 4 });
+    expect(routineGoal({ scoring: 'hours', target: '3 hours' })).toEqual({ kind: 'hours', goal: 3 });
+    expect(parseTargetHours('30 min')).toBe(0.5);
+  });
+  it('scores a day: check-in = 1, partial = its score, nothing = 0', () => {
+    const meta = { ...steps, progressLog: [{ date: d, steps: ['a', 'b'], score: 2 / 3, credited: 0 }] };
+    expect(routineScoreOn(meta, d)).toBeCloseTo(0.667, 2);
+    expect(progressLabel(meta, d)).toBe('2/3');
+    expect(routineScoreOn(meta, '2026-11-24')).toBe(0);
+    expect(routineScoreOn({ checkIns: [{ date: d, hours: 0 }] }, d)).toBe(1);
+    expect(progressLabel({ scoring: 'hours', target: '3 hours' }, d)).toBe('0/3h');
   });
 });
