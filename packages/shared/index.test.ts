@@ -8,7 +8,7 @@ import {
   DAY_CUTOFF_HOUR,
   dayWon,
   weekWon, weekPenalty, coreRoutinesOn, routineTargetOn,
-  WIN_RULES, routineGoal, routineScoreOn, progressLabel, parseTargetHours,
+  WIN_RULES, routineGoal, routineScoreOn, progressLabel, parseTargetHours, parseSteps, formatSteps,
 } from './index';
 
 describe('parseLocalDate', () => {
@@ -217,6 +217,11 @@ describe('partial credit', () => {
     expect(routineGoal({ ...steps, stepGoal: undefined })).toMatchObject({ goal: 4 });
     expect(routineGoal({ scoring: 'hours', target: '3 hours' })).toEqual({ kind: 'hours', goal: 3 });
     expect(parseTargetHours('30 min')).toBe(0.5);
+  });
+  it('parses steps with optional descriptions, and round-trips', () => {
+    const parsed = parseSteps('Sun: 10 min, e.g. 9:30 walk\n\n Read \nRead: again');
+    expect(parsed).toEqual({ steps: ['Sun', 'Read'], stepNotes: { Sun: '10 min, e.g. 9:30 walk' } });
+    expect(parseSteps(formatSteps(parsed))).toEqual(parsed);
   });
   it('scores a day: check-in = 1, partial = its score, nothing = 0', () => {
     const meta = { ...steps, progressLog: [{ date: d, steps: ['a', 'b'], score: 2 / 3, credited: 0 }] };

@@ -162,7 +162,7 @@ export function weekPenalty(days: Pick<DayWinResult, 'date' | 'won'>[], today: s
 
 // ── Partial credit for routines (opt-in) ──
 // `metadata.scoring` unset → done / not done. 'steps' → tick items of `steps`, goal
-// `stepGoal` (default: all of them). 'hours' → log hours against `target`.
+// `stepGoal` (default: all of them), optional `stepNotes` = description per step. 'hours' → log hours against `target`.
 // Each day's work lives in `metadata.progressLog`, separate from `checkIns`: only
 // reaching the goal checks the routine in, so streaks and Win-the-Day still mean "goal met".
 
@@ -198,6 +198,27 @@ export function routineGoal(meta: any): RoutineGoal | null {
     if (goal > 0) return { kind: 'hours', goal };
   }
   return null;
+}
+
+/** Editor text ("Name" or "Name: what it means", one per line) → step names + their descriptions. */
+export function parseSteps(text: string): { steps: string[]; stepNotes: Record<string, string> } {
+  const stepNotes: Record<string, string> = {};
+  const steps: string[] = [];
+  for (const line of text.split('\n')) {
+    const i = line.indexOf(':');
+    const name = (i < 0 ? line : line.slice(0, i)).trim();
+    if (!name || steps.includes(name)) continue;
+    steps.push(name);
+    const note = i < 0 ? '' : line.slice(i + 1).trim();
+    if (note) stepNotes[name] = note;
+  }
+  return { steps, stepNotes };
+}
+
+/** Inverse of parseSteps, for filling the editor. */
+export function formatSteps(meta: any): string {
+  const steps: string[] = Array.isArray(meta?.steps) ? meta.steps : [];
+  return steps.map((n) => (meta?.stepNotes?.[n] ? `${n}: ${meta.stepNotes[n]}` : n)).join('\n');
 }
 
 export function progressOn(meta: any, date: string): ProgressEntry | undefined {

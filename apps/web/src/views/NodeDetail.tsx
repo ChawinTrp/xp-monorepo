@@ -6,7 +6,7 @@ import { TYPE_COLORS } from '../lib/types';
 import { CREATE_NODE, UPDATE_NODE, DELETE_NODE, GET_NODES, COMPLETE_TASK, START_TIMER, STOP_TIMER } from '../lib/graphql';
 import { getPersonCatchup } from '../lib/queue';
 import { circleTagsOf, circleOfPerson, isCircleTag } from '../lib/circles';
-import { ALLOWED_MAIN_PARENTS, logicalDateStr, addDays, type NodeType, parseTargetHours } from '@xp/shared';
+import { ALLOWED_MAIN_PARENTS, logicalDateStr, addDays, type NodeType, parseTargetHours, parseSteps, formatSteps } from '@xp/shared';
 
 // ── Streak visual helpers ──
 const _TODAY = logicalDateStr();
@@ -95,7 +95,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
       setCadence(meta.cadence ?? '');
       setTarget(meta.target ?? '');
       setScoring(meta.scoring ?? '');
-      setSteps(Array.isArray(meta.steps) ? meta.steps.join('\n') : '');
+      setSteps(formatSteps(meta));
       setStepGoal(meta.stepGoal != null ? String(meta.stepGoal) : '');
       setGroup(meta.group ?? '');
       setTimesPerWeek(meta.weekTarget != null ? String(meta.weekTarget) : '');
@@ -228,7 +228,7 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
         if (target.trim()) newMeta.target = target.trim(); else delete newMeta.target;
         if (scoring) newMeta.scoring = scoring; else delete newMeta.scoring;
         if (scoring === 'steps') {
-          newMeta.steps = [...new Set(steps.split('\n').map((x) => x.trim()).filter(Boolean))];
+          Object.assign(newMeta, parseSteps(steps)); // steps + stepNotes
           const g = parseInt(stepGoal, 10);
           if (g >= 1) newMeta.stepGoal = g; else delete newMeta.stepGoal;
         }
@@ -731,9 +731,9 @@ export default function NodeDetail({ id, onOpen, onClose }: NodeDetailProps) {
                   </Field>
                   {scoring === 'steps' && (
                     <>
-                      <Field label="Steps (one per line)">
+                      <Field label="Steps (one per line, “Name: description”)">
                         <textarea
-                          value={steps} rows={5}
+                          value={steps} rows={7}
                           onChange={(e) => setSteps(e.target.value)}
                       className="rounded-md w-full"
                       style={{

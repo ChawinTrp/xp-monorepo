@@ -49,14 +49,22 @@ export function RoutineProgress({ node, onCard = false, onGoalMet }: {
   let controls;
   if (goal.kind === 'steps') {
     const ticked = entry?.steps ?? [];
+    const notes = ((node.metadata as any)?.stepNotes ?? {}) as Record<string, string>;
+    // With descriptions the steps become full-width rows; without, compact chips.
+    const asRows = goal.steps.some((n) => notes[n]);
     controls = goal.steps.map((step) => {
       const on = ticked.includes(step);
       const next = on ? ticked.filter((t) => t !== step) : [...ticked, step];
       return (
         // One save at a time: each sends the full list, so a second tap must see the first.
-        <button key={step} type="button" aria-pressed={on} disabled={loading} style={chip(on)}
+        <button key={step} type="button" aria-pressed={on} disabled={loading}
+          className={asRows ? 'w-full text-left' : undefined}
+          style={asRows ? { ...chip(on), borderRadius: 10, padding: '6px 12px' } : chip(on)}
           onClick={() => put({ steps: next }, next.length >= goal.goal)}>
           {on ? '✓ ' : ''}{step}
+          {notes[step] && (
+            <span style={{ display: 'block', fontSize: 11, fontWeight: 400, lineHeight: 1.3, opacity: 0.85 }}>{notes[step]}</span>
+          )}
         </button>
       );
     });
@@ -77,7 +85,8 @@ export function RoutineProgress({ node, onCard = false, onGoalMet }: {
 
   return (
     // Stop pointer events here so the phone card doesn't start a swipe (it captures the pointer).
-    <div className="flex items-center gap-1.5 flex-wrap" onPointerDown={(e) => e.stopPropagation()}>
+    <div className="flex items-center gap-1.5 flex-wrap" onPointerDown={(e) => e.stopPropagation()}
+      style={onCard ? { marginTop: 12, maxHeight: '34vh', overflowY: 'auto', touchAction: 'pan-y' } : undefined}>
       <span className="mono font-semibold" style={{ fontSize: onCard ? 15 : 12, color: ink, marginRight: 4 }}>
         {progressLabel(node.metadata, today)}
       </span>
