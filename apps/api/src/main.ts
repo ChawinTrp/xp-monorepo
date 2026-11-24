@@ -1,3 +1,7 @@
+// The logical day (5am cutoff) is CT's day, but Render runs in UTC: before noon in Bangkok the
+// server's "today" was still yesterday. Single-user app, so one fixed zone (XP.md §11).
+process.env.TZ = 'Asia/Bangkok';
+
 // Load .env in dev; Cloud Run injects env vars directly in production
 if (process.env.NODE_ENV !== 'production') {
   const { config } = require('dotenv');
